@@ -1,0 +1,31 @@
+Basic Project Structure and Authentication (First Priority)
+Set up the React + Vite project with Tailwind CSS
+Implement Firebase Authentication
+Create basic routing and protected routes
+Set up MongoDB connection and basic user schema
+Core User Management (Second Priority)
+Implement user registration with email whitelist
+Create basic user profile management
+Set up admin role and basic admin dashboard
+Implement user list view for admins
+Game Data Integration (Third Priority)
+Set up connection to the game data microservice
+Create basic game listing interface
+Implement week selection mechanism
+Set up basic game data display
+Pick Selection System (Fourth Priority)
+Create pick selection interface
+Implement pick submission logic
+Add pick counter and validation
+Set up pick storage in MongoDB
+Standings and Results (Fifth Priority)
+Implement weekly standings view
+Create overall standings calculation
+Set up score integration
+Add historical week viewing
+Additional Features (Final Priority)
+Trash talk submission system
+Email integration
+Advanced admin features
+UI polish and optimizations
+Let me help you get started with the first priority. I'll create the basic React + Vite project structure with the necessary dependencies:
