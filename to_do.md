@@ -1,0 +1,10 @@
+- Column filtering
+- Column sorting
+- Break out the options each into their own column
+- Submit buttion
+- User login
+- User settings 
+- Abbreviations
+- Locs at the top
+- Comment section per game + overall comment
+- Submission emails commishioner, ccs the sender
