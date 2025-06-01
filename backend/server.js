@@ -339,3 +339,45 @@ app.delete('/api/whitelist/:email', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Get all games for a given week (now returns all games from cy_2025.odds_2025_06_01)
+app.get('/api/games', async (req, res) => {
+  try {
+    // Connect to the correct database and collection
+    const dbClient = await client.connect();
+    const db = dbClient.db('cy_2025');
+    const games = await db.collection('odds_2025_06_01').find({}).toArray();
+    res.json(games);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit picks for a user
+app.post('/api/picks', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { userId, weekNumber, picks } = req.body;
+    if (!userId || !weekNumber || !Array.isArray(picks) || picks.length === 0) {
+      return res.status(400).json({ error: 'userId, weekNumber, and picks array are required' });
+    }
+    // Check how many picks the user already has for this week
+    const existingPicks = await db.collection('picks').find({ userId: new ObjectId(userId), weekNumber: parseInt(weekNumber, 10) }).toArray();
+    if (existingPicks.length + picks.length > 3) {
+      return res.status(400).json({ error: 'Cannot submit more than 3 picks per week' });
+    }
+    // Lock each pick and add metadata
+    const now = new Date();
+    const picksToInsert = picks.map(pick => ({
+      ...pick,
+      userId: new ObjectId(userId),
+      weekNumber: parseInt(weekNumber, 10),
+      locked: true,
+      submittedAt: now
+    }));
+    await db.collection('picks').insertMany(picksToInsert);
+    res.status(201).json({ message: 'Picks submitted', picks: picksToInsert });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

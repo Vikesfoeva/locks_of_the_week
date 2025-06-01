@@ -12,5 +12,8 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       'Cross-Origin-Embedder-Policy': 'unsafe-none',
     },
+    proxy: {
+      '/api': 'http://localhost:5001'
+    }
   },
 }) 

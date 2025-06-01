@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import Layout from './components/Layout'
+import Picks from './pages/Picks'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <AdminDashboard />
             </PrivateRoute>
           } />
+          <Route path="/picks" element={<Picks />} />
         </Route>
       </Routes>
     </AuthProvider>
