@@ -1,21 +1,29 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
+// PrivateRoute.jsx
 export default function PrivateRoute({ children, adminOnly = false }) {
-  const { currentUser, loading } = useAuth()
+  const { currentUser, loading } = useAuth();
+
+  console.log('[PrivateRoute] Checking route. Loading:', loading, 'CurrentUser:', currentUser);
 
   if (loading) {
-    return null // or a spinner if you want
+    console.log('[PrivateRoute] Still loading, returning null.');
+    return null; 
   }
 
   if (!currentUser) {
-    return <Navigate to="/login" />
+    console.log('[PrivateRoute] No currentUser, redirecting to /login.');
+    return <Navigate to="/login" />;
   }
 
-  // Add admin check here once we implement user roles
-  if (adminOnly && !currentUser.isAdmin) {
-    return <Navigate to="/" />
+  console.log('[PrivateRoute] User found:', currentUser?.email, 'IsAdmin property:', currentUser?.isAdmin);
+
+  if (adminOnly && !currentUser.isAdmin) { // This check needs currentUser.isAdmin to be populated
+    console.log('[PrivateRoute] Admin only route, but user is not admin. Redirecting to /.');
+    return <Navigate to="/" />;
   }
 
-  return children
-} 
+  console.log('[PrivateRoute] Access granted.');
+  return children;
+}

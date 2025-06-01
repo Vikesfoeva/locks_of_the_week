@@ -11,10 +11,6 @@ if (!process.env.MONGO_URI) {
   process.exit(1);
 }
 
-const app = express();
-
-// Enhanced CORS configuration
-console.log(process.env.FRONTEND_URL)
 const corsOptions = { 
   origin: process.env.FRONTEND_URL || 'http://localhost:5178', // Replace with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -23,13 +19,11 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
-app.use(express.json());
+const app = express();
 
-// Request logging middleware
-// app.use((req, res, next) => {
-//   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-//   next();
-// });
+app.use(cors(corsOptions));// Enhanced CORS configuration
+
+app.use(express.json());
 
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
