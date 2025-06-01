@@ -55,19 +55,27 @@ export function AuthProvider({ children }) {
 
   async function loginWithGoogle() {
     setAuthError('')
-    setLoading(true); // Set loading true before initiating redirect
+    setLoading(true);
     try {
+      // First check if the user is whitelisted
+      const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: auth.currentUser?.email })
+      });
+      
+      const checkData = await checkResponse.json();
+      if (!checkData.allowed) {
+        setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
+        setLoading(false);
+        return;
+      }
 
       await signInWithRedirect(auth, googleProvider);
-      console.log('hi')
-      // signInWithRedirect doesn't resolve with a user object directly here,
-      // the redirect result is handled by getRedirectResult and onAuthStateChanged.
-      // setLoading(false) will be handled by onAuthStateChanged or getRedirectResult logic.
     } catch (error) {
       setAuthError(error.message || 'Failed to initiate Google sign-in');
       console.error("[AuthContext] Error initiating Google sign-in:", error);
-      setLoading(false); // Set loading false if redirect initiation fails
-      // throw error // Optional: re-throw if Login page handles it
+      setLoading(false);
     }
   }
 
@@ -76,15 +84,28 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      // User is signed in. onAuthStateChanged will handle setting currentUser.
-      // You can access the result.user here if needed for immediate post-popup actions,
-      // but typically onAuthStateChanged is the central place to manage user state.
+      
+      // Check whitelist status after successful Google sign-in
+      const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: result.user.email })
+      });
+      
+      const checkData = await checkResponse.json();
+      if (!checkData.allowed) {
+        // Sign out the user if not whitelisted
+        await signOut(auth);
+        setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
+        setLoading(false);
+        return;
+      }
+
       console.log("[AuthContext] Google sign-in with popup successful:", result.user.email);
-      // setLoading(false) will be handled by onAuthStateChanged's logic
     } catch (error) {
       setAuthError(error.message || 'Failed to sign in with Google popup');
       console.error("[AuthContext] Error with Google sign-in popup:", error);
-      setLoading(false); // Set loading false if popup fails
+      setLoading(false);
     }
   }
 
@@ -92,33 +113,6 @@ export function AuthProvider({ children }) {
     setAuthError('')
     return signOut(auth)
   }
-
-  // Call getRedirectResult once on component mount - REMOVED PROACTIVE CALL
-  // useEffect(() => {
-  //   console.log('[AuthContext] AuthProvider mounted. Calling getRedirectResult proactively.');
-  //   setLoading(true); // Explicitly set loading true here
-  //   getRedirectResult(auth)
-  //     .then((result) => {
-  //       console.log('[AuthContext] Proactive getRedirectResult.then() - Result:', result);
-  //       if (result && result.user) {
-  //         // If a user is found, onAuthStateChanged will handle them.
-  //         // No need to setCurrentUser here directly, as onAuthStateChanged will fire.
-  //         console.log('[AuthContext] User found by proactive getRedirectResult:', result.user.email);
-  //       }
-  //       // If no user from redirect, onAuthStateChanged will handle the null user state.
-  //     })
-  //     .catch((error) => {
-  //       console.error("[AuthContext] Error from proactive getRedirectResult: ", error);
-  //       setAuthError(error.message || 'Failed to process sign-in after redirect');
-  //       setCurrentUser(null);
-  //       setLoading(false); // Set loading false on error
-  //     })
-  //     .finally(() => {
-  //       // setLoading(false) here might be too early if onAuthStateChanged still needs to run.
-  //       // The onAuthStateChanged listener will manage the final loading state.
-  //       console.log('[AuthContext] Proactive getRedirectResult.finally()');
-  //     });
-  // }, []); // Empty dependency array ensures this runs only once on mount
 
   const handleUserAuth = async (firebaseUser) => {
     if (firebaseUser) {
@@ -164,53 +158,86 @@ export function AuthProvider({ children }) {
     if (firebaseUser) {
       console.log('[AuthContext] Firebase user authenticated:', firebaseUser.email);
       try {
-        // Fetch user profile from your backend to get 'role' and other app-specific data
-        // Use email as the query parameter, as your backend /api/users supports it
-        const response = await fetch(`${API_URL}/users?email=${encodeURIComponent(firebaseUser.email)}`);
+        // Check whitelist status first
+        const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: firebaseUser.email })
+        });
         
-        if (!response.ok) {
-          // This could happen if the user is in Firebase Auth but not yet in your MongoDB users collection
-          // Or if there's a general API error
-          console.error(`[AuthContext] Failed to fetch user profile from DB: ${response.status} ${response.statusText}`);
-          // Decide how to handle: sign out, show error, or proceed with a basic Firebase user object
-          setCurrentUser({ ...firebaseUser, isAdmin: false }); // Default to not admin if profile fetch fails
-          setAuthError('Failed to load user profile details.');
-          // setLoading(false) will be handled in the finally block of the outer try/catch in useEffect
-          return; // Exit early for this specific case within processUserAuthentication
-        }
-        
-        const usersArray = await response.json();
-        if (!usersArray || usersArray.length === 0) {
-          console.warn('[AuthContext] User not found in application database for email:', firebaseUser.email);
-          setCurrentUser({ ...firebaseUser, isAdmin: false }); // User exists in Firebase, not in app DB
-          setAuthError('User profile not found in application database.');
+        const checkData = await checkResponse.json();
+        if (!checkData.allowed) {
+          // Sign out the user if not whitelisted
+          await signOut(auth);
+          setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
+          setCurrentUser(null);
+          setLoading(false);
           return;
         }
 
-        const appUserProfile = usersArray[0]; // Your API returns an array, take the first element
+        // If user doesn't exist in our database yet, create them
+        if (!checkData.userExists) {
+          const firstName = localStorage.getItem('pendingFirstName') || firebaseUser.displayName?.split(' ')[0] || '';
+          const lastName = localStorage.getItem('pendingLastName') || firebaseUser.displayName?.split(' ').slice(1).join(' ') || '';
+          const userDoc = {
+            email: firebaseUser.email,
+            firebaseUid: firebaseUser.uid,
+            firstName,
+            lastName,
+            role: 'user',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
 
-        // Augment the Firebase user object with your application-specific data
+          const createRes = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userDoc)
+          });
+
+          if (!createRes.ok) {
+            const errData = await createRes.json().catch(() => ({}));
+            throw new Error(errData.error || 'Failed to create user in application database.');
+          }
+
+          // Remove pending names from localStorage after successful creation
+          localStorage.removeItem('pendingFirstName');
+          localStorage.removeItem('pendingLastName');
+        }
+
+        // Fetch the user profile
+        const response = await fetch(`${API_URL}/users?email=${encodeURIComponent(firebaseUser.email)}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const usersArray = await response.json();
+        if (!usersArray || usersArray.length === 0) {
+          throw new Error('User profile not found in application database');
+        }
+
+        const appUserProfile = usersArray[0];
         const augmentedUser = {
-          ...firebaseUser,      // Spread Firebase properties (uid, email, etc.)
-          ...appUserProfile,    // Spread your MongoDB user properties (firstName, lastName, role, _id etc.)
-          isAdmin: appUserProfile.role === 'admin' // Explicitly set isAdmin based on the role
+          ...firebaseUser,
+          ...appUserProfile,
+          isAdmin: appUserProfile.role === 'admin'
         };
         
         console.log('[AuthContext] Augmented user object:', JSON.stringify(augmentedUser, null, 2));
         setCurrentUser(augmentedUser);
-        setAuthError(''); // Clear any previous auth errors
+        setAuthError('');
 
-      } catch (profileError) {
-        console.error('[AuthContext] Error fetching/augmenting user profile:', profileError);
-        // Fallback to just the Firebase user object if there's an unexpected error during profile fetch/processing
-        setCurrentUser({ ...firebaseUser, isAdmin: false }); // Default to not admin on error
-        setAuthError('Could not load complete user profile.');
+      } catch (error) {
+        console.error('[AuthContext] Error in user authentication process:', error);
+        setAuthError(error.message || 'Failed to process user authentication');
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
       }
     } else {
-      // No Firebase user
       setCurrentUser(null);
+      setLoading(false);
     }
-    // setLoading(false) will be handled by the main onAuthStateChanged effect's finally or direct call
   };
 
   useEffect(() => {

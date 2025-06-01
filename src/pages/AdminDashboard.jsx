@@ -11,6 +11,12 @@ export default function AdminDashboard() {
   const [activeWeek, setActiveWeek] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [saveStatus, setSaveStatus] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch users and whitelist on component mount
   useEffect(() => {
@@ -66,30 +72,46 @@ export default function AdminDashboard() {
     }
   };
 
-  // Handler for deleting a user
-  const handleDeleteUser = async (userId, isAdmin) => {
-    if (isAdmin) {
-      alert('Cannot delete admin users');
+  // Handler for initiating user deletion
+  const initiateDeleteUser = (user) => {
+    if (user.role === 'admin') {
       return;
     }
-    
-    if (!window.confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+    setUserToDelete(user);
+    setDeleteModalOpen(true);
+  };
+
+  // Handler for confirming user deletion
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
     
     try {
-      const response = await fetch(`${API_URL}/users/${userId}`, {
+      // Delete from users collection
+      const userResponse = await fetch(`${API_URL}/users/${userToDelete._id}`, {
         method: 'DELETE'
       });
       
-      if (!response.ok) {
+      if (!userResponse.ok) {
         throw new Error('Failed to delete user');
+      }
+
+      // Delete from whitelist collection
+      const whitelistResponse = await fetch(`${API_URL}/whitelist/${userToDelete.email}`, {
+        method: 'DELETE'
+      });
+
+      if (!whitelistResponse.ok && whitelistResponse.status !== 404) {
+        throw new Error('Failed to delete user from whitelist');
       }
       
       // Update local state after successful deletion
-      setUsers(users.filter(user => user._id !== userId));
+      setUsers(users.filter(user => user._id !== userToDelete._id));
+      setWhitelist(whitelist.filter(e => e !== userToDelete.email));
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDeleteModalOpen(false);
+      setUserToDelete(null);
     }
   };
 
@@ -129,6 +151,69 @@ export default function AdminDashboard() {
     return whitelist.filter(email => !registeredEmails.includes(email));
   };
 
+  // Handler for starting edit mode
+  const startEditing = (user) => {
+    setEditingUser(user._id);
+    setEditFormData({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      venmoHandle: user.venmoHandle || '',
+      duesPaid: user.duesPaid || false,
+      dateDuesPaid: user.dateDuesPaid || ''
+    });
+    setSaveStatus({});
+  };
+
+  // Handler for canceling edit mode
+  const cancelEditing = () => {
+    setIsSubmitting(true);
+    setEditingUser(null);
+    setEditFormData({});
+    setSaveStatus({});
+    setTimeout(() => setIsSubmitting(false), 300);
+  };
+
+  // Handler for saving user changes
+  const saveUserChanges = async () => {
+    setIsSubmitting(true);
+    try {
+      setSaveStatus({ loading: true });
+      const user = users.find(u => u._id === editingUser);
+      const updates = {
+        ...editFormData,
+        updatedAt: new Date()
+      };
+      
+      const response = await fetch(`${API_URL}/users/${editingUser}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+      
+      // Update local state
+      setUsers(users.map(u => 
+        u._id === editingUser 
+          ? { ...u, ...updates }
+          : u
+      ));
+      
+      setSaveStatus({ success: true });
+      setTimeout(() => {
+        setEditingUser(null);
+        setEditFormData({});
+        setSaveStatus({});
+        setIsSubmitting(false);
+      }, 1500);
+    } catch (err) {
+      setSaveStatus({ error: err.message });
+      setIsSubmitting(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center">Loading...</div>;
   }
@@ -139,6 +224,42 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm User Deletion</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete the user <span className="font-medium">{userToDelete.email}</span>? 
+              This action will:
+            </p>
+            <ul className="list-disc list-inside text-gray-600 mb-6">
+              <li>Remove the user from the system</li>
+              <li>Remove their email from the whitelist</li>
+              <li>Delete all associated data</li>
+            </ul>
+            <p className="text-red-600 mb-6">This action cannot be undone.</p>
+            <div className="flex justify-end space-x-4">
+              <button
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setUserToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                onClick={confirmDeleteUser}
+              >
+                Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
         <p className="mt-2 text-gray-600">Manage users, whitelist, and league settings.</p>
@@ -164,22 +285,32 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, idx) => (
+              {users.map((user) => (
                 <tr key={user._id} className="even:bg-gray-50">
                   <td className="border px-2 py-1 text-xs">{user.email}</td>
                   <td className="border px-2 py-1">
-                    <input
-                      className="input input-sm"
-                      value={user.firstName || ''}
-                      onChange={e => handleUserChange(idx, 'firstName', e.target.value)}
-                    />
+                    {editingUser === user._id ? (
+                      <input
+                        className="input input-sm w-full"
+                        value={editFormData.firstName}
+                        onChange={e => setEditFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                        placeholder="First Name"
+                      />
+                    ) : (
+                      <span>{user.firstName || '-'}</span>
+                    )}
                   </td>
                   <td className="border px-2 py-1">
-                    <input
-                      className="input input-sm"
-                      value={user.lastName || ''}
-                      onChange={e => handleUserChange(idx, 'lastName', e.target.value)}
-                    />
+                    {editingUser === user._id ? (
+                      <input
+                        className="input input-sm w-full"
+                        value={editFormData.lastName}
+                        onChange={e => setEditFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                        placeholder="Last Name"
+                      />
+                    ) : (
+                      <span>{user.lastName || '-'}</span>
+                    )}
                   </td>
                   <td className="border px-2 py-1 text-center">
                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -191,27 +322,47 @@ export default function AdminDashboard() {
                     </span>
                   </td>
                   <td className="border px-2 py-1">
-                    <input
-                      className="input input-sm"
-                      value={user.venmoHandle || ''}
-                      onChange={e => handleUserChange(idx, 'venmoHandle', e.target.value)}
-                    />
+                    {editingUser === user._id ? (
+                      <input
+                        className="input input-sm w-full"
+                        value={editFormData.venmoHandle}
+                        onChange={e => setEditFormData(prev => ({ ...prev, venmoHandle: e.target.value }))}
+                        placeholder="Venmo Handle"
+                      />
+                    ) : (
+                      <span>{user.venmoHandle || '-'}</span>
+                    )}
                   </td>
                   <td className="border px-2 py-1 text-center">
-                    <input
-                      type="checkbox"
-                      checked={user.duesPaid || false}
-                      onChange={e => handleUserChange(idx, 'duesPaid', e.target.checked)}
-                    />
+                    {editingUser === user._id ? (
+                      <input
+                        type="checkbox"
+                        checked={editFormData.duesPaid}
+                        onChange={e => setEditFormData(prev => ({ ...prev, duesPaid: e.target.checked }))}
+                        className="h-4 w-4"
+                      />
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        user.duesPaid 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {user.duesPaid ? 'Paid' : 'Unpaid'}
+                      </span>
+                    )}
                   </td>
                   <td className="border px-2 py-1">
-                    <input
-                      className="input input-sm"
-                      type="date"
-                      value={user.dateDuesPaid || ''}
-                      onChange={e => handleUserChange(idx, 'dateDuesPaid', e.target.value)}
-                      disabled={!user.duesPaid}
-                    />
+                    {editingUser === user._id ? (
+                      <input
+                        className="input input-sm w-full"
+                        type="date"
+                        value={editFormData.dateDuesPaid}
+                        onChange={e => setEditFormData(prev => ({ ...prev, dateDuesPaid: e.target.value }))}
+                        disabled={!editFormData.duesPaid}
+                      />
+                    ) : (
+                      <span>{user.dateDuesPaid || '-'}</span>
+                    )}
                   </td>
                   <td className="border px-2 py-1 text-center">
                     {user.picksSubmitted ? 'Yes' : 'No'}
@@ -219,19 +370,65 @@ export default function AdminDashboard() {
                   <td className="border px-2 py-1 text-center">
                     {user.picksMade || 0}/3
                   </td>
-                  <td className="border px-2 py-1 text-center">
-                    <button
-                      className={`btn btn-sm ${
-                        user.role === 'admin' 
-                          ? 'btn-disabled' 
-                          : 'btn-error'
-                      }`}
-                      onClick={() => handleDeleteUser(user._id, user.role === 'admin')}
-                      disabled={user.role === 'admin'}
-                      title={user.role === 'admin' ? 'Cannot delete admin users' : 'Delete user'}
-                    >
-                      Delete
-                    </button>
+                  <td className="border px-2 py-1 text-center space-x-2">
+                    {editingUser === user._id ? (
+                      <div className="flex flex-col items-center space-y-2">
+                        <div className="flex flex-row space-x-2">
+                          <button
+                            className="px-3 py-1 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700"
+                            onClick={saveUserChanges}
+                            disabled={saveStatus.loading || isSubmitting}
+                          >
+                            {saveStatus.loading ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            className="px-3 py-1 rounded text-sm font-medium bg-gray-600 text-white hover:bg-gray-700"
+                            onClick={cancelEditing}
+                            disabled={saveStatus.loading || isSubmitting}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <div>
+                          {saveStatus.success && (
+                            <span className="text-green-600">✓ Saved</span>
+                          )}
+                          {saveStatus.error && (
+                            <span className="text-red-600">✗ Error</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          className="p-1"
+                          onClick={() => startEditing(user)}
+                          title="Edit user details"
+                          style={{ lineHeight: 0 }}
+                        >
+                          {/* Larger Pencil SVG */}
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-blue-600 hover:text-blue-800">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 5.487a2.25 2.25 0 1 1 3.182 3.182l-9.75 9.75a2 2 0 0 1-.708.464l-4.25 1.5a.5.5 0 0 1-.637-.637l1.5-4.25a2 2 0 0 1 .464-.708l9.75-9.75z" />
+                          </svg>
+                        </button>
+                        <button
+                          className={`p-1 rounded transition-colors ${
+                            user.role === 'admin'
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-red-600 hover:text-red-800'
+                          }`}
+                          onClick={() => initiateDeleteUser(user)}
+                          disabled={user.role === 'admin'}
+                          title={user.role === 'admin' ? 'Cannot delete admin users' : 'Delete user'}
+                          style={{ lineHeight: 0 }}
+                        >
+                          {/* Trash Can SVG */}
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className={user.role === 'admin' ? 'text-gray-400' : 'text-red-600 group-hover:text-red-800'}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

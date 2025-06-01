@@ -11,8 +11,27 @@ if (!process.env.MONGO_URI) {
   process.exit(1);
 }
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5174∂',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177', 
+  'http://localhost:5178', 
+];
+
+
 const corsOptions = { 
-  origin: process.env.FRONTEND_URL || 'http://localhost:5178', // Replace with your frontend URL
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -229,10 +248,38 @@ app.get('/api/whitelist/check', async (req, res) => {
       return res.status(400).json({ allowed: false, error: 'Email is required' });
     }
     const exists = await db.collection('whitelist').findOne({ email });
-    console.log('DB query complete', exists);
+    console.log('Whitelist check result:', exists ? 'Found' : 'Not found');
     res.json({ allowed: !!exists });
   } catch (err) {
-    console.error('Error in /api/whitelist/check:', err);
+    console.error('Error checking whitelist:', err);
+    res.status(500).json({ allowed: false, error: err.message });
+  }
+});
+
+// Check if email is whitelisted before user creation
+app.post('/api/users/check-whitelist', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ allowed: false, error: 'Email is required' });
+    }
+    
+    const exists = await db.collection('whitelist').findOne({ email });
+    if (!exists) {
+      return res.status(403).json({ allowed: false, error: 'Email is not whitelisted' });
+    }
+    
+    // Check if user already exists
+    const existingUser = await db.collection('users').findOne({ email });
+    if (existingUser) {
+      return res.status(200).json({ allowed: true, userExists: true });
+    }
+    
+    res.json({ allowed: true, userExists: false });
+  } catch (err) {
+    console.error('Error in check-whitelist:', err);
     res.status(500).json({ allowed: false, error: err.message });
   }
 });
@@ -270,6 +317,24 @@ app.post('/api/users', async (req, res) => {
     };
     await db.collection('users').insertOne(userDoc);
     res.status(201).json({ message: 'User created' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a whitelisted email
+app.delete('/api/whitelist/:email', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { email } = req.params;
+    
+    const result = await db.collection('whitelist').deleteOne({ email });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Email not found in whitelist' });
+    }
+    
+    res.json({ message: 'Email removed from whitelist successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
