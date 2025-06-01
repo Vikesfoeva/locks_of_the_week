@@ -167,7 +167,8 @@
     * `_id`: ObjectId (Primary Key)
     * `firebaseUid`: String (UID from Firebase Auth, indexed)
     * `email`: String (unique, indexed)
-    * `name`: String
+    * `firstName`: String
+    * `lastName`: String
     * `role`: String ('user' or 'admin', default: 'user')
     * `venmoHandle`: String (optional)
     * `duesPaid`: Boolean (default: false)
@@ -258,7 +259,7 @@
     * User registration (with admin pre-registration check).
     * Basic navigation structure.
     * Admin ability to pre-register emails.
-    * Deployment pipeline setup for front-end (Firebase Hosting) and back-end (Cloud Run).
+    * Deployment pipeline setup for front-end (Firebase Hosting) and back-end (Firebase).
 * **Phase 2: Pick Selection & Submission**
     * Develop Pick Selection page UI.
     * Integrate with game data microservice to display weekly games.

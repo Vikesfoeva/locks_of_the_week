@@ -6,6 +6,8 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signup } = useAuth()
@@ -17,11 +19,24 @@ export default function Register() {
     if (password !== confirmPassword) {
       return setError('Passwords do not match')
     }
+    if (!firstName.trim() || !lastName.trim()) {
+      return setError('First name and last name are required')
+    }
 
     try {
       setError('')
       setLoading(true)
+      // Check if email is whitelisted
+      const res = await fetch(`http://localhost:5001/api/whitelist/check?email=${encodeURIComponent(email)}`)
+      const data = await res.json()
+      if (!data.allowed) {
+        setLoading(false)
+        return setError('This email is not authorized for account creation. Please contact an administrator.')
+      }
+      // Pass displayName to Firebase (optional, for Google Auth)
       await signup(email, password)
+      localStorage.setItem('pendingFirstName', firstName)
+      localStorage.setItem('pendingLastName', lastName)
       navigate('/')
     } catch {
       setError('Failed to create an account')
@@ -44,6 +59,40 @@ export default function Register() {
               <div className="text-sm text-red-700">{error}</div>
             </div>
           )}
+
+          <div>
+            <label htmlFor="first-name" className="block text-sm font-medium leading-6 text-gray-900">
+              First Name
+            </label>
+            <div className="mt-2">
+              <input
+                id="first-name"
+                name="first-name"
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="last-name" className="block text-sm font-medium leading-6 text-gray-900">
+              Last Name
+            </label>
+            <div className="mt-2">
+              <input
+                id="last-name"
+                name="last-name"
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="input"
+              />
+            </div>
+          </div>
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900">

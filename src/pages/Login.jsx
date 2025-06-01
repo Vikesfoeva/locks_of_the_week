@@ -7,14 +7,14 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, loginWithGoogle } = useAuth()
+  const { login, loginWithGoogle, loginWithGooglePopup, authError, setAuthError } = useAuth()
   const navigate = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
-    
+    setError('')
+    setAuthError('')
     try {
-      setError('')
       setLoading(true)
       await login(email, password)
       navigate('/')
@@ -25,15 +25,25 @@ export default function Login() {
   }
 
   async function handleGoogleSignIn() {
+    setError('')
+    setAuthError('')
     try {
-      setError('')
       setLoading(true)
-      await loginWithGoogle()
-      navigate('/')
-    } catch {
-      setError('Failed to sign in with Google')
+      await loginWithGooglePopup()
+      console.log("Google sign-in successful")
+      // Navigation will be handled by PrivateRoute when currentUser is set
+    } catch (err) {
+      setError(err.message || 'Failed to sign in with Google')
     }
     setLoading(false)
+  }
+
+  function handleInputChange(setter) {
+    return (e) => {
+      setter(e.target.value)
+      setError('')
+      setAuthError('')
+    }
   }
 
   return (
@@ -45,13 +55,12 @@ export default function Login() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+        {(error || authError) && (
+          <div className="rounded-md bg-red-50 p-4 mb-4">
+            <div className="text-sm text-red-700">{error || authError}</div>
+          </div>
+        )}
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-700">{error}</div>
-            </div>
-          )}
-          
           <div>
             <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900">
               Email address
@@ -64,7 +73,7 @@ export default function Login() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleInputChange(setEmail)}
                 className="input"
               />
             </div>
@@ -84,7 +93,7 @@ export default function Login() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handleInputChange(setPassword)}
                 className="input"
               />
             </div>

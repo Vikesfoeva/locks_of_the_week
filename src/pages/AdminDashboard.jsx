@@ -1,50 +1,120 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-// Mock data for demonstration
-const initialUsers = [
-  {
-    email: 'user1@example.com',
-    name: 'John Doe',
-    venmoHandle: '@johndoe',
-    duesPaid: true,
-    dateDuesPaid: '2024-08-01',
-    picksSubmitted: true,
-    picksMade: 3,
-  },
-  {
-    email: 'user2@example.com',
-    name: 'Jane Smith',
-    venmoHandle: '@janesmith',
-    duesPaid: false,
-    dateDuesPaid: '',
-    picksSubmitted: false,
-    picksMade: 1,
-  },
-];
-
-const initialWhitelist = ['user1@example.com', 'user2@example.com', 'newuser@example.com'];
+const API_URL = 'http://localhost:5001/api';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();
-  const [users, setUsers] = useState(initialUsers);
-  const [whitelist, setWhitelist] = useState(initialWhitelist);
+  const [users, setUsers] = useState([]);
+  const [whitelist, setWhitelist] = useState([]);
   const [newEmail, setNewEmail] = useState('');
   const [activeWeek, setActiveWeek] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch users and whitelist on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [usersRes, whitelistRes] = await Promise.all([
+          fetch(`${API_URL}/users`),
+          fetch(`${API_URL}/whitelist`)
+        ]);
+        
+        if (!usersRes.ok || !whitelistRes.ok) {
+          throw new Error('Failed to fetch data');
+        }
+        
+        const usersData = await usersRes.json();
+        const whitelistData = await whitelistRes.json();
+        
+        setUsers(usersData);
+        setWhitelist(whitelistData.map(item => item.email));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
 
   // Handlers for user management
-  const handleUserChange = (index, field, value) => {
-    const updated = [...users];
-    updated[index][field] = value;
-    setUsers(updated);
+  const handleUserChange = async (index, field, value) => {
+    try {
+      const user = users[index];
+      const updates = { ...user, [field]: value };
+      
+      const response = await fetch(`${API_URL}/users/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+      
+      // Update local state after successful API call
+      const updated = [...users];
+      updated[index] = { ...updated[index], [field]: value };
+      setUsers(updated);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Handler for deleting a user
+  const handleDeleteUser = async (userId, isAdmin) => {
+    if (isAdmin) {
+      alert('Cannot delete admin users');
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+      
+      // Update local state after successful deletion
+      setUsers(users.filter(user => user._id !== userId));
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // Handler for pre-registering email
-  const handleAddEmail = (e) => {
+  const handleAddEmail = async (e) => {
     e.preventDefault();
-    if (newEmail && !whitelist.includes(newEmail)) {
+    if (!newEmail || whitelist.includes(newEmail)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/whitelist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add email to whitelist');
+      }
+      
       setWhitelist([...whitelist, newEmail]);
       setNewEmail('');
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -52,6 +122,20 @@ export default function AdminDashboard() {
   const handleActiveWeekChange = (e) => {
     setActiveWeek(Number(e.target.value));
   };
+
+  // Get whitelisted users who haven't registered yet
+  const getUnregisteredWhitelistedUsers = () => {
+    const registeredEmails = users.map(user => user.email);
+    return whitelist.filter(email => !registeredEmails.includes(email));
+  };
+
+  if (loading) {
+    return <div className="text-center">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center text-red-600">Error: {error}</div>;
+  }
 
   return (
     <div className="space-y-8">
@@ -68,36 +152,55 @@ export default function AdminDashboard() {
             <thead>
               <tr className="bg-gray-50">
                 <th className="px-2 py-1 border">Email</th>
-                <th className="px-2 py-1 border">Name</th>
+                <th className="px-2 py-1 border">First Name</th>
+                <th className="px-2 py-1 border">Last Name</th>
+                <th className="px-2 py-1 border">Role</th>
                 <th className="px-2 py-1 border">Venmo</th>
                 <th className="px-2 py-1 border">Dues Paid</th>
                 <th className="px-2 py-1 border">Date Paid</th>
                 <th className="px-2 py-1 border">Picks Submitted</th>
                 <th className="px-2 py-1 border">Picks Made</th>
+                <th className="px-2 py-1 border">Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user, idx) => (
-                <tr key={user.email} className="even:bg-gray-50">
+                <tr key={user._id} className="even:bg-gray-50">
                   <td className="border px-2 py-1 text-xs">{user.email}</td>
                   <td className="border px-2 py-1">
                     <input
                       className="input input-sm"
-                      value={user.name}
-                      onChange={e => handleUserChange(idx, 'name', e.target.value)}
+                      value={user.firstName || ''}
+                      onChange={e => handleUserChange(idx, 'firstName', e.target.value)}
                     />
                   </td>
                   <td className="border px-2 py-1">
                     <input
                       className="input input-sm"
-                      value={user.venmoHandle}
+                      value={user.lastName || ''}
+                      onChange={e => handleUserChange(idx, 'lastName', e.target.value)}
+                    />
+                  </td>
+                  <td className="border px-2 py-1 text-center">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      user.role === 'admin' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {user.role || 'user'}
+                    </span>
+                  </td>
+                  <td className="border px-2 py-1">
+                    <input
+                      className="input input-sm"
+                      value={user.venmoHandle || ''}
                       onChange={e => handleUserChange(idx, 'venmoHandle', e.target.value)}
                     />
                   </td>
                   <td className="border px-2 py-1 text-center">
                     <input
                       type="checkbox"
-                      checked={user.duesPaid}
+                      checked={user.duesPaid || false}
                       onChange={e => handleUserChange(idx, 'duesPaid', e.target.checked)}
                     />
                   </td>
@@ -105,7 +208,7 @@ export default function AdminDashboard() {
                     <input
                       className="input input-sm"
                       type="date"
-                      value={user.dateDuesPaid}
+                      value={user.dateDuesPaid || ''}
                       onChange={e => handleUserChange(idx, 'dateDuesPaid', e.target.value)}
                       disabled={!user.duesPaid}
                     />
@@ -114,7 +217,48 @@ export default function AdminDashboard() {
                     {user.picksSubmitted ? 'Yes' : 'No'}
                   </td>
                   <td className="border px-2 py-1 text-center">
-                    {user.picksMade}/3
+                    {user.picksMade || 0}/3
+                  </td>
+                  <td className="border px-2 py-1 text-center">
+                    <button
+                      className={`btn btn-sm ${
+                        user.role === 'admin' 
+                          ? 'btn-disabled' 
+                          : 'btn-error'
+                      }`}
+                      onClick={() => handleDeleteUser(user._id, user.role === 'admin')}
+                      disabled={user.role === 'admin'}
+                      title={user.role === 'admin' ? 'Cannot delete admin users' : 'Delete user'}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Whitelisted Users Section */}
+      <div className="card">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Whitelisted Users (Not Yet Registered)</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm border">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-2 py-1 border">Email</th>
+                <th className="px-2 py-1 border">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {getUnregisteredWhitelistedUsers().map(email => (
+                <tr key={email} className="even:bg-gray-50">
+                  <td className="border px-2 py-1 text-xs">{email}</td>
+                  <td className="border px-2 py-1 text-center">
+                    <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                      Pending Registration
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -139,9 +283,6 @@ export default function AdminDashboard() {
           </div>
           <button className="btn btn-primary" type="submit">Add to Whitelist</button>
         </form>
-        <div className="mt-2 text-xs text-gray-600">
-          <span className="font-semibold">Whitelisted Emails:</span> {whitelist.join(', ')}
-        </div>
       </div>
 
       {/* League Settings */}
