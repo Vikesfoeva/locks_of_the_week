@@ -340,44 +340,132 @@ app.delete('/api/whitelist/:email', async (req, res) => {
   }
 });
 
-// Get all games for a given week (now returns all games from cy_2025.odds_2025_06_01)
+// Get all collections from cy_2025 database that match odds_YYYY_MM_DD pattern
+app.get('/api/collections', async (req, res) => {
+  try {
+    const dbClient = await client.connect(); // Ensure MongoDB client is connected
+    const db = dbClient.db('cy_2025');     // Select the 'cy_2025' database
+
+    const collections = await db.listCollections().toArray();
+    const collectionNames = collections.map(col => col.name);
+
+    // Filter for collections matching the pattern "odds_YYYY_MM_DD"
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    const filteredCollections = collectionNames.filter(name => oddsPattern.test(name));
+
+    if (filteredCollections.length === 0) {
+      // It's better to return an empty array if no collections match,
+      // the frontend handles "No collections found" if the array is empty.
+      // return res.status(404).json({ message: 'No collections found matching the pattern.' });
+    }
+
+    res.json(filteredCollections); // Send the array of matching collection names
+
+  } catch (err) {
+    console.error('Error fetching collections:', err);
+    res.status(500).json({ error: 'Failed to fetch collections', details: err.message });
+  }
+});
+
+// Get all games for a given collectionName
 app.get('/api/games', async (req, res) => {
   try {
-    // Connect to the correct database and collection
+    const { collectionName } = req.query;
+    if (!collectionName) {
+      return res.status(400).json({ error: 'collectionName query parameter is required' });
+    }
+
+    // Validate collectionName format to prevent potential NoSQL injection issues if used directly
+    // Although listCollections should prevent non-existent ones, good practice to validate known patterns.
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    if (!oddsPattern.test(collectionName)) {
+      return res.status(400).json({ error: 'Invalid collectionName format.' });
+    }
+
     const dbClient = await client.connect();
-    const db = dbClient.db('cy_2025');
-    const games = await db.collection('odds_2025_06_01').find({}).toArray();
+    const db = dbClient.db('cy_2025'); 
+    
+    // Check if collection exists before querying (optional, as querying a non-existent collection is not an error but returns empty)
+    // const collections = await db.listCollections({ name: collectionName }).toArray();
+    // if (collections.length === 0) {
+    //   return res.status(404).json({ error: `Collection '${collectionName}' not found.` });
+    // }
+
+    const games = await db.collection(collectionName).find({}).toArray();
     res.json(games);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error fetching games:', err);
+    res.status(500).json({ error: 'Failed to fetch games', details: err.message });
   }
 });
 
 // Submit picks for a user
 app.post('/api/picks', async (req, res) => {
   try {
-    const db = await connectToDb();
-    const { userId, weekNumber, picks } = req.body;
-    if (!userId || !weekNumber || !Array.isArray(picks) || picks.length === 0) {
-      return res.status(400).json({ error: 'userId, weekNumber, and picks array are required' });
+    const mainDb = await connectToDb(); // This connects to 'locks_data' by default
+    const { userId, collectionName, picks } = req.body;
+
+    if (!userId || !collectionName || !Array.isArray(picks) || picks.length === 0) {
+      return res.status(400).json({ error: 'userId, collectionName, and picks array are required' });
     }
-    // Check how many picks the user already has for this week
-    const existingPicks = await db.collection('picks').find({ userId: new ObjectId(userId), weekNumber: parseInt(weekNumber, 10) }).toArray();
+
+    // Validate collectionName format
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    if (!oddsPattern.test(collectionName)) {
+      return res.status(400).json({ error: 'Invalid collectionName format.' });
+    }
+
+    // Check how many picks the user already has for this collectionName
+    const existingPicks = await mainDb.collection('picks').find({ 
+      userId: new ObjectId(userId), 
+      collectionName: collectionName // Use collectionName instead of weekNumber
+    }).toArray();
+
     if (existingPicks.length + picks.length > 3) {
-      return res.status(400).json({ error: 'Cannot submit more than 3 picks per week' });
+      return res.status(400).json({ error: `Cannot submit more than 3 picks for ${collectionName}` });
     }
-    // Lock each pick and add metadata
+
     const now = new Date();
     const picksToInsert = picks.map(pick => ({
       ...pick,
       userId: new ObjectId(userId),
-      weekNumber: parseInt(weekNumber, 10),
-      locked: true,
+      collectionName: collectionName, // Store collectionName instead of weekNumber
+      // locked: true, // Assuming frontend controls submitted state visibility; backend stores what is sent
       submittedAt: now
     }));
-    await db.collection('picks').insertMany(picksToInsert);
-    res.status(201).json({ message: 'Picks submitted', picks: picksToInsert });
+
+    await mainDb.collection('picks').insertMany(picksToInsert);
+    res.status(201).json({ message: 'Picks submitted successfully', submittedPicks: picksToInsert });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error submitting picks:", err);
+    res.status(500).json({ error: 'Failed to submit picks', details: err.message });
+  }
+});
+
+// Get a user's picks for a given collectionName
+app.get('/api/picks', async (req, res) => {
+  try {
+    const mainDb = await connectToDb(); // Connects to 'locks_data'
+    const { userId, collectionName } = req.query;
+
+    if (!userId || !collectionName) {
+      return res.status(400).json({ error: 'userId and collectionName query parameters are required' });
+    }
+
+    // Validate collectionName format
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    if (!oddsPattern.test(collectionName)) {
+      return res.status(400).json({ error: 'Invalid collectionName format.' });
+    }
+
+    const userPicks = await mainDb.collection('picks').find({
+      userId: new ObjectId(userId),
+      collectionName: collectionName
+    }).toArray();
+
+    res.json(userPicks);
+  } catch (err) {
+    console.error("Error fetching user picks:", err);
+    res.status(500).json({ error: 'Failed to fetch user picks', details: err.message });
   }
 });
