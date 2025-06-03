@@ -11,7 +11,7 @@ const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
 const Picks = () => {
   // const { user } = useContext(AuthContext); // Uncomment if you have AuthContext
   const { currentUser } = useAuth(); // Use AuthContext
-  const userId = currentUser?._id || 'HARDCODED_USER_ID'; // Use user._id from context, fallback if necessary
+  const userId = currentUser?.uid || 'HARDCODED_USER_ID'; // Use Firebase UID, fallback if necessary
   const [games, setGames] = useState([]);
   const [selectedPicks, setSelectedPicks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,8 +180,7 @@ const Picks = () => {
           }))
         );
 
-        // Fetch user's picks for the selected collection
-        // Ensure your API can handle collectionName for picks
+        // Fetch user's picks for the selected collection using Firebase UID
         const picksRes = await axios.get(`/api/picks?userId=${userId}&collectionName=${selectedCollection}`);
         const userPicksForCollection = Array.isArray(picksRes.data) ? picksRes.data : [];
         
@@ -197,7 +196,6 @@ const Picks = () => {
         // Update userPicksByCollection with fetched picks for the current collection
         setUserPicksByCollection(prev => ({
           ...prev,
-          // Ensure this also stores picks with the 'submitted' status
           [selectedCollection]: processedUserPicks 
         }));
 
@@ -349,7 +347,7 @@ const Picks = () => {
       const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
       
       await axios.post('/api/picks', {
-        userId,
+        userId: currentUser.uid, // Use Firebase UID
         collectionName: selectedCollection,
         picks: picksPayload
       });
@@ -375,7 +373,6 @@ const Picks = () => {
       console.error("Failed to submit picks:", err);
       const errorMessage = err.response?.data?.message || err.message || 'Failed to submit picks';
       setError(errorMessage);
-      // No need to clear error with setTimeout here if we want it to persist until next action
     } finally {
       setSubmitting(false);
     }

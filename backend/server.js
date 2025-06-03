@@ -417,7 +417,7 @@ app.post('/api/picks', async (req, res) => {
 
     // Check how many picks the user already has for this collectionName
     const existingPicks = await mainDb.collection('picks').find({ 
-      userId: new ObjectId(userId), 
+      userId: userId, // Use string, not ObjectId
       collectionName: collectionName // Use collectionName instead of weekNumber
     }).toArray();
 
@@ -428,9 +428,8 @@ app.post('/api/picks', async (req, res) => {
     const now = new Date();
     const picksToInsert = picks.map(pick => ({
       ...pick,
-      userId: new ObjectId(userId),
+      userId: userId, // Store as string
       collectionName: collectionName, // Store collectionName instead of weekNumber
-      // locked: true, // Assuming frontend controls submitted state visibility; backend stores what is sent
       submittedAt: now
     }));
 
@@ -448,21 +447,18 @@ app.get('/api/picks', async (req, res) => {
     const mainDb = await connectToDb(); // Connects to 'locks_data'
     const { userId, collectionName } = req.query;
 
-    if (!userId || !collectionName) {
-      return res.status(400).json({ error: 'userId and collectionName query parameters are required' });
-    }
-
     // Validate collectionName format
     const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
     if (!oddsPattern.test(collectionName)) {
       return res.status(400).json({ error: 'Invalid collectionName format.' });
     }
 
-    const userPicks = await mainDb.collection('picks').find({
-      userId: new ObjectId(userId),
-      collectionName: collectionName
-    }).toArray();
+    let query = { collectionName };
+    if (userId) {
+      query.userId = userId; // Use string, not ObjectId
+    }
 
+    const userPicks = await mainDb.collection('picks').find(query).toArray();
     res.json(userPicks);
   } catch (err) {
     console.error("Error fetching user picks:", err);
