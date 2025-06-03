@@ -381,6 +381,15 @@ const Picks = () => {
     }
   };
 
+  const handleResetFilters = () => {
+    setLeagueFilter([]);
+    setAwayTeamFilter([]);
+    setAwayTeamFullFilter([]);
+    setHomeTeamFilter([]);
+    setHomeTeamFullFilter([]);
+    setDateFilter([]);
+  };
+
   const handleFilterChange = (e, key) => {
     setFilters({ ...filters, [key]: e.target.value });
   };
@@ -646,13 +655,22 @@ const Picks = () => {
       </div>
       {success && <div className="text-green-600 mb-2">{success}</div>}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          onClick={handleSubmit}
-          disabled={selectedPicks.length === 0 || submitting}
-        >
-          Submit Picks
-        </button>
+        <div className="flex items-center gap-2 mb-2 md:mb-0">
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            onClick={handleSubmit}
+            disabled={selectedPicks.length === 0 || submitting}
+          >
+            Submit Picks
+          </button>
+          <button
+            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100"
+            onClick={handleResetFilters}
+            type="button"
+          >
+            Reset Filters
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-gray-700">Your Picks:</span>
           {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
@@ -838,15 +856,10 @@ const Picks = () => {
                                     <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
                                       <input
                                         type="checkbox"
-                                        disabled={
-                                          isGameLocked(game) || 
-                                          (selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)?.status === 'submitted') ||
-                                          (selectedPicks.length >= 3 && !selectedPicks.some(p => p.key === `${game._id}_spread_${game.awayTeam}` && p.status === 'pending'))
-                                        }
-                                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)}
-                                        onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
-                                      />{' '}
-                                      {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
+                                        checked={awayTeamFilterDraft.includes(val)}
+                                        onChange={() => setAwayTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                      />
+                                      <span>{val}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -1015,15 +1028,10 @@ const Picks = () => {
                                     <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
                                       <input
                                         type="checkbox"
-                                        disabled={
-                                          isGameLocked(game) || 
-                                          (selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)?.status === 'submitted') ||
-                                          (selectedPicks.length >= 3 && !selectedPicks.some(p => p.key === `${game._id}_spread_${game.awayTeam}` && p.status === 'pending'))
-                                        }
-                                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)}
-                                        onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
-                                      />{' '}
-                                      {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
+                                        checked={homeTeamFilterDraft.includes(val)}
+                                        onChange={() => setHomeTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                      />
+                                      <span>{val}</span>
                                     </label>
                                   ))}
                                 </div>
