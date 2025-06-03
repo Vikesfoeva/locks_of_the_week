@@ -2,14 +2,16 @@ import React, { useEffect, useState, useContext, useRef } from 'react';
 import axios from 'axios';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, CheckIcon } from '@heroicons/react/24/outline';
-import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, LockClosedIcon, XMarkIcon } from '@heroicons/react/24/solid';
 // import { AuthContext } from '../contexts/AuthContext'; // Uncomment if you have AuthContext
+import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
 
 const Picks = () => {
   // const { user } = useContext(AuthContext); // Uncomment if you have AuthContext
-  const userId = 'HARDCODED_USER_ID'; // TODO: Replace with user._id from context
+  const { currentUser } = useAuth(); // Use AuthContext
+  const userId = currentUser?._id || 'HARDCODED_USER_ID'; // Use user._id from context, fallback if necessary
   const [games, setGames] = useState([]);
   const [selectedPicks, setSelectedPicks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +77,31 @@ const Picks = () => {
   const homeTeamFullPopoverOpenRef = useRef(false);
   const datePopoverOpenRef = useRef(false);
 
+  // New state variables for collection management
+  const [collections, setCollections] = useState([]); // To store available collection names
+  const [selectedCollection, setSelectedCollection] = useState(''); // To store the currently selected collection
+  // To store picks made by the user for each collection, helping manage the 3-pick limit per collection
+  const [userPicksByCollection, setUserPicksByCollection] = useState({});
+
+  // Add toast state
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+
+  // Helper function to parse collection name to a Date object for sorting
+  const parseCollectionNameToDate = (collectionName) => {
+    if (!collectionName || typeof collectionName !== 'string') return null;
+    const parts = collectionName.split('_'); // Expected format: "odds_YYYY_MM_DD"
+    if (parts.length === 4 && parts[0] === 'odds') {
+      const year = parseInt(parts[1], 10);
+      const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS Date
+      const day = parseInt(parts[3], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+    return null; // Return null for invalid formats
+  };
+
   // Add useEffect hooks for all popovers
   useEffect(() => {
     if (awayTeamPopoverOpenRef.current && funnelBtnRef.current) {
@@ -127,13 +154,19 @@ const Picks = () => {
   }, [datePopoverOpenRef.current]);
 
   useEffect(() => {
-    const fetchGames = async () => {
+    const fetchGamesAndUserPicks = async () => {
+      if (!selectedCollection || !userId) {
+        setGames([]); // Clear games if no collection or user
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        const res = await axios.get(`/api/games?weekNumber=${CURRENT_WEEK}`);
-        console.log('Games API response:', res.data);
+        // Fetch games for the selected collection
+        const gamesRes = await axios.get(`/api/games?collectionName=${selectedCollection}`);
+        console.log(`Games API response for ${selectedCollection}:`, gamesRes.data);
         setGames(
-          (Array.isArray(res.data) ? res.data : []).map(game => ({
+          (Array.isArray(gamesRes.data) ? gamesRes.data : []).map(game => ({
             ...game,
             awayTeam: game.away_team_abbrev,
             homeTeam: game.home_team_abbrev,
@@ -146,50 +179,203 @@ const Picks = () => {
             league: game.league,
           }))
         );
+
+        // Fetch user's picks for the selected collection
+        // Ensure your API can handle collectionName for picks
+        const picksRes = await axios.get(`/api/picks?userId=${userId}&collectionName=${selectedCollection}`);
+        const userPicksForCollection = Array.isArray(picksRes.data) ? picksRes.data : [];
+        
+        // Map fetched picks and mark them as 'submitted' and reconstruct key
+        const processedUserPicks = userPicksForCollection.map(p => ({
+          ...p,
+          key: `${p.gameId}_${p.pickType}_${p.pickSide}`,
+          status: 'submitted' // Picks fetched from backend are considered submitted
+        }));
+
+        setSelectedPicks(processedUserPicks);
+
+        // Update userPicksByCollection with fetched picks for the current collection
+        setUserPicksByCollection(prev => ({
+          ...prev,
+          // Ensure this also stores picks with the 'submitted' status
+          [selectedCollection]: processedUserPicks 
+        }));
+
+        setError(''); // Clear previous errors
       } catch (err) {
-        setError('Failed to load games');
-        setGames([]); // Ensure games is always an array
+        console.error(`Failed to load games or picks for ${selectedCollection}:`, err);
+        setError(`Failed to load data for ${selectedCollection}`);
+        setGames([]);
+        setSelectedPicks([]);
       } finally {
         setLoading(false);
       }
     };
-    fetchGames();
-  }, []);
 
+    // This check is important: only run if selectedCollection has a value.
+    // It prevents trying to fetch data before collections are loaded and one is chosen.
+    if (selectedCollection) {
+        fetchGamesAndUserPicks();
+    } else {
+        // If there's no selected collection (e.g., after initial load and collections fetch failed)
+        setGames([]);
+        setSelectedPicks([]);
+        setLoading(false); // Ensure loading is false
+    }
+  // Fetch games and user picks when selectedCollection or userId changes.
+  // userId dependency is important if user logs in/out or changes.
+  }, [selectedCollection, userId]); 
+
+  // Effect to fetch available collections
+  useEffect(() => {
+    const fetchCollections = async () => {
+      setLoading(true); 
+      try {
+        const response = await axios.get('/api/collections');
+        let fetchedCollections = response.data;
+
+        if (!Array.isArray(fetchedCollections) || fetchedCollections.length === 0) {
+          setError('No collections found or invalid format from server.');
+          setCollections([]);
+          setSelectedCollection('');
+          setLoading(false);
+          return;
+        }
+
+        fetchedCollections = fetchedCollections.filter(name => parseCollectionNameToDate(name) !== null);
+
+        if (fetchedCollections.length === 0) {
+          setError('No valid collections found after filtering.');
+          setCollections([]);
+          setSelectedCollection('');
+          setLoading(false);
+          return;
+        }
+        
+        fetchedCollections.sort((a, b) => {
+          const dateA = parseCollectionNameToDate(a);
+          const dateB = parseCollectionNameToDate(b);
+          return dateB - dateA;
+        });
+
+        setCollections(fetchedCollections);
+        const mostRecentCollection = fetchedCollections[0];
+        setSelectedCollection(mostRecentCollection); // This will trigger the next useEffect
+
+        const initialPicksByCollection = {};
+        fetchedCollections.forEach(coll => {
+          initialPicksByCollection[coll] = [];
+        });
+        setUserPicksByCollection(initialPicksByCollection);
+        setError('');
+        // setLoading(true) is set at the start. If setSelectedCollection triggers
+        // the other useEffect, that one will handle setLoading(false) eventually.
+        // If we don't find collections or valid collections, we set loading to false above.
+      } catch (err) {
+        console.error("Failed to fetch collections:", err);
+        setError('Failed to load collections. Please try again later.');
+        setCollections([]);
+        setSelectedCollection('');
+        setLoading(false); // On error, ensure loading is false
+      } 
+    };
+
+    fetchCollections();
+  }, []); // Runs once on mount
+
+  // Move all helper functions and state computations here, before the early returns
   const isGameLocked = (game) => {
     return new Date(game.commenceTime) < new Date();
   };
 
   const handlePickChange = (gameId, pickType, pickSide, line, price) => {
     const pickKey = `${gameId}_${pickType}_${pickSide}`;
-    const alreadyPicked = selectedPicks.find(p => p.key === pickKey);
-    let newPicks;
-    if (alreadyPicked) {
-      newPicks = selectedPicks.filter(p => p.key !== pickKey);
+    const currentCollectionPicks = selectedPicks; // These are for the selectedCollection
+
+    const existingPick = currentCollectionPicks.find(p => p.key === pickKey);
+
+    let newPicksForCurrentCollection;
+
+    if (existingPick) {
+      // If pick exists and is already submitted, do nothing.
+      if (existingPick.status === 'submitted') {
+        setError('This pick has already been submitted and cannot be changed.');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      // If pick exists and is pending, unselect it (remove it).
+      newPicksForCurrentCollection = currentCollectionPicks.filter(p => p.key !== pickKey);
     } else {
-      if (selectedPicks.length >= 3) return;
-      newPicks = [
-        ...selectedPicks,
-        { key: pickKey, gameId, pickType, pickSide, line, price }
+      // Adding a new pick. Count current (pending + submitted) picks for this collection.
+      const totalPicksForCollection = currentCollectionPicks.length;
+      
+      if (totalPicksForCollection >= 3) {
+        setError('You can only make up to 3 picks per week.');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      setError(''); // Clear any previous error
+      newPicksForCurrentCollection = [
+        ...currentCollectionPicks,
+        // Add new pick with 'pending' status
+        { key: pickKey, gameId, pickType, pickSide, line, price, collectionName: selectedCollection, status: 'pending' }
       ];
     }
-    setSelectedPicks(newPicks);
+    setSelectedPicks(newPicksForCurrentCollection);
+    setUserPicksByCollection(prev => ({
+      ...prev,
+      [selectedCollection]: newPicksForCurrentCollection
+    }));
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
+    setSuccess(false); // Reset success state at the beginning of submission
+
+    // Filter for picks that are pending submission for the current collection
+    const picksToSubmit = selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection);
+
+    if (picksToSubmit.length === 0) {
+      setToastMessage('Already submitted all picks for this week.');
+      setShowToast(true);
+      setSubmitting(false);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+
     try {
-      const picksPayload = selectedPicks.map(({ key, ...rest }) => rest);
+      // Prepare payload: remove 'status' and 'key' from picks for the backend if not needed there
+      const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
+      
       await axios.post('/api/picks', {
         userId,
-        weekNumber: CURRENT_WEEK,
+        collectionName: selectedCollection,
         picks: picksPayload
       });
-      setSuccess(true);
-      setSelectedPicks([]);
+
+      setSuccess(`Successfully submitted ${picksPayload.length} pick(s) for ${selectedCollection}!`);
+      setTimeout(() => setSuccess(false), 3000);
+
+      // Update the status of submitted picks to 'submitted' in local state
+      const updatedPicksForCurrentCollection = selectedPicks.map(p => {
+        if (p.status === 'pending' && p.collectionName === selectedCollection && picksToSubmit.find(submittedPick => submittedPick.key === p.key)) {
+          return { ...p, status: 'submitted' };
+        }
+        return p;
+      });
+
+      setSelectedPicks(updatedPicksForCurrentCollection);
+      setUserPicksByCollection(prev => ({
+        ...prev,
+        [selectedCollection]: updatedPicksForCurrentCollection
+      }));
+
     } catch (err) {
-      setError('Failed to submit picks');
+      console.error("Failed to submit picks:", err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit picks';
+      setError(errorMessage);
+      // No need to clear error with setTimeout here if we want it to persist until next action
     } finally {
       setSubmitting(false);
     }
@@ -253,6 +439,7 @@ const Picks = () => {
     (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
     (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
     (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
     (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
   ));
   const filteredGamesForDate = games.filter(game => (
@@ -401,22 +588,112 @@ const Picks = () => {
   const isHomeTeamFullFiltered = homeTeamFullFilter.length > 0 && homeTeamFullFilter.length < uniqueHomeTeamFulls.length;
   const isDateFiltered = dateFilter.length > 0 && dateFilter.length < uniqueDates.length;
 
+  // Now we can safely use early returns after all hooks and helper functions
   if (loading) return <div>Loading games...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="max-w-6xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Pick Your Betting Lines</h1>
-      <div className="mb-2 text-gray-600">Select up to 3 outcomes across all games.</div>
-      <div className="mb-4 text-blue-700 font-semibold">Picks: {selectedPicks.length}/3</div>
-      {success && <div className="text-green-600 mb-2">Picks submitted!</div>}
-      <button
-        className="bg-blue-600 text-white px-4 py-2 rounded mb-4 disabled:opacity-50"
-        onClick={handleSubmit}
-        disabled={selectedPicks.length === 0 || submitting}
-      >
-        Submit Picks
-      </button>
+
+      {/* Collection Selector Dropdown */}
+      {collections.length > 0 && (
+        <div className="mb-4">
+          <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
+            Select Week:
+          </label>
+          <select
+            id="collection-select"
+            name="collection-select"
+            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+            value={selectedCollection}
+            onChange={(e) => {
+              setSelectedCollection(e.target.value);
+              // When collection changes, selectedPicks should reflect the newly selected collection's picks.
+              // This will be handled by the useEffect that depends on selectedCollection,
+              // which fetches and sets userPicks for that collection into selectedPicks.
+              // We also clear current local selectedPicks to avoid brief display of old picks.
+              setSelectedPicks(userPicksByCollection[e.target.value] || []);
+            }}
+            disabled={loading} // Disable while loading new collection data
+          >
+            {collections.map(collectionName => (
+              <option key={collectionName} value={collectionName}>
+                {/* Format display name, e.g., "Week of June 1, 2025" */}
+                {(() => {
+                  const date = parseCollectionNameToDate(collectionName);
+                  return date 
+                    ? `Week of ${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}, ${date.getFullYear()}` 
+                    : collectionName;
+                })()}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="mb-2 text-gray-600">Select up to 3 outcomes across all games for the selected week.</div>
+      {/* Update pick count display to reflect current collection's picks */}
+      <div className="mb-4 text-blue-700 font-semibold">
+        Picks for {selectedCollection ? (
+          (() => {
+            const date = parseCollectionNameToDate(selectedCollection);
+            return date 
+              ? `Week of ${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}` 
+              : selectedCollection;
+          })()
+        ) : 'current week'}: {selectedPicks.length}/3
+      </div>
+      {success && <div className="text-green-600 mb-2">{success}</div>}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          onClick={handleSubmit}
+          disabled={selectedPicks.length === 0 || submitting}
+        >
+          Submit Picks
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-gray-700">Your Picks:</span>
+          {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
+          {selectedPicks.map((pick, idx) => {
+            let label = '';
+            if (pick.pickType === 'spread') {
+              label = `${pick.pickSide} ${pick.line > 0 ? '+' : ''}${pick.line}`;
+            } else if (pick.pickType === 'total') {
+              // Find the game for this pick
+              const game = games.find(g => g._id === pick.gameId);
+              if (game) {
+                label = `${game.awayTeam}/${game.homeTeam} ${pick.pickSide === 'OVER' ? 'O' : 'U'} ${pick.line}`;
+              } else {
+                label = `${pick.pickSide === 'OVER' ? 'O' : 'U'} ${pick.line}`;
+              }
+            } else {
+              label = `${pick.pickSide} ${pick.line}`;
+            }
+            return (
+              <span
+                key={pick.key}
+                className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium mr-1 mb-1 ${pick.status === 'submitted' ? 'bg-gray-300 text-gray-600' : 'bg-blue-100 text-blue-800'}`}
+              >
+                {label}
+                {pick.status === 'submitted' ? (
+                  <LockClosedIcon className="h-4 w-4 ml-1 text-gray-500" title="Submitted/Locked" />
+                ) : (
+                  <button
+                    className="ml-1 text-blue-600 hover:text-red-600 focus:outline-none"
+                    onClick={() => handlePickChange(pick.gameId, pick.pickType, pick.pickSide, pick.line, pick.price)}
+                    title="Remove pick"
+                    type="button"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-300 rounded shadow">
           <thead>
@@ -561,10 +838,15 @@ const Picks = () => {
                                     <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
                                       <input
                                         type="checkbox"
-                                        checked={awayTeamFilterDraft.includes(val)}
-                                        onChange={() => setAwayTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
+                                        disabled={
+                                          isGameLocked(game) || 
+                                          (selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)?.status === 'submitted') ||
+                                          (selectedPicks.length >= 3 && !selectedPicks.some(p => p.key === `${game._id}_spread_${game.awayTeam}` && p.status === 'pending'))
+                                        }
+                                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)}
+                                        onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
+                                      />{' '}
+                                      {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
                                     </label>
                                   ))}
                                 </div>
@@ -733,10 +1015,15 @@ const Picks = () => {
                                     <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
                                       <input
                                         type="checkbox"
-                                        checked={homeTeamFilterDraft.includes(val)}
-                                        onChange={() => setHomeTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
+                                        disabled={
+                                          isGameLocked(game) || 
+                                          (selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)?.status === 'submitted') ||
+                                          (selectedPicks.length >= 3 && !selectedPicks.some(p => p.key === `${game._id}_spread_${game.awayTeam}` && p.status === 'pending'))
+                                        }
+                                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)}
+                                        onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
+                                      />{' '}
+                                      {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
                                     </label>
                                   ))}
                                 </div>
@@ -851,7 +1138,7 @@ const Picks = () => {
                   </Popover>
                 </div>
               </th>
-              <th className="px-2 py-2 border-r border-gray-300">
+              <th className="px-2 py-2">
                 <div className="flex items-center gap-1">
                   <span>Date & Time</span>
                   <div className="flex flex-col ml-1">
@@ -942,69 +1229,102 @@ const Picks = () => {
             </tr>
           </thead>
           <tbody>
-            {sortedGames.map((game, idx) => (
-              <tr
-                key={game._id}
-                className={
-                  `${isGameLocked(game) ? 'opacity-50' : ''} ` +
-                  `${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b border-gray-300`
-                }
-              >
-                <td className="px-2 py-2 border-r border-gray-300 font-semibold">{game.league}</td>
-                <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.awayTeam}</td>
-                <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
-                <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
-                <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
-                <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</td>
-                <td className="px-2 py-2 border-r border-gray-300">
-                  <div className="flex flex-col gap-1">
-                    <label>
-                      <input
-                        type="checkbox"
-                        disabled={isGameLocked(game) || selectedPicks.length >= 3 && !selectedPicks.some(p => p.gameId === game._id)}
-                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.awayTeam}`)}
-                        onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
-                      />{' '}
-                      {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        disabled={isGameLocked(game) || selectedPicks.length >= 3 && !selectedPicks.some(p => p.gameId === game._id)}
-                        checked={!!selectedPicks.find(p => p.key === `${game._id}_spread_${game.homeTeam}`)}
-                        onChange={() => handlePickChange(game._id, 'spread', game.homeTeam, game.homeSpread, null)}
-                      />{' '}
-                      {game.homeTeam} {game.homeSpread > 0 ? '+' : ''}{game.homeSpread}
-                    </label>
-                  </div>
-                </td>
-                <td className="px-2 py-2">
-                  <div className="flex flex-col gap-1">
-                    <label>
-                      <input
-                        type="checkbox"
-                        disabled={isGameLocked(game) || selectedPicks.length >= 3 && !selectedPicks.some(p => p.gameId === game._id)}
-                        checked={!!selectedPicks.find(p => p.key === `${game._id}_total_OVER`)}
-                        onChange={() => handlePickChange(game._id, 'total', 'OVER', game.total, null)}
-                      />{' '}
-                      O {game.total}
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        disabled={isGameLocked(game) || selectedPicks.length >= 3 && !selectedPicks.some(p => p.gameId === game._id)}
-                        checked={!!selectedPicks.find(p => p.key === `${game._id}_total_UNDER`)}
-                        onChange={() => handlePickChange(game._id, 'total', 'UNDER', game.total, null)}
-                      />{' '}
-                      U {game.total}
-                    </label>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {sortedGames.map((game, idx) => {
+              const awaySpreadPickKey = `${game._id}_spread_${game.awayTeam}`;
+              const homeSpreadPickKey = `${game._id}_spread_${game.homeTeam}`;
+              const overTotalPickKey = `${game._id}_total_OVER`;
+              const underTotalPickKey = `${game._id}_total_UNDER`;
+
+              const awaySpreadPick = selectedPicks.find(p => p.key === awaySpreadPickKey);
+              const homeSpreadPick = selectedPicks.find(p => p.key === homeSpreadPickKey);
+              const overTotalPick = selectedPicks.find(p => p.key === overTotalPickKey);
+              const underTotalPick = selectedPicks.find(p => p.key === underTotalPickKey);
+
+              return (
+                <tr
+                  key={game._id}
+                  className={
+                    `${isGameLocked(game) ? 'opacity-50' : ''} ` +
+                    `${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b border-gray-300`
+                  }
+                >
+                  <td className="px-2 py-2 border-r border-gray-300 font-semibold">{game.league}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.awayTeam}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</td>
+                  <td className="px-2 py-2 border-r border-gray-300">
+                    <div className="flex flex-col gap-1">
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={
+                            isGameLocked(game) || 
+                            (awaySpreadPick?.status === 'submitted') ||
+                            (selectedPicks.length >= 3 && !awaySpreadPick)
+                          }
+                          checked={!!awaySpreadPick}
+                          onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
+                        />{' '}
+                        {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={
+                            isGameLocked(game) || 
+                            (homeSpreadPick?.status === 'submitted') ||
+                            (selectedPicks.length >= 3 && !homeSpreadPick)
+                          }
+                          checked={!!homeSpreadPick}
+                          onChange={() => handlePickChange(game._id, 'spread', game.homeTeam, game.homeSpread, null)}
+                        />{' '}
+                        {game.homeTeam} {game.homeSpread > 0 ? '+' : ''}{game.homeSpread}
+                      </label>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-col gap-1">
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={
+                            isGameLocked(game) || 
+                            (overTotalPick?.status === 'submitted') ||
+                            (selectedPicks.length >= 3 && !overTotalPick)
+                          }
+                          checked={!!overTotalPick}
+                          onChange={() => handlePickChange(game._id, 'total', 'OVER', game.total, null)}
+                        />{' '}
+                        O {game.total}
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={
+                            isGameLocked(game) || 
+                            (underTotalPick?.status === 'submitted') ||
+                            (selectedPicks.length >= 3 && !underTotalPick)
+                          }
+                          checked={!!underTotalPick}
+                          onChange={() => handlePickChange(game._id, 'total', 'UNDER', game.total, null)}
+                        />{' '}
+                        U {game.total}
+                      </label>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      {showToast && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 };
