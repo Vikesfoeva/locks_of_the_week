@@ -23,8 +23,31 @@ const WeeklyPicks = () => {
   const [selectedCollection, setSelectedCollection] = useState('');
   const [userPicks, setUserPicks] = useState([]); // Current user's picks for the selected collection
   const [allPicks, setAllPicks] = useState([]); // All users' picks for the selected collection
+  const [users, setUsers] = useState([]); // All users
+  const [userMap, setUserMap] = useState({}); // firebaseUid -> displayName
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'leaderboard'
+  const [games, setGames] = useState([]); // All games for the selected collection
+
+  // Fetch all users on mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await axios.get('/api/users');
+        setUsers(res.data);
+        // Build UID -> displayName map
+        const map = {};
+        res.data.forEach(u => {
+          map[u.firebaseUid] = (u.firstName || '') + (u.lastName ? ' ' + u.lastName : '');
+        });
+        setUserMap(map);
+      } catch (err) {
+        // fallback: just leave empty
+      }
+    };
+    fetchUsers();
+  }, []);
 
   // Fetch collections (weeks) on mount
   useEffect(() => {
@@ -104,6 +127,26 @@ const WeeklyPicks = () => {
     fetchPicks();
   }, [selectedCollection, currentUser]);
 
+  // Fetch games for the selected collection
+  useEffect(() => {
+    const fetchGames = async () => {
+      if (!selectedCollection) return;
+      try {
+        const res = await axios.get(`/api/games?collectionName=${selectedCollection}`);
+        setGames(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        setGames([]);
+      }
+    };
+    fetchGames();
+  }, [selectedCollection]);
+
+  // Build a map of gameId to game object for quick lookup
+  const gameMap = {};
+  games.forEach(game => {
+    gameMap[game._id] = game;
+  });
+
   // Handler for dropdown change
   const handleCollectionChange = (e) => {
     setSelectedCollection(e.target.value);
@@ -111,63 +154,173 @@ const WeeklyPicks = () => {
 
   const hasThreePicks = userPicks.length === 3;
 
+  // Helper: group picks by userId
+  const picksByUser = {};
+  allPicks.forEach(pick => {
+    if (!picksByUser[pick.userId]) picksByUser[pick.userId] = [];
+    picksByUser[pick.userId].push(pick);
+  });
+
+  // Helper: for leaderboard, get picks sorted by submission (or by _id)
+  function getSortedPicksForUser(userId) {
+    const picks = picksByUser[userId] || [];
+    // Sort by submittedAt or _id (fallback)
+    return [...picks].sort((a, b) => {
+      if (a.submittedAt && b.submittedAt) return new Date(a.submittedAt) - new Date(b.submittedAt);
+      if (a._id && b._id) return (a._id > b._id ? 1 : -1);
+      return 0;
+    });
+  }
+
+  // Table rendering
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Weekly Picks</h1>
-      {/* Collection Dropdown */}
-      <div className="mb-6">
-        <label className="block mb-2 font-semibold">Select Week:</label>
+      <div className="mb-4">
+        <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
+          Select Week:
+        </label>
         <select
-          className="border rounded px-3 py-2"
-          value={selectedCollection || ''}
+          id="collection-select"
+          name="collection-select"
+          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          value={selectedCollection}
           onChange={handleCollectionChange}
-          disabled={loading || collections.length === 0}
+          disabled={loading}
         >
-          <option value="" disabled>Select a week</option>
-          {collections.map((collectionName) => {
-            const date = parseCollectionNameToDate(collectionName);
-            return (
-              <option key={collectionName} value={collectionName}>
-                {date
+          {collections.map(collectionName => (
+            <option key={collectionName} value={collectionName}>
+              {(() => {
+                const date = parseCollectionNameToDate(collectionName);
+                return date
                   ? `Week of ${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}, ${date.getFullYear()}`
-                  : collectionName}
-              </option>
-            );
-          })}
+                  : collectionName;
+              })()}
+            </option>
+          ))}
         </select>
       </div>
-
-      {error && <div className="text-red-600 mb-4">{error}</div>}
-
-      {/* Conditional rendering based on pick count */}
-      {loading ? (
-        <div>Loading...</div>
-      ) : hasThreePicks ? (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">All Picks for This Week</h2>
-          <table className="min-w-full border">
-            <thead>
-              <tr>
-                <th className="border px-4 py-2">User</th><th className="border px-4 py-2">Game</th><th className="border px-4 py-2">Pick</th><th className="border px-4 py-2">Spread/Total</th><th className="border px-4 py-2">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allPicks.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-4">No picks found for this week.</td></tr>
-              ) : (
-                allPicks.map((pick, idx) => (
-                  <tr key={idx}>
-                    <td className="border px-4 py-2">{pick.userName || pick.userEmail || pick.userId}</td><td className="border px-4 py-2">{pick.gameId || 'Game info'}</td><td className="border px-4 py-2">{pick.pickType} {pick.pickSide}</td><td className="border px-4 py-2">{pick.line || pick.total || ''}</td><td className="border px-4 py-2"></td>
+      {/* Toggle Button */}
+      <div className="mb-4 flex gap-2">
+        <button
+          className={`px-4 py-2 rounded ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          onClick={() => setViewMode('table')}
+        >
+          Table View
+        </button>
+        <button
+          className={`px-4 py-2 rounded ${viewMode === 'leaderboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          onClick={() => setViewMode('leaderboard')}
+        >
+          Traditional View
+        </button>
+      </div>
+      {loading && <div>Loading...</div>}
+      {error && <div className="text-red-500">{error}</div>}
+      {userPicks.length === 3 && allPicks.length > 0 ? (
+        <>
+          <h2 className="text-xl font-semibold mb-2">All Picks for This Week</h2>
+          {viewMode === 'table' ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+                <thead>
+                  <tr className="bg-gray-100 text-left border-b border-gray-300">
+                    <th className="px-2 py-2 border-r border-gray-300">User</th>
+                    <th className="px-2 py-2 border-r border-gray-300">League</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Away</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Home</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Lock</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Score</th>
+                    <th className="px-2 py-2 border-r border-gray-300">F</th>
+                    <th className="px-2 py-2">W/L/T</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {allPicks.map((pick, idx) => {
+                    const userName = userMap[pick.userId] || pick.userId;
+                    const game = pick && pick.gameId ? gameMap[pick.gameId] : undefined;
+                    return (
+                      <tr key={pick._id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-2 border-r border-gray-300 font-semibold">{userName}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">--</td>
+                        <td className="px-2 py-2 border-r border-gray-300">--</td>
+                        <td className="px-2 py-2">--</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+                <thead>
+                  <tr className="bg-gray-100 text-left border-b border-gray-300">
+                    <th className="px-2 py-2 border-r border-gray-300">User</th>
+                    {[1,2,3].map(i => (
+                      <th key={i} colSpan={6} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
+                    ))}
+                  </tr>
+                  <tr className="bg-gray-50 text-left border-b border-gray-300">
+                    <th className="px-2 py-2 border-r border-gray-300"></th>
+                    {[1,2,3].map(i => (
+                      <React.Fragment key={i}>
+                        <th className="px-2 py-2 border-r border-gray-300">League</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Away</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Home</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Lock</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                        <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user, idx) => {
+                    const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
+                    const picks = getSortedPicksForUser(user.firebaseUid);
+                    return (
+                      <tr key={user.firebaseUid} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap">{userName || user.email}</td>
+                        {[0,1,2].map(i => {
+                          const pick = picks[i];
+                          const game = pick && pick.gameId ? gameMap[pick.gameId] : undefined;
+                          return pick ? (
+                            <React.Fragment key={i}>
+                              <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                            </React.Fragment>
+                          ) : (
+                            <React.Fragment key={i}>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       ) : (
-        <div className="text-center mt-8">
-          <p className="text-lg text-gray-700 mb-4">You must make all 3 picks for this week to view your picks.</p>
-        </div>
+        <div className="text-gray-600 mt-4">Make all 3 picks to view the weekly picks table.</div>
       )}
     </div>
   );
