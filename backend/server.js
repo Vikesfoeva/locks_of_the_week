@@ -561,3 +561,138 @@ app.post('/api/active-year', async (req, res) => {
     res.status(500).json({ error: 'Failed to set active year', details: err.message });
   }
 });
+
+// Get standings data
+app.get('/api/standings', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year, week: selectedGameWeek } = req.query;
+
+    // 1. Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+
+    // 2. Get available weeks (collection names) and all users
+    const availableGameWeeks = await picksCollection.distinct('collectionName');
+    const users = await mainDb.collection('users').find({}).toArray();
+
+    if (availableGameWeeks.length === 0) {
+      const emptyStandings = users.map(user => ({
+        _id: user._id.toString(),
+        name: `${user.firstName} ${user.lastName}`,
+        rank: '-', wins: 0, losses: 0, ties: 0,
+        weekWins: 0, weekLosses: 0, weekTies: 0,
+        rankChange: '0',
+      }));
+      return res.json({ standings: emptyStandings, availableWeeks: [], selectedWeek: null });
+    }
+    
+    availableGameWeeks.sort((a, b) => a.localeCompare(b));
+
+    // 3. Determine selected and previous week
+    if (!selectedGameWeek) {
+      selectedGameWeek = availableGameWeeks[availableGameWeeks.length - 1];
+    }
+    const selectedWeekIndex = availableGameWeeks.indexOf(selectedGameWeek);
+    const previousGameWeek = selectedWeekIndex > 0 ? availableGameWeeks[selectedWeekIndex - 1] : null;
+
+    // 4. Fetch all relevant picks
+    const picksToProcess = await picksCollection.find({ 
+      collectionName: { $in: availableGameWeeks.slice(0, selectedWeekIndex + 1) } 
+    }).toArray();
+
+    // 5. Calculate standings
+    const userStatsByFirebaseUid = {};
+    users.forEach(user => {
+      if (user.firebaseUid) {
+        userStatsByFirebaseUid[user.firebaseUid] = {
+          _id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          total: { wins: 0, losses: 0, ties: 0 },
+          currentWeek: { wins: 0, losses: 0, ties: 0 },
+          previousTotal: { wins: 0, losses: 0, ties: 0 }
+        };
+      }
+    });
+
+    picksToProcess.forEach(pick => {
+      const stats = userStatsByFirebaseUid[pick.userId];
+      if (!stats) return;
+
+      const result = pick.result ? pick.result.toUpperCase() : '';
+      const isWin = result === 'W';
+      const isLoss = result === 'L';
+      const isTie = result === 'T';
+      
+      stats.total.wins += isWin;
+      stats.total.losses += isLoss;
+      stats.total.ties += isTie;
+
+      if (pick.collectionName === selectedGameWeek) {
+        stats.currentWeek.wins += isWin;
+        stats.currentWeek.losses += isLoss;
+        stats.currentWeek.ties += isTie;
+      }
+
+      if (previousGameWeek && availableGameWeeks.indexOf(pick.collectionName) <= availableGameWeeks.indexOf(previousGameWeek)) {
+        stats.previousTotal.wins += isWin;
+        stats.previousTotal.losses += isLoss;
+        stats.previousTotal.ties += isTie;
+      }
+    });
+
+    // 6. Rank calculation
+    const rankingFn = (a, b) => b.wins - a.wins || b.ties - a.ties || a.losses - b.losses;
+    
+    const calculateRanks = (statsDict, key) => {
+      const sorted = Object.values(statsDict).sort((a, b) => rankingFn(a[key], b[key]));
+      const ranks = {};
+      sorted.forEach((s, i) => { ranks[s._id] = i + 1; });
+      return ranks;
+    };
+
+    const currentRanks = calculateRanks(userStatsByFirebaseUid, 'total');
+    const previousRanks = previousGameWeek ? calculateRanks(userStatsByFirebaseUid, 'previousTotal') : null;
+
+    // 7. Combine and Return
+    let combinedStandings = users.map(user => {
+      const stats = user.firebaseUid ? userStatsByFirebaseUid[user.firebaseUid] : null;
+      if (!stats) {
+        return {
+          _id: user._id.toString(), name: `${user.firstName} ${user.lastName}`,
+          rank: '-', wins: 0, losses: 0, ties: 0, weekWins: 0, weekLosses: 0, weekTies: 0, rankChange: '0'
+        };
+      }
+      
+      const rank = currentRanks[stats._id];
+      const prevRank = previousRanks ? previousRanks[stats._id] : null;
+      const rankChange = (prevRank && rank) ? prevRank - rank : 0;
+
+      return {
+        _id: stats._id, name: stats.name, rank: rank,
+        wins: stats.total.wins, losses: stats.total.losses, ties: stats.total.ties,
+        weekWins: stats.currentWeek.wins, weekLosses: stats.currentWeek.losses, weekTies: stats.currentWeek.ties,
+        rankChange: rankChange > 0 ? `+${rankChange}` : `${rankChange}`
+      };
+    });
+    
+    combinedStandings.sort((a,b) => {
+        if (a.rank === '-') return 1;
+        if (b.rank === '-') return -1;
+        return a.rank - b.rank;
+    });
+
+    res.json({ standings: combinedStandings, availableWeeks: availableGameWeeks, selectedWeek: selectedGameWeek });
+
+  } catch (err) {
+    console.error('Error fetching standings:', err);
+    res.status(500).json({ error: 'Failed to fetch standings', details: err.message });
+  }
+});

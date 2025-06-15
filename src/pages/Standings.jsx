@@ -1,83 +1,96 @@
-import React, { useState } from 'react';
-
-// Mock data for demonstration
-const mockStandings = [
-  {
-    rank: 1,
-    name: 'Greg Steuterman',
-    wins: 39,
-    losses: 20,
-    ties: 1,
-    weekWins: 3,
-    weekLosses: 0,
-    weekTies: 0,
-    totalWins: 39,
-    paid: true,
-    rankChange: '+1',
-  },
-  {
-    rank: 2,
-    name: 'Nathaniel Urban',
-    wins: 38,
-    losses: 21,
-    ties: 1,
-    weekWins: 2,
-    weekLosses: 1,
-    weekTies: 0,
-    totalWins: 38,
-    paid: true,
-    rankChange: '-1',
-  },
-  {
-    rank: 3,
-    name: 'James Oelke',
-    wins: 37,
-    losses: 22,
-    ties: 1,
-    weekWins: 1,
-    weekLosses: 2,
-    weekTies: 0,
-    totalWins: 37,
-    paid: false,
-    rankChange: '0',
-  },
-  // ... more mock users
-];
-
-const mockWeeks = Array.from({ length: 20 }, (_, i) => i + 1);
+import React, { useState, useEffect } from 'react';
 
 const Standings = () => {
-  const [selectedWeek, setSelectedWeek] = useState(20);
+  const [standings, setStandings] = useState([]);
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+  const [selectedWeek, setSelectedWeek] = useState(null);
+  const [activeYear, setActiveYear] = useState(new Date().getFullYear());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const getWinPct = (user, week) => {
-    const totalPoints = 3 * week;
+  useEffect(() => {
+    const fetchActiveYear = async () => {
+      try {
+        const response = await fetch('/api/active-year');
+        if (!response.ok) {
+          throw new Error('Failed to fetch active year');
+        }
+        const data = await response.json();
+        if (data.year) {
+          setActiveYear(data.year);
+        }
+      } catch (error) {
+        console.error("Could not fetch active year, defaulting to current year:", error);
+        // Keep default year if fetch fails
+      }
+    };
+    fetchActiveYear();
+  }, []);
+
+  useEffect(() => {
+    if (!activeYear) return;
+
+    const fetchStandings = async () => {
+      setLoading(true);
+      try {
+        const url = selectedWeek 
+          ? `/api/standings?year=${activeYear}&week=${selectedWeek}`
+          : `/api/standings?year=${activeYear}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to fetch standings');
+        }
+        const data = await response.json();
+        setStandings(data.standings);
+        setAvailableWeeks(data.availableWeeks);
+        if (selectedWeek === null) {
+          setSelectedWeek(data.selectedWeek);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStandings();
+  }, [activeYear, selectedWeek]);
+  
+  const getWinPct = (user) => {
+    const totalGames = user.wins + user.losses + user.ties;
+    if (totalGames === 0) return '0.0%';
     const winPoints = user.wins + 0.5 * user.ties;
-    return totalPoints > 0 ? winPoints / totalPoints : 0;
+    return ((winPoints / totalGames) * 100).toFixed(1) + '%';
   };
+  
+  const firstPlaceWins = standings.length > 0 ? standings[0].wins : 0;
 
-  // Sort by win percentage (highest to lowest)
-  const sortedStandings = [...mockStandings].sort((a, b) => getWinPct(b, selectedWeek) - getWinPct(a, selectedWeek));
-
-  const firstPlaceWins = sortedStandings.length > 0 ? sortedStandings[0].wins : 0;
+  if (loading) return <div className="text-center p-8">Loading standings...</div>;
+  if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
     <div className="max-w-5xl mx-auto p-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-        <h1 className="text-2xl font-bold">Overall Standings</h1>
+        <h1 className="text-2xl font-bold">Overall Standings - {activeYear}</h1>
         <div>
           <label htmlFor="week-select" className="mr-2 font-medium">View as of week:</label>
           <select
             id="week-select"
-            value={selectedWeek}
-            onChange={e => setSelectedWeek(Number(e.target.value))}
+            value={selectedWeek || ''}
+            onChange={e => setSelectedWeek(e.target.value)}
             className="border rounded px-2 py-1"
+            disabled={availableWeeks.length === 0}
           >
-            {mockWeeks.map(week => (
-              <option key={week} value={week}>Week {week}</option>
+            {availableWeeks.map((week, index) => (
+              <option key={week} value={week}>Week {index + 1} ({week.split('_').slice(1).join('/')})</option>
             ))}
           </select>
         </div>
       </div>
+      {standings.length === 0 ? (
+        <div className="text-center p-8">No standings data available for this week.</div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="min-w-full border border-gray-300 bg-white shadow-sm rounded-lg">
           <thead className="bg-gray-100">
@@ -93,16 +106,14 @@ const Standings = () => {
             </tr>
           </thead>
           <tbody>
-            {sortedStandings.map((user, idx) => {
-              const totalPoints = 3 * selectedWeek;
-              const winPoints = user.wins + 0.5 * user.ties;
-              const winPct = totalPoints > 0 ? ((winPoints / totalPoints) * 100).toFixed(1) + '%' : '0.0%';
+            {standings.map((user, idx) => {
+              const winPct = getWinPct(user);
               const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
               const totalPicks = user.wins + user.losses + user.ties;
               const wb = firstPlaceWins - user.wins;
               return (
-                <tr key={user.name} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-3 py-2 font-semibold">{idx + 1}</td>
+                <tr key={user._id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-3 py-2 font-semibold">{user.rank}</td>
                   <td className="px-3 py-2">{user.name}</td>
                   <td className="px-3 py-2">{`${user.wins}-${user.losses}-${user.ties}`}</td>
                   <td className="px-3 py-2">{weekRecord}</td>
@@ -126,6 +137,7 @@ const Standings = () => {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 };
