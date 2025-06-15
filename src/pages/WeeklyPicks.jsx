@@ -27,7 +27,14 @@ const WeeklyPicks = () => {
   const [userMap, setUserMap] = useState({}); // firebaseUid -> displayName
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'leaderboard'
+  const [viewMode, setViewMode] = useState(() => {
+    // Try to load from localStorage, fallback to 'table'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('weeklyPicksViewMode');
+      if (saved === 'table' || saved === 'leaderboard') return saved;
+    }
+    return 'table';
+  }); // 'table' or 'leaderboard'
   const [games, setGames] = useState([]); // All games for the selected collection
 
   // Fetch all users on mount
@@ -204,13 +211,23 @@ const WeeklyPicks = () => {
       <div className="mb-4 flex gap-2">
         <button
           className={`px-4 py-2 rounded ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => setViewMode('table')}
+          onClick={() => {
+            setViewMode('table');
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('weeklyPicksViewMode', 'table');
+            }
+          }}
         >
           Table View
         </button>
         <button
           className={`px-4 py-2 rounded ${viewMode === 'leaderboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => setViewMode('leaderboard')}
+          onClick={() => {
+            setViewMode('leaderboard');
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('weeklyPicksViewMode', 'leaderboard');
+            }
+          }}
         >
           Traditional View
         </button>
