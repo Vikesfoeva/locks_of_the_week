@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { Disclosure, Menu, Transition } from '@headlessui/react'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
@@ -14,6 +14,7 @@ const navigation = [
 export default function Layout() {
   const { currentUser, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState('')
 
   const adminNav = currentUser?.isAdmin
@@ -42,18 +43,26 @@ export default function Layout() {
                     <span className="text-2xl font-bold text-primary-600">Locks of the Week</span>
                   </div>
                   <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    {[...navigation, ...adminNav].map((item) => (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                      >
-                        {item.name}
-                      </Link>
-                    ))}
+                    {[...navigation, ...adminNav].map((item) => {
+                      const isActive = location.pathname === item.href || (item.href !== '/' && location.pathname.startsWith(item.href));
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium transition-colors
+                            ${isActive ? 'border-blue-600 text-blue-700 font-bold' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
+                        >
+                          {item.name}
+                        </Link>
+                      )
+                    })}
                   </div>
                 </div>
                 <div className="hidden sm:ml-6 sm:flex sm:items-center">
+                  <div className="flex flex-col items-end mr-4">
+                    <span className="text-xs text-gray-700 font-medium">{currentUser?.email}</span>
+                    <span className="text-xs text-gray-500">{currentUser?.isAdmin ? 'Administrator' : 'User'}</span>
+                  </div>
                   <Menu as="div" className="relative ml-3">
                     <div>
                       <Menu.Button className="flex rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
@@ -112,16 +121,20 @@ export default function Layout() {
 
             <Disclosure.Panel className="sm:hidden">
               <div className="space-y-1 pb-3 pt-2">
-                {[...navigation, ...adminNav].map((item) => (
-                  <Disclosure.Button
-                    key={item.name}
-                    as={Link}
-                    to={item.href}
-                    className="block border-l-4 border-transparent py-2 pl-3 pr-4 text-base font-medium text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700"
-                  >
-                    {item.name}
-                  </Disclosure.Button>
-                ))}
+                {[...navigation, ...adminNav].map((item) => {
+                  const isActive = location.pathname === item.href || (item.href !== '/' && location.pathname.startsWith(item.href));
+                  return (
+                    <Disclosure.Button
+                      key={item.name}
+                      as={Link}
+                      to={item.href}
+                      className={`block border-l-4 py-2 pl-3 pr-4 text-base font-medium transition-colors
+                        ${isActive ? 'border-blue-600 text-blue-700 font-bold bg-blue-50' : 'border-transparent text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700'}`}
+                    >
+                      {item.name}
+                    </Disclosure.Button>
+                  )
+                })}
               </div>
               <div className="border-t border-gray-200 pb-3 pt-4">
                 <div className="flex items-center px-4">
@@ -132,6 +145,7 @@ export default function Layout() {
                   </div>
                   <div className="ml-3">
                     <div className="text-base font-medium text-gray-800">{currentUser?.email}</div>
+                    <div className="text-xs text-gray-500">{currentUser?.isAdmin ? 'Administrator' : 'User'}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">

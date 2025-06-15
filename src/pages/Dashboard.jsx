@@ -58,16 +58,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900">Your Profile</h3>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <div className="mt-1 text-sm text-gray-900">{currentUser?.email}</div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 } 

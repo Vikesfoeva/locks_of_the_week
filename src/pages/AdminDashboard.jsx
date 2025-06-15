@@ -8,7 +8,6 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [whitelist, setWhitelist] = useState([]);
   const [newEmail, setNewEmail] = useState('');
-  const [activeWeek, setActiveWeek] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -138,11 +137,6 @@ export default function AdminDashboard() {
     } catch (err) {
       setError(err.message);
     }
-  };
-
-  // Handler for active week
-  const handleActiveWeekChange = (e) => {
-    setActiveWeek(Number(e.target.value));
   };
 
   // Get whitelisted users who haven't registered yet
@@ -480,36 +474,6 @@ export default function AdminDashboard() {
           </div>
           <button className="btn btn-primary" type="submit">Add to Whitelist</button>
         </form>
-      </div>
-
-      {/* League Settings */}
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">League Settings</h3>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Current Active Week</label>
-        <select
-          className="input"
-          value={activeWeek}
-          onChange={handleActiveWeekChange}
-        >
-          {[...Array(20)].map((_, i) => (
-            <option key={i + 1} value={i + 1}>Week {i + 1}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Admin Profile */}
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900">Admin Profile</h3>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <div className="mt-1 text-sm text-gray-900">{currentUser?.email}</div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Role</label>
-            <div className="mt-1 text-sm text-gray-900">Administrator</div>
-          </div>
-        </div>
       </div>
     </div>
   );
