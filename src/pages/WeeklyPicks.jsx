@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
+import { Popover, Portal } from '@headlessui/react';
+import { FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
+import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {
@@ -41,6 +44,226 @@ const WeeklyPicks = () => {
   const [activeYear, setActiveYear] = useState(null);
   const [activeYearLoading, setActiveYearLoading] = useState(true);
   const [activeYearError, setActiveYearError] = useState(null);
+
+  // Sorting and Filtering State
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  
+  // State for popover filters
+  const [userFilter, setUserFilter] = useState([]);
+  const [userFilterDraft, setUserFilterDraft] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const userBtnRef = React.useRef(null);
+  const [userPopoverPosition, setUserPopoverPosition] = useState({ top: 0, left: 0 });
+  const userPopoverOpenRef = React.useRef(false);
+
+  const [leagueFilter, setLeagueFilter] = useState([]);
+  const [leagueFilterDraft, setLeagueFilterDraft] = useState([]);
+  const [leagueSearch, setLeagueSearch] = useState('');
+  const leagueBtnRef = React.useRef(null);
+  const [leaguePopoverPosition, setLeaguePopoverPosition] = useState({ top: 0, left: 0 });
+  const leaguePopoverOpenRef = React.useRef(false);
+
+  const [awayTeamFilter, setAwayTeamFilter] = useState([]);
+  const [awayTeamFilterDraft, setAwayTeamFilterDraft] = useState([]);
+  const [awayTeamSearch, setAwayTeamSearch] = useState('');
+  const awayTeamBtnRef = React.useRef(null);
+  const [awayTeamPopoverPosition, setAwayTeamPopoverPosition] = useState({ top: 0, left: 0 });
+  const awayTeamPopoverOpenRef = React.useRef(false);
+
+  const [homeTeamFilter, setHomeTeamFilter] = useState([]);
+  const [homeTeamFilterDraft, setHomeTeamFilterDraft] = useState([]);
+  const [homeTeamSearch, setHomeTeamSearch] = useState('');
+  const homeTeamBtnRef = React.useRef(null);
+  const [homeTeamPopoverPosition, setHomeTeamPopoverPosition] = useState({ top: 0, left: 0 });
+  const homeTeamPopoverOpenRef = React.useRef(false);
+
+  const [lockFilter, setLockFilter] = useState([]);
+  const [lockFilterDraft, setLockFilterDraft] = useState([]);
+  const [lockSearch, setLockSearch] = useState('');
+  const lockBtnRef = React.useRef(null);
+  const [lockPopoverPosition, setLockPopoverPosition] = useState({ top: 0, left: 0 });
+  const lockPopoverOpenRef = React.useRef(false);
+
+  const [resultFilter, setResultFilter] = useState([]);
+  const [resultFilterDraft, setResultFilterDraft] = useState([]);
+  const [resultSearch, setResultSearch] = useState('');
+  const resultBtnRef = React.useRef(null);
+  const [resultPopoverPosition, setResultPopoverPosition] = useState({ top: 0, left: 0 });
+  const resultPopoverOpenRef = React.useRef(false);
+
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const handleResetFilters = () => {
+    setUserFilter([]);
+    setLeagueFilter([]);
+    setAwayTeamFilter([]);
+    setHomeTeamFilter([]);
+    setLockFilter([]);
+    setResultFilter([]);
+    setUserSearch('');
+    setLeagueSearch('');
+    setAwayTeamSearch('');
+    setHomeTeamSearch('');
+    setLockSearch('');
+    setResultSearch('');
+  };
+
+  const getUniqueValues = (picks, key, subKey = null) => {
+    const values = picks.map(pick => {
+      let value;
+      if (key === 'user') {
+        value = userMap[pick.userId] || pick.userId;
+      } else if (key === 'lock') {
+        value = pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+      } else if (subKey) {
+        value = pick.gameDetails?.[subKey];
+      } else {
+        value = pick[key];
+      }
+      return value || '';
+    });
+    return Array.from(new Set(values)).filter(Boolean).sort();
+  };
+
+  const filteredPicksForUser = useMemo(() => allPicks.filter(pick =>
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
+  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter]);
+
+  const filteredPicksForLeague = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
+  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
+
+  const filteredPicksForAwayTeam = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
+  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
+
+  const filteredPicksForHomeTeam = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap]);
+
+  const filteredPicksForLock = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap]);
+
+  const filteredPicksForResult = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap]);
+
+  const uniqueUsers = getUniqueValues(filteredPicksForUser, 'user');
+  const uniqueLeagues = getUniqueValues(filteredPicksForLeague, 'gameDetails', 'league');
+  const uniqueAwayTeams = getUniqueValues(filteredPicksForAwayTeam, 'gameDetails', 'away_team_abbrev');
+  const uniqueHomeTeams = getUniqueValues(filteredPicksForHomeTeam, 'gameDetails', 'home_team_abbrev');
+  const uniqueLocks = getUniqueValues(filteredPicksForLock, 'lock');
+  const uniqueResults = getUniqueValues(filteredPicksForResult, 'result');
+  
+  const filteredUsers = uniqueUsers.filter(val => val.toLowerCase().includes(userSearch.toLowerCase()));
+  const filteredLeagues = uniqueLeagues.filter(val => val.toLowerCase().includes(leagueSearch.toLowerCase()));
+  const filteredAwayTeams = uniqueAwayTeams.filter(val => val.toLowerCase().includes(awayTeamSearch.toLowerCase()));
+  const filteredHomeTeams = uniqueHomeTeams.filter(val => val.toLowerCase().includes(homeTeamSearch.toLowerCase()));
+  const filteredLocks = uniqueLocks.filter(val => val.toLowerCase().includes(lockSearch.toLowerCase()));
+  const filteredResults = uniqueResults.filter(val => val.toLowerCase().includes(resultSearch.toLowerCase()));
+
+  // For checking if a filter is active, we need the total number of unique values from the original data
+  const totalUniqueUsers = useMemo(() => getUniqueValues(allPicks, 'user'), [allPicks, userMap]);
+  const totalUniqueLeagues = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'league'), [allPicks]);
+  const totalUniqueAwayTeams = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'away_team_abbrev'), [allPicks]);
+  const totalUniqueHomeTeams = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'home_team_abbrev'), [allPicks]);
+  const totalUniqueLocks = useMemo(() => getUniqueValues(allPicks, 'lock'), [allPicks]);
+  const totalUniqueResults = useMemo(() => getUniqueValues(allPicks, 'result'), [allPicks]);
+
+  const isUserFiltered = userFilter.length > 0 && userFilter.length < totalUniqueUsers.length;
+  const isLeagueFiltered = leagueFilter.length > 0 && leagueFilter.length < totalUniqueLeagues.length;
+  const isAwayTeamFiltered = awayTeamFilter.length > 0 && awayTeamFilter.length < totalUniqueAwayTeams.length;
+  const isHomeTeamFiltered = homeTeamFilter.length > 0 && homeTeamFilter.length < totalUniqueHomeTeams.length;
+  const isLockFiltered = lockFilter.length > 0 && lockFilter.length < totalUniqueLocks.length;
+  const isResultFiltered = resultFilter.length > 0 && resultFilter.length < totalUniqueResults.length;
+
+  const filteredAndSortedPicks = useMemo(() => {
+    let filtered = [...allPicks];
+    
+    if (userFilter.length > 0) {
+      filtered = filtered.filter(pick => userFilter.includes(userMap[pick.userId] || pick.userId));
+    }
+    if (leagueFilter.length > 0) {
+      filtered = filtered.filter(pick => pick.gameDetails && leagueFilter.includes(pick.gameDetails.league));
+    }
+    if (awayTeamFilter.length > 0) {
+      filtered = filtered.filter(pick => pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev));
+    }
+    if (homeTeamFilter.length > 0) {
+      filtered = filtered.filter(pick => pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev));
+    }
+    if (lockFilter.length > 0) {
+      filtered = filtered.filter(pick => {
+        const lockValue = pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        return lockFilter.includes(lockValue);
+      });
+    }
+    if (resultFilter.length > 0) {
+        filtered = filtered.filter(pick => resultFilter.includes(pick.result || '--'));
+    }
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue;
+        let bValue;
+
+        if (sortConfig.key === 'user') {
+          aValue = userMap[a.userId] || a.userId;
+          bValue = userMap[b.userId] || b.userId;
+        } else if (sortConfig.key === 'lock') {
+            aValue = a.pickType === 'spread' ? `${a.pickSide} Line` : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+            bValue = b.pickType === 'spread' ? `${b.pickSide} Line` : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        } else if (['league', 'away_team_abbrev', 'home_team_abbrev'].includes(sortConfig.key)) {
+          aValue = a.gameDetails?.[sortConfig.key];
+          bValue = b.gameDetails?.[sortConfig.key];
+        } else {
+          aValue = a[sortConfig.key];
+          bValue = b[sortConfig.key];
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
 
   // Fetch active year on mount
   useEffect(() => {
@@ -241,6 +464,15 @@ const WeeklyPicks = () => {
         >
           Traditional View
         </button>
+        {viewMode === 'table' && (
+          <button
+            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100"
+            onClick={handleResetFilters}
+            type="button"
+          >
+            Reset Filters
+          </button>
+        )}
       </div>
       {loading && <div>Loading...</div>}
       {error && <div className="text-red-500">{error}</div>}
@@ -254,19 +486,534 @@ const WeeklyPicks = () => {
               <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
                 <thead>
                   <tr className="bg-gray-100 text-left border-b border-gray-300">
-                    <th className="px-2 py-2 border-r border-gray-300">User</th>
-                    <th className="px-2 py-2 border-r border-gray-300">League</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Away</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Home</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Lock</th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                      <div className="flex items-center gap-1">
+                        <span>User</span>
+                        <div className="flex flex-col ml-1">
+                          <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
+                          <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
+                        </div>
+                        <Popover as="span" className="relative">
+                          {({ open, close }) => {
+                            userPopoverOpenRef.current = open;
+                            return (
+                              <>
+                                <Popover.Button
+                                  ref={userBtnRef}
+                                  className="ml-1 p-1 rounded hover:bg-gray-200"
+                                  onClick={e => {
+                                    setUserFilterDraft(userFilter.length ? userFilter : [...uniqueUsers]);
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setUserPopoverPosition({
+                                      top: rect.bottom + window.scrollY + 4,
+                                      left: rect.left + window.scrollX,
+                                    });
+                                  }}
+                                >
+                                  {isUserFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                </Popover.Button>
+                                <Portal>
+                                  {open && (
+                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: userPopoverPosition.top, left: userPopoverPosition.left }}>
+                                      <div className="font-semibold mb-2">Filter Users</div>
+                                      <div className="flex items-center mb-2 gap-2 text-xs">
+                                        <button className="underline" onClick={() => setUserFilterDraft([...uniqueUsers])} type="button">Select all</button>
+                                        <span>-</span>
+                                        <button className="underline" onClick={() => setUserFilterDraft([])} type="button">Clear</button>
+                                      </div>
+                                      <input
+                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                        placeholder="Search..."
+                                        value={userSearch}
+                                        onChange={e => setUserSearch(e.target.value)}
+                                      />
+                                      <div className="max-h-40 overflow-y-auto mb-2">
+                                        {filteredUsers.map(val => (
+                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={userFilterDraft.includes(val)}
+                                              onChange={() => setUserFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                            />
+                                            <span>{val}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                          onClick={e => { e.stopPropagation(); setUserFilterDraft(userFilter); close(); }}
+                                          type="button"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          className="px-3 py-1 rounded bg-green-600 text-white"
+                                          onClick={e => { 
+                                            e.stopPropagation(); 
+                                            if (userFilterDraft.length === uniqueUsers.length) {
+                                                setUserFilter([]);
+                                            } else {
+                                                setUserFilter(userFilterDraft); 
+                                            }
+                                            close(); 
+                                          }}
+                                          type="button"
+                                        >
+                                          OK
+                                        </button>
+                                      </div>
+                                    </Popover.Panel>
+                                  )}
+                                </Portal>
+                              </>
+                            );
+                          }}
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                      <div className="flex items-center gap-1">
+                        <span>League</span>
+                        <div className="flex flex-col ml-1">
+                          <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
+                          <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
+                        </div>
+                        {/* League Filter Popover */}
+                        <Popover as="span" className="relative">
+                          {({ open, close }) => {
+                            leaguePopoverOpenRef.current = open;
+                            return (
+                              <>
+                                <Popover.Button
+                                  ref={leagueBtnRef}
+                                  className="ml-1 p-1 rounded hover:bg-gray-200"
+                                  onClick={e => {
+                                    setLeagueFilterDraft(leagueFilter.length ? leagueFilter : [...uniqueLeagues]);
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setLeaguePopoverPosition({
+                                      top: rect.bottom + window.scrollY + 4,
+                                      left: rect.left + window.scrollX,
+                                    });
+                                  }}
+                                >
+                                  {isLeagueFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                </Popover.Button>
+                                <Portal>
+                                  {open && (
+                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: leaguePopoverPosition.top, left: leaguePopoverPosition.left }}>
+                                      <div className="font-semibold mb-2">Filter League</div>
+                                      <div className="flex items-center mb-2 gap-2 text-xs">
+                                        <button className="underline" onClick={() => setLeagueFilterDraft([...uniqueLeagues])} type="button">Select all</button>
+                                        <span>-</span>
+                                        <button className="underline" onClick={() => setLeagueFilterDraft([])} type="button">Clear</button>
+                                      </div>
+                                      <input
+                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                        placeholder="Search..."
+                                        value={leagueSearch}
+                                        onChange={e => setLeagueSearch(e.target.value)}
+                                      />
+                                      <div className="max-h-40 overflow-y-auto mb-2">
+                                        {filteredLeagues.map(val => (
+                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={leagueFilterDraft.includes(val)}
+                                              onChange={() => setLeagueFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                            />
+                                            <span>{val}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                          onClick={e => { e.stopPropagation(); setLeagueFilterDraft(leagueFilter); close(); }}
+                                          type="button"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          className="px-3 py-1 rounded bg-green-600 text-white"
+                                          onClick={e => { 
+                                            e.stopPropagation(); 
+                                            if (leagueFilterDraft.length === uniqueLeagues.length) {
+                                                setLeagueFilter([]);
+                                            } else {
+                                                setLeagueFilter(leagueFilterDraft); 
+                                            }
+                                            close(); 
+                                          }}
+                                          type="button"
+                                        >
+                                          OK
+                                        </button>
+                                      </div>
+                                    </Popover.Panel>
+                                  )}
+                                </Portal>
+                              </>
+                            );
+                          }}
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                      <div className="flex items-center gap-1">
+                        <span>Away</span>
+                        <div className="flex flex-col ml-1">
+                            <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
+                            <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
+                        </div>
+                        {/* Away Team Filter Popover */}
+                        <Popover as="span" className="relative">
+                          {({ open, close }) => {
+                            awayTeamPopoverOpenRef.current = open;
+                            return (
+                              <>
+                                <Popover.Button
+                                  ref={awayTeamBtnRef}
+                                  className="ml-1 p-1 rounded hover:bg-gray-200"
+                                  onClick={e => {
+                                    setAwayTeamFilterDraft(awayTeamFilter.length ? awayTeamFilter : [...uniqueAwayTeams]);
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setAwayTeamPopoverPosition({
+                                      top: rect.bottom + window.scrollY + 4,
+                                      left: rect.left + window.scrollX,
+                                    });
+                                  }}
+                                >
+                                  {isAwayTeamFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                </Popover.Button>
+                                <Portal>
+                                  {open && (
+                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: awayTeamPopoverPosition.top, left: awayTeamPopoverPosition.left }}>
+                                      <div className="font-semibold mb-2">Filter Away Team</div>
+                                      <div className="flex items-center mb-2 gap-2 text-xs">
+                                        <button className="underline" onClick={() => setAwayTeamFilterDraft([...uniqueAwayTeams])} type="button">Select all</button>
+                                        <span>-</span>
+                                        <button className="underline" onClick={() => setAwayTeamFilterDraft([])} type="button">Clear</button>
+                                      </div>
+                                      <input
+                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                        placeholder="Search..."
+                                        value={awayTeamSearch}
+                                        onChange={e => setAwayTeamSearch(e.target.value)}
+                                      />
+                                      <div className="max-h-40 overflow-y-auto mb-2">
+                                        {filteredAwayTeams.map(val => (
+                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={awayTeamFilterDraft.includes(val)}
+                                              onChange={() => setAwayTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                            />
+                                            <span>{val}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                          onClick={e => { e.stopPropagation(); setAwayTeamFilterDraft(awayTeamFilter); close(); }}
+                                          type="button"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          className="px-3 py-1 rounded bg-green-600 text-white"
+                                          onClick={e => { 
+                                            e.stopPropagation(); 
+                                            if (awayTeamFilterDraft.length === uniqueAwayTeams.length) {
+                                                setAwayTeamFilter([]);
+                                            } else {
+                                                setAwayTeamFilter(awayTeamFilterDraft); 
+                                            }
+                                            close(); 
+                                          }}
+                                          type="button"
+                                        >
+                                          OK
+                                        </button>
+                                      </div>
+                                    </Popover.Panel>
+                                  )}
+                                </Portal>
+                              </>
+                            );
+                          }}
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                            <span>Home</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
+                            </div>
+                            {/* Home Team Filter Popover */}
+                            <Popover as="span" className="relative">
+                              {({ open, close }) => {
+                                homeTeamPopoverOpenRef.current = open;
+                                return (
+                                  <>
+                                    <Popover.Button
+                                      ref={homeTeamBtnRef}
+                                      className="ml-1 p-1 rounded hover:bg-gray-200"
+                                      onClick={e => {
+                                        setHomeTeamFilterDraft(homeTeamFilter.length ? homeTeamFilter : [...uniqueHomeTeams]);
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setHomeTeamPopoverPosition({
+                                          top: rect.bottom + window.scrollY + 4,
+                                          left: rect.left + window.scrollX,
+                                        });
+                                      }}
+                                    >
+                                      {isHomeTeamFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                    </Popover.Button>
+                                    <Portal>
+                                      {open && (
+                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: homeTeamPopoverPosition.top, left: homeTeamPopoverPosition.left }}>
+                                          <div className="font-semibold mb-2">Filter Home Team</div>
+                                          <div className="flex items-center mb-2 gap-2 text-xs">
+                                            <button className="underline" onClick={() => setHomeTeamFilterDraft([...uniqueHomeTeams])} type="button">Select all</button>
+                                            <span>-</span>
+                                            <button className="underline" onClick={() => setHomeTeamFilterDraft([])} type="button">Clear</button>
+                                          </div>
+                                          <input
+                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                            placeholder="Search..."
+                                            value={homeTeamSearch}
+                                            onChange={e => setHomeTeamSearch(e.target.value)}
+                                          />
+                                          <div className="max-h-40 overflow-y-auto mb-2">
+                                            {filteredHomeTeams.map(val => (
+                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={homeTeamFilterDraft.includes(val)}
+                                                  onChange={() => setHomeTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                                />
+                                                <span>{val}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                              onClick={e => { e.stopPropagation(); setHomeTeamFilterDraft(homeTeamFilter); close(); }}
+                                              type="button"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1 rounded bg-green-600 text-white"
+                                              onClick={e => { 
+                                                e.stopPropagation(); 
+                                                if (homeTeamFilterDraft.length === uniqueHomeTeams.length) {
+                                                    setHomeTeamFilter([]);
+                                                } else {
+                                                    setHomeTeamFilter(homeTeamFilterDraft); 
+                                                }
+                                                close(); 
+                                              }}
+                                              type="button"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </Popover.Panel>
+                                      )}
+                                    </Portal>
+                                  </>
+                                );
+                              }}
+                            </Popover>
+                        </div>
+                    </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                            <span>Lock</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
+                            </div>
+                            {/* Lock Filter Popover */}
+                            <Popover as="span" className="relative">
+                              {({ open, close }) => {
+                                lockPopoverOpenRef.current = open;
+                                return (
+                                  <>
+                                    <Popover.Button
+                                      ref={lockBtnRef}
+                                      className="ml-1 p-1 rounded hover:bg-gray-200"
+                                      onClick={e => {
+                                        setLockFilterDraft(lockFilter.length ? lockFilter : [...uniqueLocks]);
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setLockPopoverPosition({
+                                          top: rect.bottom + window.scrollY + 4,
+                                          left: rect.left + window.scrollX,
+                                        });
+                                      }}
+                                    >
+                                      {isLockFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                    </Popover.Button>
+                                    <Portal>
+                                      {open && (
+                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: lockPopoverPosition.top, left: lockPopoverPosition.left }}>
+                                          <div className="font-semibold mb-2">Filter Lock</div>
+                                          <div className="flex items-center mb-2 gap-2 text-xs">
+                                            <button className="underline" onClick={() => setLockFilterDraft([...uniqueLocks])} type="button">Select all</button>
+                                            <span>-</span>
+                                            <button className="underline" onClick={() => setLockFilterDraft([])} type="button">Clear</button>
+                                          </div>
+                                          <input
+                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                            placeholder="Search..."
+                                            value={lockSearch}
+                                            onChange={e => setLockSearch(e.target.value)}
+                                          />
+                                          <div className="max-h-40 overflow-y-auto mb-2">
+                                            {filteredLocks.map(val => (
+                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={lockFilterDraft.includes(val)}
+                                                  onChange={() => setLockFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                                />
+                                                <span>{val}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                              onClick={e => { e.stopPropagation(); setLockFilterDraft(lockFilter); close(); }}
+                                              type="button"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1 rounded bg-green-600 text-white"
+                                              onClick={e => { 
+                                                e.stopPropagation(); 
+                                                if (lockFilterDraft.length === uniqueLocks.length) {
+                                                    setLockFilter([]);
+                                                } else {
+                                                    setLockFilter(lockFilterDraft); 
+                                                }
+                                                close(); 
+                                              }}
+                                              type="button"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </Popover.Panel>
+                                      )}
+                                    </Portal>
+                                  </>
+                                );
+                              }}
+                            </Popover>
+                        </div>
+                    </th>
                     <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
                     <th className="px-2 py-2 border-r border-gray-300">Score</th>
                     <th className="px-2 py-2 border-r border-gray-300">Status</th>
-                    <th className="px-2 py-2">W/L/T</th>
+                    <th className="px-2 py-2">
+                        <div className="flex items-center gap-1">
+                            <span>W/L/T</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
+                            </div>
+                            {/* Result Filter Popover */}
+                            <Popover as="span" className="relative">
+                              {({ open, close }) => {
+                                resultPopoverOpenRef.current = open;
+                                return (
+                                  <>
+                                    <Popover.Button
+                                      ref={resultBtnRef}
+                                      className="ml-1 p-1 rounded hover:bg-gray-200"
+                                      onClick={e => {
+                                        setResultFilterDraft(resultFilter.length ? resultFilter : [...uniqueResults]);
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setResultPopoverPosition({
+                                          top: rect.bottom + window.scrollY + 4,
+                                          left: rect.left + window.scrollX,
+                                        });
+                                      }}
+                                    >
+                                      {isResultFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                    </Popover.Button>
+                                    <Portal>
+                                      {open && (
+                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: resultPopoverPosition.top, left: resultPopoverPosition.left }}>
+                                          <div className="font-semibold mb-2">Filter W/L/T</div>
+                                          <div className="flex items-center mb-2 gap-2 text-xs">
+                                            <button className="underline" onClick={() => setResultFilterDraft([...uniqueResults])} type="button">Select all</button>
+                                            <span>-</span>
+                                            <button className="underline" onClick={() => setResultFilterDraft([])} type="button">Clear</button>
+                                          </div>
+                                          <input
+                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                            placeholder="Search..."
+                                            value={resultSearch}
+                                            onChange={e => setResultSearch(e.target.value)}
+                                          />
+                                          <div className="max-h-40 overflow-y-auto mb-2">
+                                            {filteredResults.map(val => (
+                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={resultFilterDraft.includes(val)}
+                                                  onChange={() => setResultFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                                />
+                                                <span>{val}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                              onClick={e => { e.stopPropagation(); setResultFilterDraft(resultFilter); close(); }}
+                                              type="button"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1 rounded bg-green-600 text-white"
+                                              onClick={e => { 
+                                                e.stopPropagation(); 
+                                                if (resultFilterDraft.length === uniqueResults.length) {
+                                                    setResultFilter([]);
+                                                } else {
+                                                    setResultFilter(resultFilterDraft); 
+                                                }
+                                                close(); 
+                                              }}
+                                              type="button"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </Popover.Panel>
+                                      )}
+                                    </Portal>
+                                  </>
+                                );
+                              }}
+                            </Popover>
+                        </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allPicks.map((pick, idx) => {
+                  {filteredAndSortedPicks.map((pick, idx) => {
                     const userName = userMap[pick.userId] || pick.userId;
                     const game = pick.gameDetails;
                     return (
