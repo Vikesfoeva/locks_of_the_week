@@ -280,7 +280,7 @@ const WeeklyPicks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
-                        <td className="px-2 py-2">--</td>
+                        <td className="px-2 py-2">{pick.result || '--'}</td>
                       </tr>
                     );
                   })}
@@ -332,7 +332,7 @@ const WeeklyPicks = () => {
                               <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                               <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                               <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
                             </React.Fragment>
                           ) : (
                             <td key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
