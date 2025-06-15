@@ -599,8 +599,8 @@ const Picks = () => {
   if (error) return <div className="text-red-500">{error}</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Pick Your Betting Lines</h1>
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4 text-center md:text-left">Pick Your Betting Lines</h1>
 
       {/* Collection Selector Dropdown */}
       {collections.length > 0 && (
@@ -640,7 +640,7 @@ const Picks = () => {
 
       <div className="mb-2 text-gray-600">Select up to 3 outcomes across all games for the selected week.</div>
       {/* Update pick count display to reflect current collection's picks */}
-      <div className="mb-4 text-blue-700 font-semibold">
+      <div className="mb-4 text-blue-700 font-semibold text-center md:text-left">
         Picks for {selectedCollection ? (
           (() => {
             const date = parseCollectionNameToDate(selectedCollection);
@@ -652,7 +652,7 @@ const Picks = () => {
       </div>
       {success && <div className="text-green-600 mb-2">{success}</div>}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
-        <div className="flex items-center gap-2 mb-2 md:mb-0">
+        <div className="flex items-center gap-2 mb-2 md:mb-0 justify-center md:justify-start">
           <button
             className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
             onClick={handleSubmit}
@@ -668,7 +668,7 @@ const Picks = () => {
             Reset Filters
           </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
           <span className="font-semibold text-gray-700">Your Picks:</span>
           {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
           {selectedPicks.map((pick, idx) => {
@@ -709,7 +709,8 @@ const Picks = () => {
           })}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {/* Wrapper for full-width table */}
+      <div className="w-[90vw] mx-auto px-4 md:px-8 overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-300 rounded shadow">
           <thead>
             <tr className="bg-gray-100 text-left border-b border-gray-300">
