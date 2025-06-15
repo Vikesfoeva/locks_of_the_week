@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import axios from 'axios';
 import { Popover, Portal } from '@headlessui/react';
-import { FunnelIcon as FunnelIconOutline, CheckIcon } from '@heroicons/react/24/outline';
+import { FunnelIcon as FunnelIconOutline, CheckIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, LockClosedIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { LockOpenIcon } from '@heroicons/react/24/solid';
 // import { AuthContext } from '../contexts/AuthContext'; // Uncomment if you have AuthContext
@@ -411,6 +411,46 @@ const Picks = () => {
     }
   };
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write('<html><head><title>Games</title>');
+    printWindow.document.write('<style>body { font-family: sans-serif; } table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; }</style>');
+    printWindow.document.write('</head><body>');
+
+    const date = parseCollectionNameToDate(selectedCollection);
+    const weekString = date
+      ? `Week of ${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}, ${date.getFullYear()}`
+      : selectedCollection;
+    printWindow.document.write(`<h1>${weekString}</h1>`);
+
+    printWindow.document.write('<table>');
+    printWindow.document.write('<thead><tr><th>Sport</th><th>Away</th><th>Away Team</th><th>Home</th><th>Home Team</th><th>Date & Time</th><th>Spread</th><th>Total</th></tr></thead>');
+    printWindow.document.write('<tbody>');
+
+    sortedGames.forEach(game => {
+      const awaySpread = `${game.awayTeam} ${game.awaySpread > 0 ? '+' : ''}${game.awaySpread}`;
+      const homeSpread = `${game.homeTeam} ${game.homeSpread > 0 ? '+' : ''}${game.homeSpread}`;
+      const overTotal = `O ${game.total}`;
+      const underTotal = `U ${game.total}`;
+
+      printWindow.document.write(`<tr>
+        <td>${game.league}</td>
+        <td>${game.awayTeam}</td>
+        <td>${game.awayTeamFull}</td>
+        <td>${game.homeTeam}</td>
+        <td>${game.homeTeamFull}</td>
+        <td>${formatGameDate(game.commenceTime)}</td>
+        <td>${awaySpread}<br/>${homeSpread}</td>
+        <td>${overTotal}<br/>${underTotal}</td>
+      </tr>`);
+    });
+
+    printWindow.document.write('</tbody></table>');
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   const handleResetFilters = () => {
     setLeagueFilter([]);
     setAwayTeamFilter([]);
@@ -701,6 +741,14 @@ const Picks = () => {
             type="button"
           >
             Reset Filters
+          </button>
+          <button
+            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100 flex items-center"
+            onClick={handlePrint}
+            type="button"
+          >
+            <PrinterIcon className="h-5 w-5 mr-2" />
+            Print Games
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
