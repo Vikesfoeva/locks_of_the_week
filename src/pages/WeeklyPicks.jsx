@@ -5,6 +5,7 @@ import { API_URL } from '../config';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import PopularPicksModal from '../components/PopularPicksModal';
 
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {
@@ -39,6 +40,7 @@ const WeeklyPicks = () => {
     }
     return 'table';
   }); // 'table' or 'leaderboard'
+  const [showPopularPicks, setShowPopularPicks] = useState(false);
 
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
@@ -463,6 +465,12 @@ const WeeklyPicks = () => {
           }}
         >
           Traditional View
+        </button>
+        <button
+          className={`px-4 py-2 rounded ${showPopularPicks ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          onClick={() => setShowPopularPicks(!showPopularPicks)}
+        >
+          Show Popular Picks
         </button>
         {viewMode === 'table' && (
           <button
@@ -1035,66 +1043,67 @@ const WeeklyPicks = () => {
             </div>
           ) : (
             <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] px-8 overflow-x-auto">
-              <table className="w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
-                <thead>
-                  <tr className="bg-gray-100 text-left border-b border-gray-300">
-                    <th className="px-2 py-2 border-r border-gray-300">User</th>
-                    {[1,2,3].map(i => (
-                      <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
-                    ))}
-                  </tr>
-                  <tr className="bg-gray-50 text-left border-b border-gray-300">
-                    <th className="px-2 py-2 border-r border-gray-300"></th>
-                    {[1,2,3].map(i => (
-                      <React.Fragment key={i}>
-                        <th className="px-2 py-2 border-r border-gray-300">League</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Away</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Home</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Lock</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Score</th>
-                        <th className="px-2 py-2 border-r border-gray-300">Status</th>
-                        <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
-                      </React.Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user, idx) => {
-                    const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
-                    const picks = getSortedPicksForUser(user.firebaseUid);
-                    return (
-                      <tr key={user.firebaseUid} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap">{userName || user.email}</td>
-                        {[0,1,2].map(i => {
-                          const pick = picks[i];
-                          const game = pick ? pick.gameDetails : undefined;
-                          return pick ? (
-                            <React.Fragment key={i}>
-                              <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
-                              <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
-                            </React.Fragment>
-                          ) : (
-                            <td key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+             <table className="w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+               <thead>
+                 <tr className="bg-gray-100 text-left border-b border-gray-300">
+                   <th className="px-2 py-2 border-r border-gray-300">User</th>
+                   {[1,2,3].map(i => (
+                     <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
+                   ))}
+                 </tr>
+                 <tr className="bg-gray-50 text-left border-b border-gray-300">
+                   <th className="px-2 py-2 border-r border-gray-300"></th>
+                   {[1,2,3].map(i => (
+                     <React.Fragment key={i}>
+                       <th className="px-2 py-2 border-r border-gray-300">League</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Away</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Home</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Lock</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Score</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Status</th>
+                       <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
+                     </React.Fragment>
+                   ))}
+                 </tr>
+               </thead>
+               <tbody>
+                 {users.map((user, idx) => {
+                   const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
+                   const picks = getSortedPicksForUser(user.firebaseUid);
+                   return (
+                     <tr key={user.firebaseUid} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                       <td className="px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap">{userName || user.email}</td>
+                       {[0,1,2].map(i => {
+                         const pick = picks[i];
+                         const game = pick ? pick.gameDetails : undefined;
+                         return pick ? (
+                           <React.Fragment key={i}>
+                             <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
+                           </React.Fragment>
+                         ) : (
+                           <td key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
+                         );
+                       })}
+                     </tr>
+                   );
+                 })}
+               </tbody>
+             </table>
             </div>
           )}
         </>
       ) : (
-        <div className="text-gray-600 mt-4">Make all 3 picks to view the weekly picks table.</div>
+        <p>You need to have 3 picks submitted for the selected week to view all picks.</p>
       )}
+      {showPopularPicks && <PopularPicksModal picks={allPicks} onClose={() => setShowPopularPicks(false)} />}
     </div>
   );
 };
