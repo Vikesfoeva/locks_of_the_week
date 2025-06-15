@@ -258,8 +258,8 @@ const WeeklyPicks = () => {
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+            <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] px-8 overflow-x-auto">
+              <table className="w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
                 <thead>
                   <tr className="bg-gray-100 text-left border-b border-gray-300">
                     <th className="px-2 py-2 border-r border-gray-300">User</th>
