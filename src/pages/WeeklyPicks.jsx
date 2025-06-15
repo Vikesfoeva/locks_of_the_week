@@ -37,7 +37,6 @@ const WeeklyPicks = () => {
     }
     return 'table';
   }); // 'table' or 'leaderboard'
-  const [games, setGames] = useState([]); // All games for the selected collection
 
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
@@ -144,13 +143,13 @@ const WeeklyPicks = () => {
       setError('');
       try {
         // Fetch current user's picks for the selected collection
-        const userPicksRes = await axios.get(`/api/picks?userId=${currentUser.uid}&collectionName=${selectedCollection}`);
+        const userPicksRes = await axios.get(`/api/picks?userId=${currentUser.uid}&collectionName=${selectedCollection}&year=${activeYear}`);
         const userPicksData = Array.isArray(userPicksRes.data) ? userPicksRes.data : [];
         setUserPicks(userPicksData);
 
         // If user has 3 picks, fetch all users' picks for the collection
         if (userPicksData.length === 3) {
-          const allPicksRes = await axios.get(`/api/picks?collectionName=${selectedCollection}`);
+          const allPicksRes = await axios.get(`/api/picks?collectionName=${selectedCollection}&year=${activeYear}`);
           setAllPicks(Array.isArray(allPicksRes.data) ? allPicksRes.data : []);
         } else {
           setAllPicks([]);
@@ -164,27 +163,7 @@ const WeeklyPicks = () => {
       }
     };
     fetchPicks();
-  }, [selectedCollection, currentUser]);
-
-  // Fetch games for the selected collection
-  useEffect(() => {
-    const fetchGames = async () => {
-      if (!selectedCollection) return;
-      try {
-        const res = await axios.get(`/api/games?collectionName=${selectedCollection}`);
-        setGames(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        setGames([]);
-      }
-    };
-    fetchGames();
-  }, [selectedCollection]);
-
-  // Build a map of gameId to game object for quick lookup
-  const gameMap = {};
-  games.forEach(game => {
-    gameMap[game._id] = game;
-  });
+  }, [selectedCollection, currentUser, activeYear]);
 
   // Handler for dropdown change
   const handleCollectionChange = (e) => {
@@ -283,14 +262,14 @@ const WeeklyPicks = () => {
                     <th className="px-2 py-2 border-r border-gray-300">Lock</th>
                     <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
                     <th className="px-2 py-2 border-r border-gray-300">Score</th>
-                    <th className="px-2 py-2 border-r border-gray-300">F</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Status</th>
                     <th className="px-2 py-2">W/L/T</th>
                   </tr>
                 </thead>
                 <tbody>
                   {allPicks.map((pick, idx) => {
                     const userName = userMap[pick.userId] || pick.userId;
-                    const game = pick && pick.gameId ? gameMap[pick.gameId] : undefined;
+                    const game = pick.gameDetails;
                     return (
                       <tr key={pick._id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="px-2 py-2 border-r border-gray-300 font-semibold">{userName}</td>
@@ -299,8 +278,8 @@ const WeeklyPicks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">--</td>
-                        <td className="px-2 py-2 border-r border-gray-300">--</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
                         <td className="px-2 py-2">--</td>
                       </tr>
                     );
@@ -315,7 +294,7 @@ const WeeklyPicks = () => {
                   <tr className="bg-gray-100 text-left border-b border-gray-300">
                     <th className="px-2 py-2 border-r border-gray-300">User</th>
                     {[1,2,3].map(i => (
-                      <th key={i} colSpan={6} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
+                      <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
                     ))}
                   </tr>
                   <tr className="bg-gray-50 text-left border-b border-gray-300">
@@ -327,6 +306,8 @@ const WeeklyPicks = () => {
                         <th className="px-2 py-2 border-r border-gray-300">Home</th>
                         <th className="px-2 py-2 border-r border-gray-300">Lock</th>
                         <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Score</th>
+                        <th className="px-2 py-2 border-r border-gray-300">Status</th>
                         <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
                       </React.Fragment>
                     ))}
@@ -341,7 +322,7 @@ const WeeklyPicks = () => {
                         <td className="px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap">{userName || user.email}</td>
                         {[0,1,2].map(i => {
                           const pick = picks[i];
-                          const game = pick && pick.gameId ? gameMap[pick.gameId] : undefined;
+                          const game = pick ? pick.gameDetails : undefined;
                           return pick ? (
                             <React.Fragment key={i}>
                               <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
@@ -349,17 +330,12 @@ const WeeklyPicks = () => {
                               <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                               <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                               <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                              <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
                               <td className="px-2 py-2 border-r border-gray-300">--</td>
                             </React.Fragment>
                           ) : (
-                            <React.Fragment key={i}>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                              <td className="px-2 py-2 border-r border-gray-300">--</td>
-                            </React.Fragment>
+                            <td key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
                           );
                         })}
                       </tr>

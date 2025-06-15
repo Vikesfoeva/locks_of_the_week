@@ -187,7 +187,7 @@ const Picks = () => {
         );
 
         // Fetch user's picks for the selected collection using Firebase UID
-        const picksRes = await axios.get(`/api/picks?userId=${userId}&collectionName=${selectedCollection}`);
+        const picksRes = await axios.get(`/api/picks?userId=${userId}&collectionName=${selectedCollection}&year=${activeYear}`);
         const userPicksForCollection = Array.isArray(picksRes.data) ? picksRes.data : [];
         
         // Map fetched picks and mark them as 'submitted' and reconstruct key
@@ -216,19 +216,14 @@ const Picks = () => {
       }
     };
 
-    // This check is important: only run if selectedCollection has a value.
-    // It prevents trying to fetch data before collections are loaded and one is chosen.
     if (selectedCollection) {
-        fetchGamesAndUserPicks();
+      fetchGamesAndUserPicks();
     } else {
-        // If there's no selected collection (e.g., after initial load and collections fetch failed)
-        setGames([]);
-        setSelectedPicks([]);
-        setLoading(false); // Ensure loading is false
+      setGames([]);
+      setSelectedPicks([]);
+      setLoading(false);
     }
-  // Fetch games and user picks when selectedCollection or userId changes.
-  // userId dependency is important if user logs in/out or changes.
-  }, [selectedCollection, userId]); 
+  }, [selectedCollection, userId, activeYear]);
 
   // Fetch active year on mount
   useEffect(() => {
@@ -357,9 +352,8 @@ const Picks = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
-    setSuccess(false); // Reset success state at the beginning of submission
+    setSuccess(false);
 
-    // Filter for picks that are pending submission for the current collection
     const picksToSubmit = selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection);
 
     if (picksToSubmit.length === 0) {
@@ -371,19 +365,18 @@ const Picks = () => {
     }
 
     try {
-      // Prepare payload: remove 'status' and 'key' from picks for the backend if not needed there
       const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
       
       await axios.post('/api/picks', {
-        userId: currentUser.uid, // Use Firebase UID
+        userId: currentUser.uid,
         collectionName: selectedCollection,
+        year: activeYear,
         picks: picksPayload
       });
 
       setSuccess(`Successfully submitted ${picksPayload.length} pick(s) for ${selectedCollection}!`);
       setTimeout(() => setSuccess(false), 3000);
 
-      // Update the status of submitted picks to 'submitted' in local state
       const updatedPicksForCurrentCollection = selectedPicks.map(p => {
         if (p.status === 'pending' && p.collectionName === selectedCollection && picksToSubmit.find(submittedPick => submittedPick.key === p.key)) {
           return { ...p, status: 'submitted' };

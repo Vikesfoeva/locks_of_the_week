@@ -401,14 +401,19 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
+// Helper function to get picks collection name for a given year
+function getPicksCollectionName(year) {
+  return `cy_${year}_picks`;
+}
+
 // Submit picks for a user
 app.post('/api/picks', async (req, res) => {
   try {
-    const mainDb = await connectToDb(); // This connects to 'locks_data' by default
-    const { userId, collectionName, picks } = req.body;
+    const mainDb = await connectToDb();
+    const { userId, collectionName, picks, year } = req.body;
 
-    if (!userId || !collectionName || !Array.isArray(picks) || picks.length === 0) {
-      return res.status(400).json({ error: 'userId, collectionName, and picks array are required' });
+    if (!userId || !collectionName || !Array.isArray(picks) || picks.length === 0 || !year) {
+      return res.status(400).json({ error: 'userId, collectionName, year, and picks array are required' });
     }
 
     // Validate collectionName format
@@ -417,10 +422,12 @@ app.post('/api/picks', async (req, res) => {
       return res.status(400).json({ error: 'Invalid collectionName format.' });
     }
 
+    const picksCollection = getPicksCollectionName(year);
+
     // Check how many picks the user already has for this collectionName
-    const existingPicks = await mainDb.collection('picks').find({ 
-      userId: userId, // Use string, not ObjectId
-      collectionName: collectionName // Use collectionName instead of weekNumber
+    const existingPicks = await mainDb.collection(picksCollection).find({ 
+      userId: userId,
+      collectionName: collectionName
     }).toArray();
 
     if (existingPicks.length + picks.length > 3) {
@@ -430,12 +437,12 @@ app.post('/api/picks', async (req, res) => {
     const now = new Date();
     const picksToInsert = picks.map(pick => ({
       ...pick,
-      userId: userId, // Store as string
-      collectionName: collectionName, // Store collectionName instead of weekNumber
+      userId: userId,
+      collectionName: collectionName,
       submittedAt: now
     }));
 
-    await mainDb.collection('picks').insertMany(picksToInsert);
+    await mainDb.collection(picksCollection).insertMany(picksToInsert);
     res.status(201).json({ message: 'Picks submitted successfully', submittedPicks: picksToInsert });
   } catch (err) {
     console.error("Error submitting picks:", err);
@@ -446,8 +453,12 @@ app.post('/api/picks', async (req, res) => {
 // Get a user's picks for a given collectionName
 app.get('/api/picks', async (req, res) => {
   try {
-    const mainDb = await connectToDb(); // Connects to 'locks_data'
-    const { userId, collectionName } = req.query;
+    const mainDb = await connectToDb();
+    const { userId, collectionName, year } = req.query;
+
+    if (!year) {
+      return res.status(400).json({ error: 'Year is required' });
+    }
 
     // Validate collectionName format
     const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
@@ -455,13 +466,45 @@ app.get('/api/picks', async (req, res) => {
       return res.status(400).json({ error: 'Invalid collectionName format.' });
     }
 
+    const picksCollection = getPicksCollectionName(year);
     let query = { collectionName };
     if (userId) {
-      query.userId = userId; // Use string, not ObjectId
+      query.userId = userId;
     }
 
-    const userPicks = await mainDb.collection('picks').find(query).toArray();
-    res.json(userPicks);
+    // Fetch picks
+    const userPicks = await mainDb.collection(picksCollection).find(query).toArray();
+
+    // Fetch games for this collection
+    const dbName = `cy_${year}`;
+    const dbClient = await client.connect();
+    const db = dbClient.db(dbName);
+    const games = await db.collection(collectionName).find({}).toArray();
+    
+    // Build a map for quick lookup using the game's MongoDB _id
+    const gameMap = {};
+    for (const game of games) {
+      if (game._id) {
+        gameMap[game._id.toString()] = game;
+      }
+    }
+
+    // Attach game details (including score/status) to each pick
+    const enrichedPicks = userPicks.map(pick => {
+      // Find the game using the gameId stored in the pick (which is the _id)
+      const game = pick.gameId ? gameMap[pick.gameId] : null;
+      return {
+        ...pick,
+        // Embed the full game object for the frontend to use
+        gameDetails: game, 
+        // Also keep direct access for convenience
+        homeScore: game ? game.homeScore : null,
+        awayScore: game ? game.awayScore : null,
+        status: game ? game.status : null,
+      };
+    });
+
+    res.json(enrichedPicks);
   } catch (err) {
     console.error("Error fetching user picks:", err);
     res.status(500).json({ error: 'Failed to fetch user picks', details: err.message });
