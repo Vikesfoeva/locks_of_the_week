@@ -109,6 +109,17 @@ const Picks = () => {
     return null; // Return null for invalid formats
   };
 
+  const formatGameDate = (commenceTime) => {
+    if (!commenceTime) return '';
+    return new Date(commenceTime).toLocaleString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
   // Add useEffect hooks for all popovers
   useEffect(() => {
     if (awayTeamPopoverOpenRef.current && funnelBtnRef.current) {
@@ -426,7 +437,7 @@ const Picks = () => {
   const getUniqueValues = (arr, key, isDate = false) => {
     const values = arr.map(game => {
       if (isDate) {
-        return game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        return formatGameDate(game.commenceTime);
       }
       return game[key] || '';
     });
@@ -439,28 +450,28 @@ const Picks = () => {
     (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
     (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
     (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
   ));
   const filteredGamesForAwayTeam = games.filter(game => (
     (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
     (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
     (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
     (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
   ));
   const filteredGamesForAwayTeamFull = games.filter(game => (
     (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
     (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
     (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
     (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
   ));
   const filteredGamesForHomeTeam = games.filter(game => (
     (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
     (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
     (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
     (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
   ));
   const filteredGamesForHomeTeamFull = games.filter(game => (
     (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
@@ -468,7 +479,7 @@ const Picks = () => {
     (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
     (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
     (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
   ));
   const filteredGamesForDate = games.filter(game => (
     (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
@@ -576,7 +587,7 @@ const Picks = () => {
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
     );
   });
 
@@ -1283,7 +1294,7 @@ const Picks = () => {
                   <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
                   <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
                   <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{game.commenceTime ? new Date(game.commenceTime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game.commenceTime)}</td>
                   <td className="px-2 py-2 border-r border-gray-300">
                     <div className="flex flex-col gap-1">
                       <label>

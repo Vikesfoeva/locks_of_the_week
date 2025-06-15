@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 
@@ -15,7 +16,7 @@ const allowedOrigins = [
   'https://locks-of-the-week.web.app',
   process.env.FRONTEND_URL,
   'http://localhost:5173',
-  'http://localhost:5174∂',
+  'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
   'http://localhost:5177', 
@@ -40,6 +41,9 @@ const corsOptions = {
 };
 
 const app = express();
+
+// Use Helmet to set various security headers
+app.use(helmet());
 
 app.use(cors(corsOptions));// Enhanced CORS configuration
 
