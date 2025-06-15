@@ -44,7 +44,17 @@ export function AuthProvider({ children }) {
   // Function to create user in MongoDB
   async function createUserInDb(user) {
     try {
-      const { email, uid } = user;
+      const { email, uid, displayName } = user;
+      
+      // Parse displayName to get first and last names
+      let firstName = '';
+      let lastName = '';
+      if (displayName) {
+        const nameParts = displayName.split(' ');
+        firstName = nameParts[0];
+        lastName = nameParts.slice(1).join(' ');
+      }
+
       const response = await fetch(`${API_URL}/users`, {
         method: 'POST',
         headers: {
@@ -53,7 +63,8 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({
           email,
           firebaseUid: uid,
-          // Other initial fields can be added here
+          firstName,
+          lastName,
         }),
       });
       const data = await response.json();
