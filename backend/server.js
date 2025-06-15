@@ -562,6 +562,20 @@ app.post('/api/active-year', async (req, res) => {
   }
 });
 
+const parseCollectionNameToDate = (collectionName) => {
+  if (!collectionName || typeof collectionName !== 'string') return null;
+  const parts = collectionName.split('_'); // Expected format: "odds_YYYY_MM_DD"
+  if (parts.length === 4 && parts[0] === 'odds') {
+    const year = parseInt(parts[1], 10);
+    const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS Date
+    const day = parseInt(parts[3], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return new Date(year, month, day);
+    }
+  }
+  return null;
+};
+
 // Get standings data
 app.get('/api/standings', async (req, res) => {
   try {
@@ -579,8 +593,15 @@ app.get('/api/standings', async (req, res) => {
     const picksCollectionName = `cy_${year}_picks`;
     const picksCollection = mainDb.collection(picksCollectionName);
 
-    // 2. Get available weeks (collection names) and all users
-    const availableGameWeeks = await picksCollection.distinct('collectionName');
+    // 2. Get available weeks from the specific year's database collections
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const collections = await yearDb.listCollections().toArray();
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    let availableGameWeeks = collections
+      .map(col => col.name)
+      .filter(name => oddsPattern.test(name));
+    
     const users = await mainDb.collection('users').find({}).toArray();
 
     if (availableGameWeeks.length === 0) {
@@ -594,7 +615,12 @@ app.get('/api/standings', async (req, res) => {
       return res.json({ standings: emptyStandings, availableWeeks: [], selectedWeek: null });
     }
     
-    availableGameWeeks.sort((a, b) => a.localeCompare(b));
+    availableGameWeeks.sort((a, b) => {
+      const dateA = parseCollectionNameToDate(a);
+      const dateB = parseCollectionNameToDate(b);
+      if (!dateA || !dateB) return a.localeCompare(b); // Fallback for safety
+      return dateA - dateB; // Sort ascending
+    });
 
     // 3. Determine selected and previous week
     if (!selectedGameWeek) {

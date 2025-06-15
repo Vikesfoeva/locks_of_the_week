@@ -1,52 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const Standings = () => {
   const [standings, setStandings] = useState([]);
   const [availableWeeks, setAvailableWeeks] = useState([]);
   const [selectedWeek, setSelectedWeek] = useState(null);
-  const [activeYear, setActiveYear] = useState(new Date().getFullYear());
+  const [activeYear, setActiveYear] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
-    const fetchActiveYear = async () => {
+    const fetchInitialData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const response = await fetch('/api/active-year');
-        if (!response.ok) {
-          throw new Error('Failed to fetch active year');
-        }
-        const data = await response.json();
-        if (data.year) {
-          setActiveYear(data.year);
-        }
-      } catch (error) {
-        console.error("Could not fetch active year, defaulting to current year:", error);
-        // Keep default year if fetch fails
+        // 1. Fetch active year
+        const yearResponse = await fetch('/api/active-year');
+        if (!yearResponse.ok) throw new Error('Failed to fetch active year');
+        const yearData = await yearResponse.json();
+        const year = yearData.year || new Date().getFullYear();
+        setActiveYear(year);
+
+        // 2. Fetch standings for the latest week of that year
+        const standingsResponse = await fetch(`/api/standings?year=${year}`);
+        if (!standingsResponse.ok) throw new Error('Failed to fetch standings');
+        const standingsData = await standingsResponse.json();
+        
+        setStandings(standingsData.standings);
+        setAvailableWeeks(standingsData.availableWeeks);
+        setSelectedWeek(standingsData.selectedWeek);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchActiveYear();
-  }, []);
+    fetchInitialData();
+  }, []); // Empty dependency array means this runs only once on mount
 
+  // This effect handles updates when the user selects a new week
   useEffect(() => {
-    if (!activeYear) return;
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return; // Skip the first run to avoid double-fetching
+    }
+    if (!selectedWeek || !activeYear) return;
 
     const fetchStandings = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const url = selectedWeek 
-          ? `/api/standings?year=${activeYear}&week=${selectedWeek}`
-          : `/api/standings?year=${activeYear}`;
-        
+        const url = `/api/standings?year=${activeYear}&week=${selectedWeek}`;
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error('Failed to fetch standings');
         }
         const data = await response.json();
         setStandings(data.standings);
-        setAvailableWeeks(data.availableWeeks);
-        if (selectedWeek === null) {
-          setSelectedWeek(data.selectedWeek);
-        }
+        // availableWeeks should not change when week changes, so no need to set it again
       } catch (err) {
         setError(err.message);
       } finally {
@@ -55,7 +66,7 @@ const Standings = () => {
     };
 
     fetchStandings();
-  }, [activeYear, selectedWeek]);
+  }, [selectedWeek]); // Re-run only when selectedWeek changes
   
   const getWinPct = (user) => {
     const totalGames = user.wins + user.losses + user.ties;
@@ -82,9 +93,17 @@ const Standings = () => {
             className="border rounded px-2 py-1"
             disabled={availableWeeks.length === 0}
           >
-            {availableWeeks.map((week, index) => (
-              <option key={week} value={week}>Week {index + 1} ({week.split('_').slice(1).join('/')})</option>
-            ))}
+            {availableWeeks.map((week, index) => {
+              const parts = week.split('_');
+              // parts[1] is year, parts[2] is month, parts[3] is day
+              const date = new Date(parts[1], parts[2] - 1, parts[3]);
+              const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+              return (
+                <option key={week} value={week}>
+                  Week {index + 1} - {formattedDate}
+                </option>
+              );
+            }).reverse()}
           </select>
         </div>
       </div>
