@@ -12,6 +12,7 @@ if (!process.env.MONGO_URI) {
 }
 
 const allowedOrigins = [
+  'https://locks-of-the-week.web.app',
   process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:5174∂',
@@ -134,14 +135,26 @@ connectToDb().then(() => {
 app.get('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
-    const { email } = req.query;
-    let users;
+    const { email, firebaseUid } = req.query;
+    let query = {};
     if (email) {
-      users = await db.collection('users').find({ email }).toArray();
-    } else {
-      users = await db.collection('users').find({}).toArray();
+      query = { email };
+    } else if (firebaseUid) {
+      query = { firebaseUid };
     }
-    res.json(users);
+    
+    // If a specific user is requested, find one. Otherwise, find all.
+    if (email || firebaseUid) {
+      const user = await db.collection('users').findOne(query);
+      if (user) {
+        res.json(user);
+      } else {
+        res.status(404).json({ error: 'User not found' });
+      }
+    } else {
+      const users = await db.collection('users').find({}).toArray();
+      res.json(users);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

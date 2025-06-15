@@ -8,12 +8,17 @@ export default defineConfig({
     include: ['firebase/app', 'firebase/auth'],
   },
   server: {
+    port: 5173,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       'Cross-Origin-Embedder-Policy': 'unsafe-none',
     },
     proxy: {
-      '/api': 'http://localhost:5001'
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+      }
     }
   },
 }) 

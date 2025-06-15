@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { 
   getAuth, 
   createUserWithEmailAndPassword, 
@@ -12,6 +12,7 @@ import {
   // onLog // REMOVED direct import
 } from 'firebase/auth'
 import { initializeApp } from 'firebase/app'
+import { API_URL } from '../config'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,21 +20,17 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 }
 
 console.log('[AuthContext] Initial firebaseConfig used for initializeApp:', firebaseConfig);
 
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
-
-console.log('[AuthContext] Initial auth object created:', auth);
-
 const googleProvider = new GoogleAuthProvider()
 
 const AuthContext = createContext()
-
-const API_URL = 'http://localhost:5001/api'
 
 export function useAuth() {
   return useContext(AuthContext)
@@ -44,291 +41,143 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState('');
 
-  function signup(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password)
-  }
-
-  function login(email, password) {
-    setAuthError('')
-    return signInWithEmailAndPassword(auth, email, password)
-  }
-
-  async function loginWithGoogle() {
-    setAuthError('')
-    setLoading(true);
+  // Function to create user in MongoDB
+  async function createUserInDb(user) {
     try {
-      // First check if the user is whitelisted
-      const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
+      const { email, uid } = user;
+      const response = await fetch(`${API_URL}/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: auth.currentUser?.email })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          firebaseUid: uid,
+          // Other initial fields can be added here
+        }),
       });
-      
-      const checkData = await checkResponse.json();
-      if (!checkData.allowed) {
-        setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
-        setLoading(false);
-        return;
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not create user in DB');
       }
-
-      await signInWithRedirect(auth, googleProvider);
+      console.log('User created in DB:', data.message);
     } catch (error) {
-      setAuthError(error.message || 'Failed to initiate Google sign-in');
-      console.error("[AuthContext] Error initiating Google sign-in:", error);
-      setLoading(false);
+      console.error('Error creating user in DB:', error);
+      setAuthError(error.message);
     }
   }
 
-  async function loginWithGooglePopup() {
-    setAuthError('');
-    setLoading(true);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      
-      // Check whitelist status after successful Google sign-in
-      const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: result.user.email })
-      });
-      
-      const checkData = await checkResponse.json();
-      if (!checkData.allowed) {
-        // Sign out the user if not whitelisted
-        await signOut(auth);
-        setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
-        setLoading(false);
-        return;
-      }
-
-      console.log("[AuthContext] Google sign-in with popup successful:", result.user.email);
-    } catch (error) {
-      setAuthError(error.message || 'Failed to sign in with Google popup');
-      console.error("[AuthContext] Error with Google sign-in popup:", error);
-      setLoading(false);
-    }
-  }
-
-  function logout() {
-    setAuthError('')
-    return signOut(auth)
-  }
-
-  const handleUserAuth = async (firebaseUser) => {
-    if (firebaseUser) {
-      console.log('[AuthContext] Firebase user authenticated:', firebaseUser.email);
-      try {
-        // HERE: Fetch your user profile from your backend to get 'isAdmin' and other app-specific data
-        // Example:
-        // const response = await fetch(`<span class="math-inline">\{API\_URL\}/users/profile?firebaseUid\=</span>{firebaseUser.uid}`); // Or by email
-        // if (!response.ok) throw new Error('Failed to fetch user profile');
-        // const appUserProfile = await response.json();
-  
-        // For now, let's assume you'll add this later and mock it for dashboard access
-        const augmentedUser = {
-          ...firebaseUser, // Keep all original Firebase user properties
-          // email: firebaseUser.email, // Already part of firebaseUser
-          // uid: firebaseUser.uid, // Already part of firebaseUser
-          // ... other properties from your DB like firstName, lastName
-          isAdmin: false, // <<-- Replace with actual isAdmin from your appUserProfile.admin
-        };
-        // If you had appUserProfile:
-        // const augmentedUser = { ...firebaseUser, ...appUserProfile };
-  
-        setCurrentUser(augmentedUser);
-        console.log('[AuthContext] setCurrentUser with augmented user:', augmentedUser);
-      } catch (profileError) {
-        console.error('[AuthContext] Error fetching/augmenting user profile:', profileError);
-        // Decide how to handle this: sign out the user, show an error, or proceed with a basic user object?
-        // For now, if profile fetch fails, we might still set Firebase user but log error
-        setCurrentUser(firebaseUser); // Fallback to just Firebase user if profile fetch fails
-        setAuthError('Could not load user profile.');
-      } finally {
-        setLoading(false);
-        console.log('[AuthContext] Finished processing user. Loading set to false.');
-      }
-    } else {
-      console.log('[AuthContext] No Firebase user.');
-      setCurrentUser(null);
-      setLoading(false);
-    }
-  };
-  
-  const processUserAuthentication = async (firebaseUser) => {
-    if (firebaseUser) {
-      console.log('[AuthContext] Firebase user authenticated:', firebaseUser.email);
-      try {
-        // Check whitelist status first
-        const checkResponse = await fetch(`${API_URL}/users/check-whitelist`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: firebaseUser.email })
-        });
-        
-        const checkData = await checkResponse.json();
-        if (!checkData.allowed) {
-          // Sign out the user if not whitelisted
-          await signOut(auth);
-          setAuthError('Your email is not authorized to access this application. Please contact an administrator.');
-          setCurrentUser(null);
-          setLoading(false);
-          return;
-        }
-
-        // If user doesn't exist in our database yet, create them
-        if (!checkData.userExists) {
-          const firstName = localStorage.getItem('pendingFirstName') || firebaseUser.displayName?.split(' ')[0] || '';
-          const lastName = localStorage.getItem('pendingLastName') || firebaseUser.displayName?.split(' ').slice(1).join(' ') || '';
-          const userDoc = {
-            email: firebaseUser.email,
-            firebaseUid: firebaseUser.uid,
-            firstName,
-            lastName,
-            role: 'user',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-
-          const createRes = await fetch(`${API_URL}/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userDoc)
-          });
-
-          if (!createRes.ok) {
-            const errData = await createRes.json().catch(() => ({}));
-            throw new Error(errData.error || 'Failed to create user in application database.');
-          }
-
-          // Remove pending names from localStorage after successful creation
-          localStorage.removeItem('pendingFirstName');
-          localStorage.removeItem('pendingLastName');
-        }
-
-        // Fetch the user profile
-        const response = await fetch(`${API_URL}/users?email=${encodeURIComponent(firebaseUser.email)}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch user profile');
-        }
-
-        const usersArray = await response.json();
-        if (!usersArray || usersArray.length === 0) {
-          throw new Error('User profile not found in application database');
-        }
-
-        const appUserProfile = usersArray[0];
-        const augmentedUser = {
-          ...firebaseUser,
-          ...appUserProfile,
-          venmo: appUserProfile.venmoHandle || '',
-          isAdmin: appUserProfile.role === 'admin'
-        };
-        
-        console.log('[AuthContext] Augmented user object:', JSON.stringify(augmentedUser, null, 2));
-        setCurrentUser(augmentedUser);
-        setAuthError('');
-
-      } catch (error) {
-        console.error('[AuthContext] Error in user authentication process:', error);
-        setAuthError(error.message || 'Failed to process user authentication');
-        setCurrentUser(null);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setCurrentUser(null);
-      setLoading(false);
-    }
-  };
-
+  // Effect to handle auth state changes
   useEffect(() => {
-    console.log('[AuthContext] useEffect for onAuthStateChanged mounting. Initializing loading to true.');
-    setLoading(true);
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('[AuthContext] onAuthStateChanged triggered. Firebase User from onAuthStateChanged:', firebaseUser?.email || null);
-      
-      if (firebaseUser) {
-        await processUserAuthentication(firebaseUser);
-        setLoading(false); // Set loading false after processing user
-        console.log('[AuthContext] Finished processing direct user in onAuthStateChanged. Loading set to false.');
-      } else {
-        // No user from onAuthStateChanged, try getRedirectResult (for redirect sign-ins)
-        console.log('[AuthContext] No user from onAuthStateChanged. Attempting getRedirectResult...');
+    console.log('[AuthContext] Setting up onAuthStateChanged listener.');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('[AuthContext] onAuthStateChanged triggered. User:', user ? user.uid : 'null');
+      if (user) {
         try {
-          const result = await getRedirectResult(auth);
-          console.log('[AuthContext] getRedirectResult.then() inside onAuthStateChanged - Result:', result);
-          if (result && result.user) {
-            await processUserAuthentication(result.user);
+          const response = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+          
+          if (response.ok) {
+            const userData = await response.json();
+            setCurrentUser({ ...user, ...userData });
+          } else if (response.status === 404) {
+            console.log('User not found in DB, attempting to create.');
+            await createUserInDb(user);
+            const newUserResponse = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+            if (newUserResponse.ok) {
+              const newUserData = await newUserResponse.json();
+              setCurrentUser({ ...user, ...newUserData });
+            } else {
+              setCurrentUser(user);
+            }
           } else {
-            setCurrentUser(null); // No user from redirect either
-            console.log('[AuthContext] No user from getRedirectResult. User remains null.');
+            console.error('Failed to fetch user data, setting Firebase user as fallback.');
+            setCurrentUser(user);
           }
         } catch (error) {
-          console.error("[AuthContext] Error from getRedirectResult in onAuthStateChanged: ", error);
-          setAuthError(error.message || 'Failed to process sign-in after redirect');
-          setCurrentUser(null);
+          console.error('Error fetching user data:', error);
+          setCurrentUser(user); // Fallback to firebase user
         } finally {
-          setLoading(false); // Always set loading false after getRedirectResult attempt
-          console.log('[AuthContext] getRedirectResult.finally() in onAuthStateChanged. Loading set to false.');
+          setLoading(false);
+          console.log('[AuthContext] Auth state processed (user path). Loading set to false.');
         }
+      } else {
+        // User is signed out.
+        setCurrentUser(null);
+        setLoading(false);
+        console.log('[AuthContext] Auth state processed (no user path). Loading set to false.');
       }
     });
 
-    return unsubscribe;
-  }, []); // Empty dependency array: runs once on mount and cleans up on unmount.
-
-  async function updateUserProfile({ firstName, lastName, venmo }) {
-    if (!currentUser) throw new Error('No user logged in');
-    const res = await fetch(`${API_URL}/users/${currentUser._id || currentUser.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, venmoHandle: venmo })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to update user profile');
-    }
-    const updatedUser = await res.json();
-    setCurrentUser(prev => ({ ...prev, ...updatedUser, venmo: updatedUser.venmoHandle || '' }));
-    return updatedUser;
-  }
-
-  async function refetchUserProfile() {
-    if (!currentUser) throw new Error('No user logged in');
-    const response = await fetch(`${API_URL}/users?email=${encodeURIComponent(currentUser.email)}`);
-    if (!response.ok) throw new Error('Failed to fetch user profile');
-    const usersArray = await response.json();
-    if (!usersArray || usersArray.length === 0) throw new Error('User profile not found');
-    const appUserProfile = usersArray[0];
-    const augmentedUser = {
-      ...currentUser,
-      ...appUserProfile,
-      venmo: appUserProfile.venmoHandle || '',
-      isAdmin: appUserProfile.role === 'admin'
+    return () => {
+      console.log('[AuthContext] Cleaning up onAuthStateChanged listener.');
+      unsubscribe();
     };
-    setCurrentUser(augmentedUser);
-    return augmentedUser;
+  }, []);
+
+  // Sign up with email and password
+  async function signup(email, password) {
+    setAuthError('');
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      console.log("[AuthContext] Firebase user created via email/pass:", userCredential.user.uid);
+      await createUserInDb(userCredential.user); // Create user in your DB
+      return userCredential;
+    } catch (error) {
+      console.error("[AuthContext] Error during email/pass signup:", error);
+      setAuthError(error.message);
+      throw error;
+    }
   }
 
+  // Sign in with email and password
+  async function login(email, password) {
+    setAuthError('');
+    try {
+      return await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error("[AuthContext] Error during email/pass login:", error);
+      setAuthError(error.message);
+      throw error;
+    }
+  }
+
+  // Sign in with Google Popup
+  async function loginWithGooglePopup() {
+    setAuthError('');
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      console.log("[AuthContext] Google sign-in successful. User:", user.uid);
+      // Check if user exists in your DB, if not, create them
+      await createUserInDb(user);
+      return result;
+    } catch (error) {
+      console.error("[AuthContext] Error during Google popup sign-in:", error);
+      setAuthError(error.message);
+      throw error;
+    }
+  }
+
+  // Logout
+  function logout() {
+    setAuthError('');
+    return signOut(auth);
+  }
+
+  // The value provided to the context consumers
   const value = {
     currentUser,
-    loading, // Make sure to provide loading state from AuthContext if PrivateRoute or other components use it
-    signup,
-    login,
-    loginWithGoogle,      // Assuming you still have this function defined
-    loginWithGooglePopup, // Your popup function
-    logout,
+    loading,
     authError,
     setAuthError,
-    updateUserProfile,
-    refetchUserProfile
+    signup,
+    login,
+    logout,
+    loginWithGooglePopup,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {/* Render children only when initial auth check is complete OR always render and let PrivateRoute handle loading */}
-      {/* The current !loading && children pattern is generally fine. */}
       {!loading && children}
     </AuthContext.Provider>
   );

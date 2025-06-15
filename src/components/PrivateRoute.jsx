@@ -17,9 +17,9 @@ export default function PrivateRoute({ children, adminOnly = false }) {
     return <Navigate to="/login" />;
   }
 
-  console.log('[PrivateRoute] User found:', currentUser?.email, 'IsAdmin property:', currentUser?.isAdmin);
+  console.log('[PrivateRoute] User found:', currentUser?.email, 'Role property:', currentUser?.role);
 
-  if (adminOnly && !currentUser.isAdmin) { // This check needs currentUser.isAdmin to be populated
+  if (adminOnly && currentUser.role !== 'admin') { // This check needs currentUser.role to be 'admin'
     console.log('[PrivateRoute] Admin only route, but user is not admin. Redirecting to /.');
     return <Navigate to="/" />;
   }

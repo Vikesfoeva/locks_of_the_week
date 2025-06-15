@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { API_URL } from '../config'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -27,17 +28,16 @@ export default function Register() {
       setError('')
       setLoading(true)
       // Check if email is whitelisted
-      const res = await fetch(`http://localhost:5001/api/whitelist/check?email=${encodeURIComponent(email)}`)
+      const res = await fetch(`${API_URL}/whitelist/check?email=${encodeURIComponent(email)}`)
       const data = await res.json()
-      if (!data.allowed) {
-        setLoading(false)
-        return setError('This email is not authorized for account creation. Please contact an administrator.')
+      if (data.allowed) {
+        await signup(email, password)
+        localStorage.setItem('pendingFirstName', firstName)
+        localStorage.setItem('pendingLastName', lastName)
+        navigate('/')
+      } else {
+        setError('This email is not authorized for account creation. Please contact an administrator.')
       }
-      // Pass displayName to Firebase (optional, for Google Auth)
-      await signup(email, password)
-      localStorage.setItem('pendingFirstName', firstName)
-      localStorage.setItem('pendingLastName', lastName)
-      navigate('/')
     } catch {
       setError('Failed to create an account')
     }

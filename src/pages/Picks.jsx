@@ -3,11 +3,12 @@ import axios from 'axios';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, CheckIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, LockClosedIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { LockOpenIcon } from '@heroicons/react/24/solid';
 // import { AuthContext } from '../contexts/AuthContext'; // Uncomment if you have AuthContext
 import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
+import { API_URL } from '../config';
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
-const API_URL = 'http://localhost:5001/api';
 
 const Picks = () => {
   // const { user } = useContext(AuthContext); // Uncomment if you have AuthContext
@@ -169,7 +170,7 @@ const Picks = () => {
       setLoading(true);
       try {
         // Fetch games for the selected collection
-        const gamesRes = await axios.get(`/api/games?collectionName=${selectedCollection}`);
+        const gamesRes = await axios.get(`${API_URL}/games?collectionName=${selectedCollection}`);
         console.log(`Games API response for ${selectedCollection}:`, gamesRes.data);
         setGames(
           (Array.isArray(gamesRes.data) ? gamesRes.data : []).map(game => ({
@@ -187,7 +188,7 @@ const Picks = () => {
         );
 
         // Fetch user's picks for the selected collection using Firebase UID
-        const picksRes = await axios.get(`/api/picks?userId=${userId}&collectionName=${selectedCollection}&year=${activeYear}`);
+        const picksRes = await axios.get(`${API_URL}/picks?userId=${userId}&collectionName=${selectedCollection}&year=${activeYear}`);
         const userPicksForCollection = Array.isArray(picksRes.data) ? picksRes.data : [];
         
         // Map fetched picks and mark them as 'submitted' and reconstruct key
@@ -249,7 +250,7 @@ const Picks = () => {
     const fetchCollections = async () => {
       setLoading(true);
       try {
-        const response = await axios.get('/api/collections');
+        const response = await axios.get(`${API_URL}/collections`);
         let fetchedCollections = response.data;
 
         if (!Array.isArray(fetchedCollections) || fetchedCollections.length === 0) {
@@ -367,7 +368,7 @@ const Picks = () => {
     try {
       const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
       
-      await axios.post('/api/picks', {
+      await axios.post(`${API_URL}/picks`, {
         userId: currentUser.uid,
         collectionName: selectedCollection,
         year: activeYear,

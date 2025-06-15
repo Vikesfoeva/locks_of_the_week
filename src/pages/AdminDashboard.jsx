@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_URL = 'http://localhost:5001/api';
+import { API_URL } from '../config';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();

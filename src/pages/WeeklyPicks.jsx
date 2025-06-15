@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_URL = 'http://localhost:5001/api';
+import { API_URL } from '../config';
 
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {

@@ -17,7 +17,7 @@ export default function Layout() {
   const location = useLocation()
   const [error, setError] = useState('')
 
-  const adminNav = currentUser?.isAdmin
+  const adminNav = currentUser?.role === 'admin'
     ? [{ name: 'Admin', href: '/admin' }]
     : [];
 
@@ -61,7 +61,7 @@ export default function Layout() {
                 <div className="hidden sm:ml-6 sm:flex sm:items-center">
                   <div className="flex flex-col items-end mr-4">
                     <span className="text-xs text-gray-700 font-medium">{currentUser?.email}</span>
-                    <span className="text-xs text-gray-500">{currentUser?.isAdmin ? 'Administrator' : 'User'}</span>
+                    <span className="text-xs text-gray-500">{currentUser?.role === 'admin' ? 'Administrator' : 'User'}</span>
                   </div>
                   <Menu as="div" className="relative ml-3">
                     <div>
@@ -145,7 +145,7 @@ export default function Layout() {
                   </div>
                   <div className="ml-3">
                     <div className="text-base font-medium text-gray-800">{currentUser?.email}</div>
-                    <div className="text-xs text-gray-500">{currentUser?.isAdmin ? 'Administrator' : 'User'}</div>
+                    <div className="text-xs text-gray-500">{currentUser?.role === 'admin' ? 'Administrator' : 'User'}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">
