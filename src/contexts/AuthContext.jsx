@@ -220,6 +220,7 @@ export function AuthProvider({ children }) {
         const augmentedUser = {
           ...firebaseUser,
           ...appUserProfile,
+          venmo: appUserProfile.venmoHandle || '',
           isAdmin: appUserProfile.role === 'admin'
         };
         
@@ -277,6 +278,39 @@ export function AuthProvider({ children }) {
     return unsubscribe;
   }, []); // Empty dependency array: runs once on mount and cleans up on unmount.
 
+  async function updateUserProfile({ firstName, lastName, venmo }) {
+    if (!currentUser) throw new Error('No user logged in');
+    const res = await fetch(`${API_URL}/users/${currentUser._id || currentUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, lastName, venmoHandle: venmo })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to update user profile');
+    }
+    const updatedUser = await res.json();
+    setCurrentUser(prev => ({ ...prev, ...updatedUser, venmo: updatedUser.venmoHandle || '' }));
+    return updatedUser;
+  }
+
+  async function refetchUserProfile() {
+    if (!currentUser) throw new Error('No user logged in');
+    const response = await fetch(`${API_URL}/users?email=${encodeURIComponent(currentUser.email)}`);
+    if (!response.ok) throw new Error('Failed to fetch user profile');
+    const usersArray = await response.json();
+    if (!usersArray || usersArray.length === 0) throw new Error('User profile not found');
+    const appUserProfile = usersArray[0];
+    const augmentedUser = {
+      ...currentUser,
+      ...appUserProfile,
+      venmo: appUserProfile.venmoHandle || '',
+      isAdmin: appUserProfile.role === 'admin'
+    };
+    setCurrentUser(augmentedUser);
+    return augmentedUser;
+  }
+
   const value = {
     currentUser,
     loading, // Make sure to provide loading state from AuthContext if PrivateRoute or other components use it
@@ -286,7 +320,9 @@ export function AuthProvider({ children }) {
     loginWithGooglePopup, // Your popup function
     logout,
     authError,
-    setAuthError
+    setAuthError,
+    updateUserProfile,
+    refetchUserProfile
   };
 
   return (

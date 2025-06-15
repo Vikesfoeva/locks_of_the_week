@@ -76,10 +76,18 @@ export default function Layout() {
                         <Menu.Item>
                           {({ active }) => (
                             <button
+                              onClick={() => navigate('/settings')}
+                              className={`${active ? 'bg-gray-100' : ''} block w-full px-4 py-2 text-left text-sm text-gray-700`}
+                            >
+                              Settings
+                            </button>
+                          )}
+                        </Menu.Item>
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
                               onClick={handleLogout}
-                              className={`${
-                                active ? 'bg-gray-100' : ''
-                              } block w-full px-4 py-2 text-left text-sm text-gray-700`}
+                              className={`${active ? 'bg-gray-100' : ''} block w-full px-4 py-2 text-left text-sm text-gray-700`}
                             >
                               Sign out
                             </button>
@@ -127,6 +135,13 @@ export default function Layout() {
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">
+                  <Disclosure.Button
+                    as="button"
+                    onClick={() => navigate('/settings')}
+                    className="block w-full px-4 py-2 text-left text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                  >
+                    Settings
+                  </Disclosure.Button>
                   <Disclosure.Button
                     as="button"
                     onClick={handleLogout}

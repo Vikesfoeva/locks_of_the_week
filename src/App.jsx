@@ -8,6 +8,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import Layout from './components/Layout'
 import Picks from './pages/Picks'
 import WeeklyPicks from './pages/WeeklyPicks'
+import UserSettings from './pages/UserSettings'
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <WeeklyPicks />
             </PrivateRoute>
           } />
+          <Route path="/settings" element={<UserSettings />} />
         </Route>
       </Routes>
     </AuthProvider>
