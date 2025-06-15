@@ -63,7 +63,7 @@ export function AuthProvider({ children }) {
       console.log('User created in DB:', data.message);
     } catch (error) {
       console.error('Error creating user in DB:', error);
-      setAuthError(error.message);
+      throw error;
     }
   }
 
@@ -71,34 +71,53 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setLoading(true); // Set loading at the beginning
       console.log('[AuthContext] onAuthStateChanged triggered. User:', user ? user.uid : 'null');
       if (user) {
         try {
+          // 1. Check if user is in our DB
           const response = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
           
           if (response.ok) {
             const userData = await response.json();
             setCurrentUser({ ...user, ...userData });
           } else if (response.status === 404) {
-            console.log('User not found in DB, attempting to create.');
-            await createUserInDb(user);
-            const newUserResponse = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
-            if (newUserResponse.ok) {
-              const newUserData = await newUserResponse.json();
-              setCurrentUser({ ...user, ...newUserData });
+            console.log('User not found in DB, checking whitelist before creation.');
+            
+            // 2. If not in DB, check if they are whitelisted
+            const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${user.email}`);
+            const whitelistCheckData = await whitelistCheckResponse.json();
+
+            if (whitelistCheckResponse.ok && whitelistCheckData.allowed) {
+              console.log('User is whitelisted. Creating user in DB.');
+              // 3. If whitelisted, create user
+              await createUserInDb(user);
+              const newUserResponse = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+              if (newUserResponse.ok) {
+                const newUserData = await newUserResponse.json();
+                setCurrentUser({ ...user, ...newUserData });
+              } else {
+                 // This case is unlikely but handled for safety
+                throw new Error('Failed to fetch user data after creation.');
+              }
             } else {
-              setCurrentUser(user);
+              // 4. If not whitelisted, sign out and set error
+              console.log('User is not whitelisted. Signing out.');
+              setAuthError('Your email is not authorized to use this application.');
+              await signOut(auth); // This will re-trigger onAuthStateChanged with user=null
+              setCurrentUser(null);
             }
           } else {
-            console.error('Failed to fetch user data, setting Firebase user as fallback.');
-            setCurrentUser(user);
+            // Handle other non-404 errors
+            throw new Error(`Failed to fetch user data (status: ${response.status})`);
           }
         } catch (error) {
-          console.error('Error fetching user data:', error);
-          setCurrentUser(user); // Fallback to firebase user
+          console.error('Error during auth state processing:', error);
+          setAuthError(error.message || 'An error occurred during authentication.');
+          setCurrentUser(user); // Fallback to firebase user to avoid logging out on transient backend errors
         } finally {
           setLoading(false);
-          console.log('[AuthContext] Auth state processed (user path). Loading set to false.');
+          console.log('[AuthContext] Auth state processed. Loading set to false.');
         }
       } else {
         // User is signed out.
@@ -147,13 +166,33 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      console.log("[AuthContext] Google sign-in successful. User:", user.uid);
-      // Check if user exists in your DB, if not, create them
-      await createUserInDb(user);
+      console.log("[AuthContext] Google sign-in successful. Checking whitelist for user:", user.email);
+
+      // 1. Check if the user is whitelisted
+      const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${user.email}`);
+      const whitelistCheckData = await whitelistCheckResponse.json();
+      
+      if (!whitelistCheckResponse.ok || !whitelistCheckData.allowed) {
+        console.error("Whitelist check failed or user not allowed.");
+        // Sign the user out from Firebase as they are not authorized in our system
+        await signOut(auth);
+        const errorMessage = whitelistCheckData.error || 'This email is not authorized for account creation. Please contact an administrator.';
+        setAuthError(errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // 2. Check if user exists in your DB, if not, the onAuthStateChanged will handle creation
+      // This logic can be simplified as onAuthStateChanged will run anyway.
+      // We just need to ensure the user is logged in here. The effect will handle the DB check/creation.
+      console.log("[AuthContext] User is whitelisted. Auth state change will handle DB sync.");
+
       return result;
     } catch (error) {
       console.error("[AuthContext] Error during Google popup sign-in:", error);
-      setAuthError(error.message);
+      // Ensure authError is set from caught errors.
+      if (!authError) {
+        setAuthError(error.message);
+      }
       throw error;
     }
   }
