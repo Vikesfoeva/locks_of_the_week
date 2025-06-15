@@ -9,6 +9,7 @@ import Layout from './components/Layout'
 import Picks from './pages/Picks'
 import WeeklyPicks from './pages/WeeklyPicks'
 import UserSettings from './pages/UserSettings'
+import Standings from './pages/Standings'
 
 function App() {
   return (
@@ -34,6 +35,11 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/settings" element={<UserSettings />} />
+          <Route path="/standings" element={
+            <PrivateRoute>
+              <Standings />
+            </PrivateRoute>
+          } />
         </Route>
       </Routes>
     </AuthProvider>
