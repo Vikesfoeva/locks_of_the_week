@@ -340,11 +340,19 @@ app.delete('/api/whitelist/:email', async (req, res) => {
   }
 });
 
-// Get all collections from cy_2025 database that match odds_YYYY_MM_DD pattern
+// Get all collections from db_YYYY database that match odds_YYYY_MM_DD pattern
 app.get('/api/collections', async (req, res) => {
   try {
-    const dbClient = await client.connect(); // Ensure MongoDB client is connected
-    const db = dbClient.db('cy_2025');     // Select the 'cy_2025' database
+    const mainDb = await connectToDb();
+    // Get the active year from league_configurations
+    const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+    const activeYear = config ? config.value : null;
+    if (!activeYear) {
+      return res.status(400).json({ error: 'Active year is not set.' });
+    }
+    const dbName = `cy_${activeYear}`;
+    const dbClient = await client.connect();
+    const db = dbClient.db(dbName);
 
     const collections = await db.listCollections().toArray();
     const collectionNames = collections.map(col => col.name);
@@ -353,14 +361,7 @@ app.get('/api/collections', async (req, res) => {
     const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
     const filteredCollections = collectionNames.filter(name => oddsPattern.test(name));
 
-    if (filteredCollections.length === 0) {
-      // It's better to return an empty array if no collections match,
-      // the frontend handles "No collections found" if the array is empty.
-      // return res.status(404).json({ message: 'No collections found matching the pattern.' });
-    }
-
-    res.json(filteredCollections); // Send the array of matching collection names
-
+    res.json(filteredCollections);
   } catch (err) {
     console.error('Error fetching collections:', err);
     res.status(500).json({ error: 'Failed to fetch collections', details: err.message });
@@ -376,20 +377,21 @@ app.get('/api/games', async (req, res) => {
     }
 
     // Validate collectionName format to prevent potential NoSQL injection issues if used directly
-    // Although listCollections should prevent non-existent ones, good practice to validate known patterns.
     const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
     if (!oddsPattern.test(collectionName)) {
       return res.status(400).json({ error: 'Invalid collectionName format.' });
     }
 
+    // Dynamically get the active year from league_configurations
+    const mainDb = await connectToDb();
+    const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+    const activeYear = config ? config.value : null;
+    if (!activeYear) {
+      return res.status(400).json({ error: 'Active year is not set.' });
+    }
+    const dbName = `cy_${activeYear}`;
     const dbClient = await client.connect();
-    const db = dbClient.db('cy_2025'); 
-    
-    // Check if collection exists before querying (optional, as querying a non-existent collection is not an error but returns empty)
-    // const collections = await db.listCollections({ name: collectionName }).toArray();
-    // if (collections.length === 0) {
-    //   return res.status(404).json({ error: `Collection '${collectionName}' not found.` });
-    // }
+    const db = dbClient.db(dbName);
 
     const games = await db.collection(collectionName).find({}).toArray();
     res.json(games);

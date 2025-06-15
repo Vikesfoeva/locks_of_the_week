@@ -310,6 +310,7 @@ const Picks = () => {
 
   // Move all helper functions and state computations here, before the early returns
   const isGameLocked = (game) => {
+    if (activeYear === 2024) return false;
     return new Date(game.commenceTime) < new Date();
   };
 
