@@ -7,6 +7,7 @@ import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, LockClos
 import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
+const API_URL = 'http://localhost:5001/api';
 
 const Picks = () => {
   // const { user } = useContext(AuthContext); // Uncomment if you have AuthContext
@@ -86,6 +87,11 @@ const Picks = () => {
   // Add toast state
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
+
+  // Active year state
+  const [activeYear, setActiveYear] = useState(null);
+  const [activeYearLoading, setActiveYearLoading] = useState(true);
+  const [activeYearError, setActiveYearError] = useState(null);
 
   // Helper function to parse collection name to a Date object for sorting
   const parseCollectionNameToDate = (collectionName) => {
@@ -224,10 +230,29 @@ const Picks = () => {
   // userId dependency is important if user logs in/out or changes.
   }, [selectedCollection, userId]); 
 
-  // Effect to fetch available collections
+  // Fetch active year on mount
+  useEffect(() => {
+    const fetchActiveYear = async () => {
+      setActiveYearLoading(true);
+      setActiveYearError(null);
+      try {
+        const res = await fetch(`${API_URL}/active-year`);
+        if (!res.ok) throw new Error('Failed to fetch active year');
+        const data = await res.json();
+        setActiveYear(data.year);
+      } catch (err) {
+        setActiveYearError(err.message);
+      } finally {
+        setActiveYearLoading(false);
+      }
+    };
+    fetchActiveYear();
+  }, []);
+
+  // Effect to fetch available collections (weeks)
   useEffect(() => {
     const fetchCollections = async () => {
-      setLoading(true); 
+      setLoading(true);
       try {
         const response = await axios.get('/api/collections');
         let fetchedCollections = response.data;
@@ -240,46 +265,48 @@ const Picks = () => {
           return;
         }
 
-        fetchedCollections = fetchedCollections.filter(name => parseCollectionNameToDate(name) !== null);
+        // Only show collections for the active year
+        let filteredCollections = fetchedCollections.filter(name => {
+          const parts = name.split('_');
+          return parts.length === 4 && parts[0] === 'odds' && parseInt(parts[1], 10) === activeYear;
+        });
 
-        if (fetchedCollections.length === 0) {
-          setError('No valid collections found after filtering.');
+        filteredCollections = filteredCollections.filter(name => parseCollectionNameToDate(name) !== null);
+
+        if (filteredCollections.length === 0) {
+          setError('No valid collections found for the current active year.');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
           return;
         }
-        
-        fetchedCollections.sort((a, b) => {
+
+        filteredCollections.sort((a, b) => {
           const dateA = parseCollectionNameToDate(a);
           const dateB = parseCollectionNameToDate(b);
           return dateB - dateA;
         });
 
-        setCollections(fetchedCollections);
-        const mostRecentCollection = fetchedCollections[0];
-        setSelectedCollection(mostRecentCollection); // This will trigger the next useEffect
-
+        setCollections(filteredCollections);
+        const mostRecentCollection = filteredCollections[0];
+        setSelectedCollection(mostRecentCollection);
         const initialPicksByCollection = {};
-        fetchedCollections.forEach(coll => {
+        filteredCollections.forEach(coll => {
           initialPicksByCollection[coll] = [];
         });
         setUserPicksByCollection(initialPicksByCollection);
         setError('');
-        // setLoading(true) is set at the start. If setSelectedCollection triggers
-        // the other useEffect, that one will handle setLoading(false) eventually.
-        // If we don't find collections or valid collections, we set loading to false above.
       } catch (err) {
-        console.error("Failed to fetch collections:", err);
         setError('Failed to load collections. Please try again later.');
         setCollections([]);
         setSelectedCollection('');
-        setLoading(false); // On error, ensure loading is false
-      } 
+        setLoading(false);
+      }
     };
-
-    fetchCollections();
-  }, []); // Runs once on mount
+    if (activeYear) {
+      fetchCollections();
+    }
+  }, [activeYear]);
 
   // Move all helper functions and state computations here, before the early returns
   const isGameLocked = (game) => {
@@ -597,6 +624,8 @@ const Picks = () => {
   // Now we can safely use early returns after all hooks and helper functions
   if (loading) return <div>Loading games...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
+  if (activeYearLoading) return <div>Loading active year...</div>;
+  if (activeYearError) return <div className="text-red-500">{activeYearError}</div>;
 
   return (
     <div className="p-4">

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
+const API_URL = 'http://localhost:5001/api';
+
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {
   if (!collectionName || typeof collectionName !== 'string') return null;
@@ -37,6 +39,30 @@ const WeeklyPicks = () => {
   }); // 'table' or 'leaderboard'
   const [games, setGames] = useState([]); // All games for the selected collection
 
+  // Active year state
+  const [activeYear, setActiveYear] = useState(null);
+  const [activeYearLoading, setActiveYearLoading] = useState(true);
+  const [activeYearError, setActiveYearError] = useState(null);
+
+  // Fetch active year on mount
+  useEffect(() => {
+    const fetchActiveYear = async () => {
+      setActiveYearLoading(true);
+      setActiveYearError(null);
+      try {
+        const res = await fetch(`${API_URL}/active-year`);
+        if (!res.ok) throw new Error('Failed to fetch active year');
+        const data = await res.json();
+        setActiveYear(data.year);
+      } catch (err) {
+        setActiveYearError(err.message);
+      } finally {
+        setActiveYearLoading(false);
+      }
+    };
+    fetchActiveYear();
+  }, []);
+
   // Fetch all users on mount
   useEffect(() => {
     const fetchUsers = async () => {
@@ -56,7 +82,7 @@ const WeeklyPicks = () => {
     fetchUsers();
   }, []);
 
-  // Fetch collections (weeks) on mount
+  // Fetch collections (weeks) for the active year
   useEffect(() => {
     const fetchCollections = async () => {
       setLoading(true);
@@ -72,37 +98,43 @@ const WeeklyPicks = () => {
           return;
         }
 
-        fetchedCollections = fetchedCollections.filter(name => parseCollectionNameToDate(name) !== null);
+        // Only show collections for the active year
+        let filteredCollections = fetchedCollections.filter(name => {
+          const parts = name.split('_');
+          return parts.length === 4 && parts[0] === 'odds' && parseInt(parts[1], 10) === activeYear;
+        });
 
-        if (fetchedCollections.length === 0) {
-          setError('No valid collections found after filtering.');
+        filteredCollections = filteredCollections.filter(name => parseCollectionNameToDate(name) !== null);
+
+        if (filteredCollections.length === 0) {
+          setError('No valid collections found for the current active year.');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
           return;
         }
 
-        fetchedCollections.sort((a, b) => {
+        filteredCollections.sort((a, b) => {
           const dateA = parseCollectionNameToDate(a);
           const dateB = parseCollectionNameToDate(b);
           return dateB - dateA;
         });
 
-        setCollections(fetchedCollections);
-        const mostRecentCollection = fetchedCollections[0];
+        setCollections(filteredCollections);
+        const mostRecentCollection = filteredCollections[0];
         setSelectedCollection(mostRecentCollection);
         setError('');
       } catch (err) {
-        console.error('Failed to fetch collections:', err);
         setError('Failed to load collections. Please try again later.');
         setCollections([]);
         setSelectedCollection('');
-      } finally {
         setLoading(false);
       }
     };
-    fetchCollections();
-  }, []);
+    if (activeYear) {
+      fetchCollections();
+    }
+  }, [activeYear]);
 
   // Fetch picks when collection or user changes
   useEffect(() => {
@@ -234,6 +266,8 @@ const WeeklyPicks = () => {
       </div>
       {loading && <div>Loading...</div>}
       {error && <div className="text-red-500">{error}</div>}
+      {activeYearLoading && <div>Loading active year...</div>}
+      {activeYearError && <div className="text-red-500">{activeYearError}</div>}
       {userPicks.length === 3 && allPicks.length > 0 ? (
         <>
           <h2 className="text-xl font-semibold mb-2">All Picks for This Week</h2>

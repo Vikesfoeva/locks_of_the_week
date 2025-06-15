@@ -465,3 +465,54 @@ app.get('/api/picks', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch user picks', details: err.message });
   }
 });
+
+// List all databases matching 'cy_YYYY' pattern
+app.get('/api/years', async (req, res) => {
+  try {
+    const dbClient = await client.connect();
+    const adminDb = dbClient.db().admin();
+    const dbs = await adminDb.listDatabases();
+    const yearPattern = /^cy_(\d{4})$/;
+    const years = dbs.databases
+      .map(db => db.name)
+      .filter(name => yearPattern.test(name))
+      .map(name => parseInt(name.split('_')[1], 10))
+      .sort((a, b) => b - a); // Descending order
+    res.json(years);
+  } catch (err) {
+    console.error('Error fetching years:', err);
+    res.status(500).json({ error: 'Failed to fetch years', details: err.message });
+  }
+});
+
+// Get the active year from league_configurations
+app.get('/api/active-year', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const config = await db.collection('league_configurations').findOne({ key: 'active_year' });
+    res.json({ year: config ? config.value : null });
+  } catch (err) {
+    console.error('Error fetching active year:', err);
+    res.status(500).json({ error: 'Failed to fetch active year', details: err.message });
+  }
+});
+
+// Set the active year in league_configurations
+app.post('/api/active-year', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { year } = req.body;
+    if (!year || typeof year !== 'number') {
+      return res.status(400).json({ error: 'Year must be provided as a number' });
+    }
+    await db.collection('league_configurations').updateOne(
+      { key: 'active_year' },
+      { $set: { value: year } },
+      { upsert: true }
+    );
+    res.json({ message: 'Active year updated', year });
+  } catch (err) {
+    console.error('Error setting active year:', err);
+    res.status(500).json({ error: 'Failed to set active year', details: err.message });
+  }
+});

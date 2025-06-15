@@ -17,6 +17,41 @@ export default function AdminDashboard() {
   const [saveStatus, setSaveStatus] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Active year state
+  const [years, setYears] = useState([]);
+  const [activeYear, setActiveYear] = useState('');
+  const [yearsLoading, setYearsLoading] = useState(true);
+  const [yearsError, setYearsError] = useState(null);
+
+  // Fetch available years and active year on mount
+  useEffect(() => {
+    const fetchYearsAndActive = async () => {
+      setYearsLoading(true);
+      setYearsError(null);
+      try {
+        const [yearsRes, activeRes] = await Promise.all([
+          fetch(`${API_URL}/years`),
+          fetch(`${API_URL}/active-year`)
+        ]);
+        if (!yearsRes.ok) throw new Error('Failed to fetch years');
+        if (!activeRes.ok) throw new Error('Failed to fetch active year');
+        const yearsData = await yearsRes.json();
+        const activeData = await activeRes.json();
+        setYears(yearsData);
+        if (activeData.year && yearsData.includes(activeData.year)) {
+          setActiveYear(activeData.year);
+        } else if (yearsData.length > 0) {
+          setActiveYear(yearsData[0]);
+        }
+      } catch (err) {
+        setYearsError(err.message);
+      } finally {
+        setYearsLoading(false);
+      }
+    };
+    fetchYearsAndActive();
+  }, []);
+
   // Fetch users and whitelist on component mount
   useEffect(() => {
     const fetchData = async () => {
@@ -205,6 +240,28 @@ export default function AdminDashboard() {
     } catch (err) {
       setSaveStatus({ error: err.message });
       setIsSubmitting(false);
+    }
+  };
+
+  // Handler to set active year in backend
+  const [savingYear, setSavingYear] = useState(false);
+  const [saveYearError, setSaveYearError] = useState(null);
+  const handleSetActiveYear = async (e) => {
+    const newYear = parseInt(e.target.value, 10);
+    setActiveYear(newYear);
+    setSavingYear(true);
+    setSaveYearError(null);
+    try {
+      const res = await fetch(`${API_URL}/active-year`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: newYear })
+      });
+      if (!res.ok) throw new Error('Failed to set active year');
+    } catch (err) {
+      setSaveYearError(err.message);
+    } finally {
+      setSavingYear(false);
     }
   };
 
@@ -431,7 +488,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Whitelisted Users Section */}
+      {/* Whitelisted Users Table */}
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Whitelisted Users (Not Yet Registered)</h3>
         <div className="overflow-x-auto">
@@ -458,7 +515,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Pre-register Email Form */}
+      {/* Pre-register Email Form (Whitelist) - restored */}
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-2">Pre-register User Email</h3>
         <form className="flex flex-col sm:flex-row gap-2 items-start sm:items-end" onSubmit={handleAddEmail}>
@@ -474,6 +531,33 @@ export default function AdminDashboard() {
           </div>
           <button className="btn btn-primary" type="submit">Add to Whitelist</button>
         </form>
+      </div>
+
+      {/* Active Year Selection - at bottom */}
+      <div className="card">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Active Year</h3>
+        {yearsLoading ? (
+          <div className="text-gray-500">Loading years...</div>
+        ) : yearsError ? (
+          <div className="text-red-600">Error: {yearsError}</div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <label htmlFor="active-year-select" className="font-medium">Set Active Year:</label>
+            <select
+              id="active-year-select"
+              value={activeYear}
+              onChange={handleSetActiveYear}
+              className="border rounded px-2 py-1"
+              disabled={savingYear}
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            {savingYear && <span className="text-xs text-gray-500 ml-2">Saving...</span>}
+            {saveYearError && <span className="text-xs text-red-600 ml-2">Error: {saveYearError}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
