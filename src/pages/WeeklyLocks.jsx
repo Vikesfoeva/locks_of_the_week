@@ -5,7 +5,7 @@ import { API_URL } from '../config';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
-import PopularPicksModal from '../components/PopularPicksModal';
+import PopularLocksModal from '../components/PopularLocksModal';
 
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {
@@ -22,7 +22,7 @@ const parseCollectionNameToDate = (collectionName) => {
   return null; // Return null for invalid formats
 };
 
-const WeeklyPicks = () => {
+const WeeklyLocks = () => {
   const { currentUser } = useAuth();
   const [collections, setCollections] = useState([]); // e.g., weeks
   const [selectedCollection, setSelectedCollection] = useState('');
@@ -379,7 +379,7 @@ const WeeklyPicks = () => {
           setAllPicks([]);
         }
       } catch (err) {
-        setError('Failed to load picks.');
+        setError('Failed to load locks.');
         setUserPicks([]);
         setAllPicks([]);
       } finally {
@@ -417,7 +417,7 @@ const WeeklyPicks = () => {
   // Table rendering
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Weekly Picks</h1>
+      <h1 className="text-2xl font-bold mb-4">Weekly Locks</h1>
       <div className="mb-4">
         <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
           Select Week:
@@ -488,7 +488,7 @@ const WeeklyPicks = () => {
       {activeYearError && <div className="text-red-500">{activeYearError}</div>}
       {userPicks.length === 3 && allPicks.length > 0 ? (
         <>
-          <h2 className="text-xl font-semibold mb-2">All Picks for This Week</h2>
+          <h2 className="text-xl font-semibold mb-2">All Locks for This Week</h2>
           {viewMode === 'table' ? (
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
@@ -1048,7 +1048,7 @@ const WeeklyPicks = () => {
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300">User</th>
                    {[1,2,3].map(i => (
-                     <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Pick {i}</th>
+                     <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
                    ))}
                  </tr>
                  <tr className="bg-gray-50 text-left border-b border-gray-300">
@@ -1101,11 +1101,11 @@ const WeeklyPicks = () => {
           )}
         </>
       ) : (
-        <p>You need to have 3 picks submitted for the selected week to view all picks.</p>
+        <p>You need to have 3 locks submitted for the selected week to view all locks.</p>
       )}
-      {showPopularPicks && <PopularPicksModal picks={allPicks} onClose={() => setShowPopularPicks(false)} />}
+              {showPopularPicks && <PopularLocksModal picks={allPicks} onClose={() => setShowPopularPicks(false)} />}
     </div>
   );
 };
 
-export default WeeklyPicks; 
+export default WeeklyLocks; 

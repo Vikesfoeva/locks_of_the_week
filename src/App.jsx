@@ -6,8 +6,8 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import Layout from './components/Layout'
-import Picks from './pages/Picks'
-import WeeklyPicks from './pages/WeeklyPicks'
+import Locks from './pages/Locks'
+import WeeklyLocks from './pages/WeeklyLocks'
 import UserSettings from './pages/UserSettings'
 import Standings from './pages/Standings'
 
@@ -28,10 +28,10 @@ function App() {
               <AdminDashboard />
             </PrivateRoute>
           } />
-          <Route path="/picks" element={<Picks />} />
+          <Route path="/locks" element={<Locks />} />
           <Route path="/weekly" element={
             <PrivateRoute>
-              <WeeklyPicks />
+              <WeeklyLocks />
             </PrivateRoute>
           } />
           <Route path="/settings" element={<UserSettings />} />

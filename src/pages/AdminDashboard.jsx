@@ -329,8 +329,8 @@ export default function AdminDashboard() {
                 <th className="px-2 py-1 border">Venmo</th>
                 <th className="px-2 py-1 border">Dues Paid</th>
                 <th className="px-2 py-1 border">Date Paid</th>
-                <th className="px-2 py-1 border">Picks Submitted</th>
-                <th className="px-2 py-1 border">Picks Made</th>
+                <th className="px-2 py-1 border">Locks Submitted</th>
+                <th className="px-2 py-1 border">Locks Made</th>
                 <th className="px-2 py-1 border">Actions</th>
               </tr>
             </thead>

@@ -128,7 +128,7 @@ const Standings = () => {
             {standings.map((user, idx) => {
               const winPct = getWinPct(user);
               const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
-              const totalPicks = user.wins + user.losses + user.ties;
+              const totalLocks = user.wins + user.losses + user.ties;
               const wb = firstPlaceWins - user.wins;
               return (
                 <tr key={user._id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -136,7 +136,7 @@ const Standings = () => {
                   <td className="px-3 py-2">{user.name}</td>
                   <td className="px-3 py-2">{`${user.wins}-${user.losses}-${user.ties}`}</td>
                   <td className="px-3 py-2">{weekRecord}</td>
-                  <td className="px-3 py-2">{totalPicks}</td>
+                  <td className="px-3 py-2">{totalLocks}</td>
                   <td className="px-3 py-2">{winPct}</td>
                   <td className="px-3 py-2">{wb === 0 ? '-' : wb}</td>
                   <td className="px-3 py-2">

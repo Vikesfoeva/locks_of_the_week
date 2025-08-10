@@ -10,7 +10,7 @@ import { API_URL } from '../config';
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
 
-const Picks = () => {
+const Locks = () => {
   // const { user } = useContext(AuthContext); // Uncomment if you have AuthContext
   const { currentUser } = useAuth(); // Use AuthContext
   const userId = currentUser?.uid || 'HARDCODED_USER_ID'; // Use Firebase UID, fallback if necessary
@@ -332,7 +332,7 @@ const Picks = () => {
     if (existingPick) {
       // If pick exists and is already submitted, do nothing.
       if (existingPick.status === 'submitted') {
-        setError('This pick has already been submitted and cannot be changed.');
+        setError('This lock has already been submitted and cannot be changed.');
         setTimeout(() => setError(''), 3000);
         return;
       }
@@ -343,7 +343,7 @@ const Picks = () => {
       const totalPicksForCollection = currentCollectionPicks.length;
       
       if (totalPicksForCollection >= 3) {
-        setError('You can only make up to 3 picks per week.');
+        setError('You can only make up to 3 locks per week.');
         setTimeout(() => setError(''), 3000);
         return;
       }
@@ -369,7 +369,7 @@ const Picks = () => {
     const picksToSubmit = selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection);
 
     if (picksToSubmit.length === 0) {
-      setToastMessage('Already submitted all picks for this week.');
+              setToastMessage('Already submitted all locks for this week.');
       setShowToast(true);
       setSubmitting(false);
       setTimeout(() => setShowToast(false), 3000);
@@ -386,7 +386,7 @@ const Picks = () => {
         picks: picksPayload
       });
 
-      setSuccess(`Successfully submitted ${picksPayload.length} pick(s) for ${selectedCollection}!`);
+              setSuccess(`Successfully submitted ${picksPayload.length} lock(s) for ${selectedCollection}!`);
       setTimeout(() => setSuccess(false), 3000);
 
       const updatedPicksForCurrentCollection = selectedPicks.map(p => {
@@ -404,7 +404,7 @@ const Picks = () => {
 
     } catch (err) {
       console.error("Failed to submit picks:", err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit picks';
+              const errorMessage = err.response?.data?.message || err.message || 'Failed to submit locks';
       setError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -675,7 +675,7 @@ const Picks = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4 text-center md:text-left">Pick Your Betting Lines</h1>
+      <h1 className="text-2xl font-bold mb-4 text-center md:text-left">Lock Lines</h1>
 
       {/* Collection Selector Dropdown */}
       {collections.length > 0 && (
@@ -716,7 +716,7 @@ const Picks = () => {
       <div className="mb-2 text-gray-600">Select up to 3 outcomes across all games for the selected week.</div>
       {/* Update pick count display to reflect current collection's picks */}
       <div className="mb-4 text-blue-700 font-semibold text-center md:text-left">
-        Picks for {selectedCollection ? (
+                    Locks for {selectedCollection ? (
           (() => {
             const date = parseCollectionNameToDate(selectedCollection);
             return date 
@@ -733,7 +733,7 @@ const Picks = () => {
             onClick={handleSubmit}
             disabled={selectedPicks.length === 0 || submitting}
           >
-            Submit Picks
+            Submit Locks
           </button>
           <button
             className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100"
@@ -752,8 +752,8 @@ const Picks = () => {
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
-          <span className="font-semibold text-gray-700">Your Picks:</span>
-          {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
+                          <span className="font-semibold text-gray-700">Your Locks:</span>
+                {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
           {selectedPicks.map((pick, idx) => {
             let label = '';
             if (pick.pickType === 'spread') {
@@ -1418,4 +1418,4 @@ const Picks = () => {
   );
 };
 
-export default Picks; 
+export default Locks; 
