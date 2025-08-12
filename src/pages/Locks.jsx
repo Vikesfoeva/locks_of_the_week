@@ -7,6 +7,7 @@ import { LockOpenIcon } from '@heroicons/react/24/solid';
 // import { AuthContext } from '../contexts/AuthContext'; // Uncomment if you have AuthContext
 import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
 import { API_URL } from '../config';
+import ConfirmModal from '../components/ConfirmModal';
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
 
@@ -88,6 +89,9 @@ const Locks = () => {
   // Add toast state
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
+
+  // Add confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
@@ -361,20 +365,27 @@ const Locks = () => {
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
+    const picksToSubmit = selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection);
+
+    if (picksToSubmit.length === 0) {
+      setToastMessage('Already submitted all locks for this week.');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+
+    // Show confirmation modal
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     setError('');
     setSuccess(false);
 
     const picksToSubmit = selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection);
-
-    if (picksToSubmit.length === 0) {
-              setToastMessage('Already submitted all locks for this week.');
-      setShowToast(true);
-      setSubmitting(false);
-      setTimeout(() => setShowToast(false), 3000);
-      return;
-    }
 
     try {
       const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
@@ -386,7 +397,7 @@ const Locks = () => {
         picks: picksPayload
       });
 
-              setSuccess(`Successfully submitted ${picksPayload.length} lock(s) for ${selectedCollection}!`);
+      setSuccess(`Successfully submitted ${picksPayload.length} lock(s) for ${selectedCollection}!`);
       setTimeout(() => setSuccess(false), 3000);
 
       const updatedPicksForCurrentCollection = selectedPicks.map(p => {
@@ -404,7 +415,7 @@ const Locks = () => {
 
     } catch (err) {
       console.error("Failed to submit picks:", err);
-              const errorMessage = err.response?.data?.message || err.message || 'Failed to submit locks';
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit locks';
       setError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -1414,6 +1425,16 @@ const Locks = () => {
           {toastMessage}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmSubmit}
+        title="Confirm Submit Locks"
+        message={`Are you sure you want to submit ${selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection).length} lock(s) for this week? This action cannot be undone.`}
+        confirmText="Submit Locks"
+        cancelText="Cancel"
+      />
     </div>
   );
 };

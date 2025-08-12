@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/' },
-      { name: 'Make Locks', href: '/locks' },
+      { name: 'Pick Locks', href: '/locks' },
     { name: 'Weekly Locks', href: '/weekly' },
   { name: 'Standings', href: '/standings' },
 ]

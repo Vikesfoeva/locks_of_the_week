@@ -14,7 +14,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900">Make Locks</h3>
+          <h3 className="text-lg font-medium text-gray-900">Pick Locks</h3>
           <p className="mt-2 text-sm text-gray-600">
             Select your three locks for this week's games.
           </p>
@@ -23,7 +23,7 @@ export default function Dashboard() {
               href="/locks"
               className="btn btn-primary"
             >
-              Make Locks
+              Pick Locks
             </a>
           </div>
         </div>
