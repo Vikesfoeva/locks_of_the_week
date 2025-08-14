@@ -14,7 +14,7 @@ export default function UserSettings() {
     if (currentUser) {
       setFirstName(currentUser.firstName || '');
       setLastName(currentUser.lastName || '');
-      setVenmo(currentUser.venmo || '');
+      setVenmo(currentUser.venmo || currentUser.venmoHandle || '');
     }
   }, [currentUser]);
 
@@ -29,12 +29,12 @@ export default function UserSettings() {
     setLoading(true);
     try {
       await updateUserProfile({ firstName, lastName, venmo });
-      await refetchUserProfile();
+      const refreshed = await refetchUserProfile();
       setSuccess('Profile updated successfully!');
-      if (currentUser) {
-        setFirstName(currentUser.firstName || '');
-        setLastName(currentUser.lastName || '');
-        setVenmo(currentUser.venmo || '');
+      if (refreshed) {
+        setFirstName(refreshed.firstName || '');
+        setLastName(refreshed.lastName || '');
+        setVenmo(refreshed.venmo || refreshed.venmoHandle || '');
       }
     } catch (err) {
       setError('Failed to update profile.');

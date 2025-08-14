@@ -214,6 +214,66 @@ export function AuthProvider({ children }) {
     return signOut(auth);
   }
 
+  // Update the user's profile in the backend database
+  async function updateUserProfile({ firstName, lastName, venmo }) {
+    if (!auth.currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      // Ensure we have the DB user id
+      let userId = currentUser && currentUser._id ? currentUser._id : null;
+      if (!userId) {
+        const resp = await fetch(`${API_URL}/users?firebaseUid=${auth.currentUser.uid}`);
+        if (!resp.ok) {
+          throw new Error('Failed to locate user in DB');
+        }
+        const dbUser = await resp.json();
+        userId = dbUser && dbUser._id ? dbUser._id : null;
+      }
+
+      if (!userId) {
+        throw new Error('User id missing for profile update');
+      }
+
+      const updates = {};
+      if (typeof firstName === 'string') updates.firstName = firstName;
+      if (typeof lastName === 'string') updates.lastName = lastName;
+      if (typeof venmo === 'string') updates.venmoHandle = venmo;
+
+      const putResp = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      const data = await putResp.json().catch(() => ({}));
+      if (!putResp.ok) {
+        throw new Error(data.error || 'Failed to update user');
+      }
+      return true;
+    } catch (error) {
+      console.error('[AuthContext] updateUserProfile error:', error);
+      throw error;
+    }
+  }
+
+  // Re-fetch the user's profile from the backend and merge with Firebase user
+  async function refetchUserProfile() {
+    try {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return null;
+      const response = await fetch(`${API_URL}/users?firebaseUid=${firebaseUser.uid}`);
+      if (!response.ok) return null;
+      const userData = await response.json();
+      const merged = { ...firebaseUser, ...userData };
+      setCurrentUser(merged);
+      return merged;
+    } catch (error) {
+      console.error('[AuthContext] refetchUserProfile error:', error);
+      return null;
+    }
+  }
+
   // The value provided to the context consumers
   const value = {
     currentUser,
@@ -224,6 +284,8 @@ export function AuthProvider({ children }) {
     login,
     logout,
     loginWithGooglePopup,
+    updateUserProfile,
+    refetchUserProfile,
   };
 
   return (
