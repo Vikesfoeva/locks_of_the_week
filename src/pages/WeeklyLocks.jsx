@@ -81,6 +81,23 @@ const WeeklyLocks = () => {
     });
   };
 
+  // Helper function to format result display
+  const formatResult = (result) => {
+    if (!result) return '--';
+    if (result === 'WIN') return 'W';
+    if (result === 'LOSS') return 'L';
+    if (result === 'TIE') return 'T';
+    return result;
+  };
+
+  // Helper function to get row background color based on result
+  const getRowBackgroundColor = (result, index) => {
+    if (!result) return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+    if (result === 'WIN') return 'bg-green-50';
+    if (result === 'LOSS') return 'bg-red-50';
+    return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+  };
+
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
   const [activeYearLoading, setActiveYearLoading] = useState(true);
@@ -1304,7 +1321,7 @@ const WeeklyLocks = () => {
                     const userName = userMap[pick.userId] || pick.userId;
                     const game = pick.gameDetails;
                     return (
-                      <tr key={pick._id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <tr key={pick._id || idx} className={getRowBackgroundColor(pick.result, idx)}>
                         <td className="px-2 py-2 border-r border-gray-300 font-semibold">{userName}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
@@ -1315,7 +1332,7 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
-                        <td className="px-2 py-2">{pick.result || '--'}</td>
+                        <td className="px-2 py-2">{formatResult(pick.result)}</td>
                       </tr>
                     );
                   })}
@@ -1371,7 +1388,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
                            </React.Fragment>
                          ) : (
                            <td key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
