@@ -173,6 +173,10 @@ app.get('/api/users', async (req, res) => {
       const user = await db.collection('users').findOne(query);
       console.log('[Backend] User search result:', user);
       if (user) {
+        // Convert ObjectId to string for frontend compatibility
+        if (user._id) {
+          user._id = user._id.toString();
+        }
         res.json(user);
       } else {
         console.log('[Backend] User not found for query:', query);
@@ -180,6 +184,12 @@ app.get('/api/users', async (req, res) => {
       }
     } else {
       const users = await db.collection('users').find({}).toArray();
+      // Convert ObjectIds to strings for frontend compatibility
+      users.forEach(user => {
+        if (user._id) {
+          user._id = user._id.toString();
+        }
+      });
       console.log('[Backend] All users in database:', users);
       res.json(users);
     }
@@ -194,6 +204,11 @@ app.put('/api/users/:id', async (req, res) => {
     const db = await connectToDb();
     const { id } = req.params;
     const updates = req.body;
+    
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
     
     // Remove any fields that shouldn't be updated
     delete updates._id;
@@ -224,6 +239,11 @@ app.delete('/api/users/:id', async (req, res) => {
   try {
     const db = await connectToDb();
     const { id } = req.params;
+    
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
     
     const result = await db.collection('users').deleteOne(
       { _id: new ObjectId(id) }
@@ -375,7 +395,7 @@ app.post('/api/users', async (req, res) => {
     const result = await db.collection('users').insertOne(userDoc);
     console.log('[Backend] User created with ID:', result.insertedId);
     console.log('[Backend] Created user document:', userDoc);
-    res.status(201).json({ message: 'User created', userId: result.insertedId });
+    res.status(201).json({ message: 'User created', userId: result.insertedId.toString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

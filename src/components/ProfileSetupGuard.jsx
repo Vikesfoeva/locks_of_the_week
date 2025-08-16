@@ -45,11 +45,17 @@ export default function ProfileSetupGuard({ children }) {
   }, [currentUser, loading, navigate]);
 
   // Don't render children if we're redirecting to setup
-  if (!loading && currentUser && currentUser._id && 
-      (!currentUser.venmoHandle || currentUser.venmoHandle.trim() === '') &&
-      (!currentUser.venmo || currentUser.venmo.trim() === '')) {
-    console.log('[ProfileSetupGuard] Not rendering children - redirecting to setup');
-    return null;
+  if (!loading && currentUser && currentUser._id) {
+    const venmoHandle = currentUser.venmoHandle ? currentUser.venmoHandle.trim() : '';
+    const venmo = currentUser.venmo ? currentUser.venmo.trim() : '';
+    
+    const hasVenmoId = (venmoHandle !== '' && venmoHandle !== '-' && venmoHandle !== 'null') || 
+                      (venmo !== '' && venmo !== '-' && venmo !== 'null');
+    
+    if (!hasVenmoId) {
+      console.log('[ProfileSetupGuard] Not rendering children - redirecting to setup');
+      return null;
+    }
   }
 
   return children;
