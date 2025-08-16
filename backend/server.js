@@ -142,7 +142,8 @@ app.get('/api/users', async (req, res) => {
     const { email, firebaseUid } = req.query;
     let query = {};
     if (email) {
-      query = { email };
+      // Normalize email to lowercase for case-insensitive lookup
+      query = { email: email.toLowerCase() };
     } else if (firebaseUid) {
       query = { firebaseUid };
     }
@@ -225,14 +226,17 @@ app.post('/api/whitelist', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
     
-    // Check if email already exists in whitelist
-    const existing = await db.collection('whitelist').findOne({ email });
+    // Normalize email to lowercase for consistent storage
+    const normalizedEmail = email.toLowerCase();
+    
+    // Check if email already exists in whitelist (case-insensitive)
+    const existing = await db.collection('whitelist').findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ error: 'Email already whitelisted' });
     }
     
     await db.collection('whitelist').insertOne({
-      email,
+      email: normalizedEmail,
       createdAt: new Date()
     });
     
@@ -264,7 +268,9 @@ app.get('/api/whitelist/check', async (req, res) => {
       console.log('No email provided');
       return res.status(400).json({ allowed: false, error: 'Email is required' });
     }
-    const exists = await db.collection('whitelist').findOne({ email });
+    // Normalize email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase();
+    const exists = await db.collection('whitelist').findOne({ email: normalizedEmail });
     console.log('Whitelist check result:', exists ? 'Found' : 'Not found');
     res.json({ allowed: !!exists });
   } catch (err) {
@@ -283,13 +289,15 @@ app.post('/api/users/check-whitelist', async (req, res) => {
       return res.status(400).json({ allowed: false, error: 'Email is required' });
     }
     
-    const exists = await db.collection('whitelist').findOne({ email });
+    // Normalize email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase();
+    const exists = await db.collection('whitelist').findOne({ email: normalizedEmail });
     if (!exists) {
       return res.status(403).json({ allowed: false, error: 'Email is not whitelisted' });
     }
     
-    // Check if user already exists
-    const existingUser = await db.collection('users').findOne({ email });
+    // Check if user already exists (case-insensitive)
+    const existingUser = await db.collection('users').findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(200).json({ allowed: true, userExists: true });
     }
@@ -309,19 +317,22 @@ app.post('/api/users', async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
-    // Check if user already exists
-    const existing = await db.collection('users').findOne({ email });
+    // Normalize email to lowercase for consistent storage and comparison
+    const normalizedEmail = email.toLowerCase();
+    
+    // Check if user already exists (case-insensitive)
+    const existing = await db.collection('users').findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(200).json({ message: 'User already exists' });
     }
-    // Check if email is whitelisted
-    const whitelisted = await db.collection('whitelist').findOne({ email });
+    // Check if email is whitelisted (case-insensitive)
+    const whitelisted = await db.collection('whitelist').findOne({ email: normalizedEmail });
     if (!whitelisted) {
       return res.status(403).json({ error: 'This email is not authorized for account creation. Please contact an administrator.' });
     }
     const now = new Date();
     const userDoc = {
-      email,
+      email: normalizedEmail, // Store normalized email
       firebaseUid: firebaseUid || '',
       firstName: firstName || '',
       lastName: lastName || '',

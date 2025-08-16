@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { 
   getAuth, 
   createUserWithEmailAndPassword, 
@@ -40,6 +40,8 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState('');
+  const processingUserRef = useRef(null); // Track which user we're currently processing
+  const isSignupInProgressRef = useRef(false); // Track if we're in the middle of a signup
 
   // Function to create user in MongoDB
   async function createUserInDb(user) {
@@ -53,6 +55,17 @@ export function AuthProvider({ children }) {
         const nameParts = displayName.split(' ');
         firstName = nameParts[0];
         lastName = nameParts.slice(1).join(' ');
+      } else {
+        // For email/password signup, check localStorage for pending name data
+        const pendingFirstName = localStorage.getItem('pendingFirstName');
+        const pendingLastName = localStorage.getItem('pendingLastName');
+        if (pendingFirstName && pendingLastName) {
+          firstName = pendingFirstName;
+          lastName = pendingLastName;
+          // Clear the pending data after using it
+          localStorage.removeItem('pendingFirstName');
+          localStorage.removeItem('pendingLastName');
+        }
       }
 
       const response = await fetch(`${API_URL}/users`, {
@@ -82,18 +95,41 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true); // Set loading at the beginning
       console.log('[AuthContext] onAuthStateChanged triggered. User:', user ? user.uid : 'null');
+      
+      // Prevent duplicate processing of the same user
+      if (user && processingUserRef.current === user.uid) {
+        console.log('[AuthContext] Already processing user:', user.uid, '- skipping duplicate processing');
+        return;
+      }
+      
+      setLoading(true); // Set loading at the beginning
+      
       if (user) {
+        // Mark this user as being processed
+        processingUserRef.current = user.uid;
+        
         try {
           // 1. Check if user is in our DB
-          const response = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+          // Note: 404 is expected for new users during signup - this will trigger user creation
+          let response;
+          try {
+            response = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+          } catch (fetchError) {
+            console.error('Network error fetching user:', fetchError);
+            throw new Error('Failed to connect to server');
+          }
           
           if (response.ok) {
             const userData = await response.json();
             setCurrentUser({ ...user, ...userData });
           } else if (response.status === 404) {
-            console.log('User not found in DB, checking whitelist before creation.');
+            // Only log this as info if it's during signup, otherwise it might be a real issue
+            if (isSignupInProgressRef.current) {
+              console.log('User not found in DB (expected during signup), checking whitelist before creation.');
+            } else {
+              console.log('User not found in DB, checking whitelist before creation.');
+            }
             
             // 2. If not in DB, check if they are whitelisted
             const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${user.email}`);
@@ -126,12 +162,18 @@ export function AuthProvider({ children }) {
           console.error('Error during auth state processing:', error);
           setAuthError(error.message || 'An error occurred during authentication.');
           setCurrentUser(user); // Fallback to firebase user to avoid logging out on transient backend errors
+          processingUserRef.current = null; // Clear processing ref on error
+          isSignupInProgressRef.current = false; // Clear signup flag on error
         } finally {
+          processingUserRef.current = null; // Clear processing ref when complete
+          isSignupInProgressRef.current = false; // Clear signup flag when complete
           setLoading(false);
           console.log('[AuthContext] Auth state processed. Loading set to false.');
         }
       } else {
         // User is signed out.
+        processingUserRef.current = null; // Clear processing ref
+        isSignupInProgressRef.current = false; // Clear signup flag
         setCurrentUser(null);
         setLoading(false);
         console.log('[AuthContext] Auth state processed (no user path). Loading set to false.');
@@ -147,14 +189,17 @@ export function AuthProvider({ children }) {
   // Sign up with email and password
   async function signup(email, password) {
     setAuthError('');
+    isSignupInProgressRef.current = true; // Mark signup as in progress
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       console.log("[AuthContext] Firebase user created via email/pass:", userCredential.user.uid);
-      await createUserInDb(userCredential.user); // Create user in your DB
+      // Don't call createUserInDb here - let onAuthStateChanged handle it
+      // This prevents the race condition where onAuthStateChanged runs before createUserInDb completes
       return userCredential;
     } catch (error) {
       console.error("[AuthContext] Error during email/pass signup:", error);
       setAuthError(error.message);
+      isSignupInProgressRef.current = false; // Clear flag on error
       throw error;
     }
   }
