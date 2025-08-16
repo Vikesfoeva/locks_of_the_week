@@ -42,6 +42,14 @@ const WeeklyLocks = () => {
   }); // 'table' or 'leaderboard'
   const [showPopularPicks, setShowPopularPicks] = useState(false);
 
+  // Helper function to format status display
+  const formatStatus = (status) => {
+    if (!status) return '--';
+    if (status === 'final') return 'Final';
+    if (status === 'unstarted') return 'Unstarted';
+    return status; // Return as-is for any other status values
+  };
+
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
   const [activeYearLoading, setActiveYearLoading] = useState(true);
@@ -1033,7 +1041,7 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                         <td className="px-2 py-2">{pick.result || '--'}</td>
                       </tr>
                     );
@@ -1085,7 +1093,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{pick.status ? pick.status : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
                            </React.Fragment>
                          ) : (
