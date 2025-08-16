@@ -48,7 +48,16 @@ const WeeklyLocks = () => {
     if (!status) return '--';
     if (status === 'final') return 'Final';
     if (status === 'unstarted') return 'Unstarted';
+    if (status === 'in-progress') return 'In Progress';
     return status; // Return as-is for any other status values
+  };
+
+  // Helper function to format score with team abbreviations
+  const formatScore = (awayScore, homeScore, awayTeam, homeTeam) => {
+    if (typeof awayScore === 'number' && typeof homeScore === 'number') {
+      return `${awayTeam} ${awayScore} - ${homeScore} ${homeTeam}`;
+    }
+    return '--';
   };
 
   // Helper function to format game date and time
@@ -120,7 +129,7 @@ const WeeklyLocks = () => {
         'Date': formatGameDate(game?.commence_time),
         'Time': formatGameTime(game?.commence_time),
         'Line/O/U': pick.line !== undefined ? pick.line : '--',
-        'Score': typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--',
+        'Score': formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev),
         'Status': formatStatus(pick.status),
         'W/L/T': formatResult(pick.result)
       };
@@ -1407,7 +1416,7 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                         <td className="px-2 py-2">{formatResult(pick.result)}</td>
                       </tr>
@@ -1463,7 +1472,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
                            </React.Fragment>
