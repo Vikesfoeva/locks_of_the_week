@@ -9,6 +9,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  sendPasswordResetEmail,
   // onLog // REMOVED direct import
 } from 'firebase/auth'
 import { initializeApp } from 'firebase/app'
@@ -253,6 +254,25 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Send password reset email
+  async function resetPassword(email) {
+    setAuthError('');
+    try {
+      console.log("[AuthContext] Attempting to send password reset email to:", email);
+      console.log("[AuthContext] Firebase auth instance:", auth);
+      console.log("[AuthContext] Current user:", auth.currentUser);
+      
+      await sendPasswordResetEmail(auth, email);
+      console.log("[AuthContext] Password reset email sent successfully to:", email);
+    } catch (error) {
+      console.error("[AuthContext] Error sending password reset email:", error);
+      console.error("[AuthContext] Error code:", error.code);
+      console.error("[AuthContext] Error message:", error.message);
+      setAuthError(error.message);
+      throw error;
+    }
+  }
+
   // Logout
   function logout() {
     setAuthError('');
@@ -328,6 +348,7 @@ export function AuthProvider({ children }) {
     signup,
     login,
     logout,
+    resetPassword,
     loginWithGooglePopup,
     updateUserProfile,
     refetchUserProfile,
