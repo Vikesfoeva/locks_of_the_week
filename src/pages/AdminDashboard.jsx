@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
+import { formatPhoneNumber, getCleanPhoneNumber } from '../utils/phoneFormatter';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();
@@ -250,6 +251,7 @@ export default function AdminDashboard() {
       firstName: user.firstName || '',
       lastName: user.lastName || '',
       venmoHandle: user.venmoHandle || '',
+      cellPhone: user.cellPhone ? formatPhoneNumber(user.cellPhone) : '',
       duesPaid: user.duesPaid || false,
       dateDuesPaid: user.dateDuesPaid || ''
     });
@@ -275,6 +277,11 @@ export default function AdminDashboard() {
         ...editFormData,
         updatedAt: new Date()
       };
+      
+      // Clean phone number if it's being updated
+      if (updates.cellPhone) {
+        updates.cellPhone = getCleanPhoneNumber(updates.cellPhone);
+      }
       
       const response = await fetch(`${API_URL}/users/${editingUser}`, {
         method: 'PUT',
@@ -523,6 +530,7 @@ export default function AdminDashboard() {
                 <th className="px-2 py-1 border">Last Name</th>
                 <th className="px-2 py-1 border">Role</th>
                 <th className="px-2 py-1 border">Venmo</th>
+                <th className="px-2 py-1 border">Cell Phone</th>
                 <th className="px-2 py-1 border">Dues Paid</th>
                 <th className="px-2 py-1 border">Date Paid</th>
                 <th className="px-2 py-1 border">Locks Submitted</th>
@@ -577,6 +585,18 @@ export default function AdminDashboard() {
                       />
                     ) : (
                       <span>{user.venmoHandle || '-'}</span>
+                    )}
+                  </td>
+                  <td className="border px-2 py-1">
+                    {editingUser === user._id ? (
+                      <input
+                        className="input input-sm w-full"
+                        value={editFormData.cellPhone}
+                        onChange={e => setEditFormData(prev => ({ ...prev, cellPhone: formatPhoneNumber(e.target.value) }))}
+                        placeholder="(555) 123-4567"
+                      />
+                    ) : (
+                      <span>{user.cellPhone ? formatPhoneNumber(user.cellPhone) : '-'}</span>
                     )}
                   </td>
                   <td className="border px-2 py-1 text-center">

@@ -216,6 +216,17 @@ app.put('/api/users/:id', async (req, res) => {
     delete updates.firebaseUid; // Firebase UID should not be editable
     delete updates.createdAt; // Created timestamp should not be editable
     
+    // Validate cell phone number if being updated
+    if (updates.cellPhone && updates.cellPhone.trim()) {
+      const phoneRegex = /^\d{10}$/;
+      const cleanPhone = updates.cellPhone.replace(/\D/g, ''); // Remove all non-digits
+      if (!phoneRegex.test(cleanPhone)) {
+        return res.status(400).json({ error: 'Cell phone number must be a valid 10-digit number' });
+      }
+      // Store the cleaned phone number
+      updates.cellPhone = cleanPhone;
+    }
+    
     // Add updatedAt timestamp
     updates.updatedAt = new Date();
     
@@ -356,7 +367,7 @@ app.post('/api/users/check-whitelist', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
-    const { email, firebaseUid, firstName, lastName, role, venmoHandle, duesPaid, dateDuesPaid, createdAt, updatedAt } = req.body;
+    const { email, firebaseUid, firstName, lastName, role, venmoHandle, cellPhone, duesPaid, dateDuesPaid, createdAt, updatedAt } = req.body;
     console.log('[Backend] Creating user with data:', { email, firebaseUid, firstName, lastName });
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -364,6 +375,17 @@ app.post('/api/users', async (req, res) => {
     if (!firebaseUid) {
       return res.status(400).json({ error: 'Firebase UID is required' });
     }
+    
+    // Validate cell phone number if provided
+    let cleanPhone = '';
+    if (cellPhone && cellPhone.trim()) {
+      const phoneRegex = /^\d{10}$/;
+      cleanPhone = cellPhone.replace(/\D/g, ''); // Remove all non-digits
+      if (!phoneRegex.test(cleanPhone)) {
+        return res.status(400).json({ error: 'Cell phone number must be a valid 10-digit number' });
+      }
+    }
+    
     // Allow creation without Venmo ID - users will be redirected to setup if missing
     // The frontend will handle the requirement and redirect appropriately
     // Normalize email to lowercase for consistent storage and comparison
@@ -387,6 +409,7 @@ app.post('/api/users', async (req, res) => {
       lastName: lastName || '',
       role: role || 'user',
       venmoHandle: venmoHandle ? venmoHandle.trim() : '',
+      cellPhone: cleanPhone,
       duesPaid: duesPaid || false,
       dateDuesPaid: dateDuesPaid || '',
       createdAt: createdAt ? new Date(createdAt) : now,

@@ -80,6 +80,17 @@ export function AuthProvider({ children }) {
       // For Google users, venmoHandle will be empty initially
       // They will be redirected to setup profile page to add it
 
+      // Get cell phone from localStorage for email/password signup
+      let cellPhone = '';
+      const pendingCellPhone = localStorage.getItem('pendingCellPhone');
+      if (pendingCellPhone) {
+        cellPhone = pendingCellPhone;
+        // Clear the pending data after using it
+        localStorage.removeItem('pendingCellPhone');
+      }
+      // For Google users, cellPhone will be empty initially
+      // They will be redirected to setup profile page to add it
+
       const response = await fetch(`${API_URL}/users`, {
         method: 'POST',
         headers: {
@@ -91,6 +102,7 @@ export function AuthProvider({ children }) {
           firstName,
           lastName,
           venmoHandle,
+          cellPhone,
         }),
       });
       const data = await response.json();
@@ -328,7 +340,7 @@ export function AuthProvider({ children }) {
   }
 
   // Update the user's profile in the backend database
-  async function updateUserProfile({ firstName, lastName, venmo }) {
+  async function updateUserProfile({ firstName, lastName, venmo, cellPhone }) {
     if (!auth.currentUser) {
       throw new Error('Not authenticated');
     }
@@ -353,6 +365,7 @@ export function AuthProvider({ children }) {
       if (typeof firstName === 'string') updates.firstName = firstName;
       if (typeof lastName === 'string') updates.lastName = lastName;
       if (typeof venmo === 'string') updates.venmoHandle = venmo;
+      if (typeof cellPhone === 'string') updates.cellPhone = cellPhone;
 
       const putResp = await fetch(`${API_URL}/users/${userId}`, {
         method: 'PUT',

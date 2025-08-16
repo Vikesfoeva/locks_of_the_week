@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { formatPhoneNumber, getCleanPhoneNumber, isValidPhoneNumber } from '../utils/phoneFormatter';
 
 export default function SetupProfile() {
   const { currentUser, updateUserProfile, refetchUserProfile } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [venmoId, setVenmoId] = useState('');
+  const [cellPhone, setCellPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -16,6 +18,7 @@ export default function SetupProfile() {
       setFirstName(currentUser.firstName || '');
       setLastName(currentUser.lastName || '');
       setVenmoId(currentUser.venmoHandle || '');
+      setCellPhone(currentUser.cellPhone ? formatPhoneNumber(currentUser.cellPhone) : '');
     }
   }, [currentUser]);
 
@@ -23,8 +26,14 @@ export default function SetupProfile() {
     e.preventDefault();
     setError('');
     
-    if (!firstName.trim() || !lastName.trim() || !venmoId.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !venmoId.trim() || !cellPhone.trim()) {
       setError('All fields are required.');
+      return;
+    }
+    
+    // Validate cell phone number format (10 digits)
+    if (!isValidPhoneNumber(cellPhone)) {
+      setError('Cell phone number must be a valid 10-digit number');
       return;
     }
 
@@ -33,7 +42,8 @@ export default function SetupProfile() {
       await updateUserProfile({ 
         firstName: firstName.trim(), 
         lastName: lastName.trim(), 
-        venmo: venmoId.trim() 
+        venmo: venmoId.trim(),
+        cellPhone: getCleanPhoneNumber(cellPhone)
       });
       await refetchUserProfile();
       navigate('/');
@@ -50,7 +60,7 @@ export default function SetupProfile() {
           Complete Your Profile
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Please provide your Venmo ID to complete your account setup
+          Please provide your Venmo ID and cell phone number to complete your account setup
         </p>
       </div>
 
@@ -111,6 +121,30 @@ export default function SetupProfile() {
                 placeholder="@your-venmo-username"
                 className="input"
               />
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              This is required to participate in the league
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="cell-phone" className="block text-sm font-medium leading-6 text-gray-900">
+              Cell Phone Number *
+            </label>
+            <div className="mt-2">
+              <input
+                id="cell-phone"
+                name="cell-phone"
+                type="tel"
+                required
+                value={cellPhone}
+                onChange={(e) => setCellPhone(formatPhoneNumber(e.target.value))}
+                placeholder="(555) 123-4567"
+                className="input"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Format will be applied automatically as you type
+              </p>
             </div>
             <p className="mt-1 text-sm text-gray-500">
               This is required to participate in the league

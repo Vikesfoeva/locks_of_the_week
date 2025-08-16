@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { API_URL } from '../config'
+import { formatPhoneNumber, getCleanPhoneNumber, isValidPhoneNumber } from '../utils/phoneFormatter'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,7 @@ export default function Register() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [venmoId, setVenmoId] = useState('')
+  const [cellPhone, setCellPhone] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signup } = useAuth()
@@ -27,6 +29,14 @@ export default function Register() {
     if (!venmoId.trim()) {
       return setError('Venmo ID is required')
     }
+    if (!cellPhone.trim()) {
+      return setError('Cell phone number is required')
+    }
+    
+    // Validate cell phone number format (10 digits)
+    if (!isValidPhoneNumber(cellPhone)) {
+      return setError('Cell phone number must be a valid 10-digit number')
+    }
 
     try {
       setError('')
@@ -39,6 +49,7 @@ export default function Register() {
         localStorage.setItem('pendingFirstName', firstName)
         localStorage.setItem('pendingLastName', lastName)
         localStorage.setItem('pendingVenmoId', venmoId)
+        localStorage.setItem('pendingCellPhone', getCleanPhoneNumber(cellPhone))
         navigate('/')
       } else {
         setError('This email is not authorized for account creation. Please contact an administrator.')
@@ -114,6 +125,27 @@ export default function Register() {
                 placeholder="@your-venmo-username"
                 className="input"
               />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="cell-phone" className="block text-sm font-medium leading-6 text-gray-900">
+              Cell Phone Number
+            </label>
+            <div className="mt-2">
+              <input
+                id="cell-phone"
+                name="cell-phone"
+                type="tel"
+                required
+                value={cellPhone}
+                onChange={(e) => setCellPhone(formatPhoneNumber(e.target.value))}
+                placeholder="(555) 123-4567"
+                className="input"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Format will be applied automatically as you type
+              </p>
             </div>
           </div>
 
