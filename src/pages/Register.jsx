@@ -9,6 +9,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [venmoId, setVenmoId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signup } = useAuth()
@@ -23,6 +24,9 @@ export default function Register() {
     if (!firstName.trim() || !lastName.trim()) {
       return setError('First name and last name are required')
     }
+    if (!venmoId.trim()) {
+      return setError('Venmo ID is required')
+    }
 
     try {
       setError('')
@@ -34,6 +38,7 @@ export default function Register() {
         await signup(email, password)
         localStorage.setItem('pendingFirstName', firstName)
         localStorage.setItem('pendingLastName', lastName)
+        localStorage.setItem('pendingVenmoId', venmoId)
         navigate('/')
       } else {
         setError('This email is not authorized for account creation. Please contact an administrator.')
@@ -89,6 +94,24 @@ export default function Register() {
                 required
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="venmo-id" className="block text-sm font-medium leading-6 text-gray-900">
+              Venmo ID
+            </label>
+            <div className="mt-2">
+              <input
+                id="venmo-id"
+                name="venmo-id"
+                type="text"
+                required
+                value={venmoId}
+                onChange={(e) => setVenmoId(e.target.value)}
+                placeholder="@your-venmo-username"
                 className="input"
               />
             </div>

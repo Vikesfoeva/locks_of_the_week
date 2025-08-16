@@ -69,6 +69,17 @@ export function AuthProvider({ children }) {
         }
       }
 
+      // Get Venmo ID from localStorage for email/password signup
+      let venmoHandle = '';
+      const pendingVenmoId = localStorage.getItem('pendingVenmoId');
+      if (pendingVenmoId) {
+        venmoHandle = pendingVenmoId;
+        // Clear the pending data after using it
+        localStorage.removeItem('pendingVenmoId');
+      }
+      // For Google users, venmoHandle will be empty initially
+      // They will be redirected to setup profile page to add it
+
       const response = await fetch(`${API_URL}/users`, {
         method: 'POST',
         headers: {
@@ -79,6 +90,7 @@ export function AuthProvider({ children }) {
           firebaseUid: uid,
           firstName,
           lastName,
+          venmoHandle,
         }),
       });
       const data = await response.json();
@@ -123,7 +135,10 @@ export function AuthProvider({ children }) {
           
           if (response.ok) {
             const userData = await response.json();
-            setCurrentUser({ ...user, ...userData });
+            console.log('[AuthContext] User data from backend:', userData);
+            const mergedUser = { ...user, ...userData };
+            console.log('[AuthContext] Merged user data:', mergedUser);
+            setCurrentUser(mergedUser);
           } else if (response.status === 404) {
             // Only log this as info if it's during signup, otherwise it might be a real issue
             if (isSignupInProgressRef.current) {
@@ -140,13 +155,46 @@ export function AuthProvider({ children }) {
               console.log('User is whitelisted. Creating user in DB.');
               // 3. If whitelisted, create user
               await createUserInDb(user);
+              
+              // Add a small delay to ensure the database write is complete
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
               const newUserResponse = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
+              console.log('[AuthContext] Fetching new user data, response status:', newUserResponse.status);
+              
               if (newUserResponse.ok) {
                 const newUserData = await newUserResponse.json();
-                setCurrentUser({ ...user, ...newUserData });
+                console.log('[AuthContext] New user data after creation:', newUserData);
+                const mergedUser = { ...user, ...newUserData };
+                console.log('[AuthContext] Merged new user data:', mergedUser);
+                setCurrentUser(mergedUser);
               } else {
-                 // This case is unlikely but handled for safety
-                throw new Error('Failed to fetch user data after creation.');
+                console.error('[AuthContext] Failed to fetch user data after creation. Status:', newUserResponse.status);
+                const errorData = await newUserResponse.text();
+                console.error('[AuthContext] Error response:', errorData);
+                
+                // Fallback: try to fetch by email instead
+                console.log('[AuthContext] Trying fallback fetch by email...');
+                try {
+                  const fallbackResponse = await fetch(`${API_URL}/users?email=${encodeURIComponent(user.email)}`);
+                  console.log('[AuthContext] Fallback response status:', fallbackResponse.status);
+                  
+                  if (fallbackResponse.ok) {
+                    const fallbackUserData = await fallbackResponse.json();
+                    console.log('[AuthContext] Fallback user data:', fallbackUserData);
+                    const mergedUser = { ...user, ...fallbackUserData };
+                    console.log('[AuthContext] Merged user data from fallback:', mergedUser);
+                    setCurrentUser(mergedUser);
+                  } else {
+                    console.error('[AuthContext] Fallback fetch also failed. Status:', fallbackResponse.status);
+                    const fallbackErrorData = await fallbackResponse.text();
+                    console.error('[AuthContext] Fallback error response:', fallbackErrorData);
+                    throw new Error('Failed to fetch user data after creation.');
+                  }
+                } catch (fallbackError) {
+                  console.error('[AuthContext] Fallback fetch error:', fallbackError);
+                  throw new Error('Failed to fetch user data after creation.');
+                }
               }
             } else {
               // 4. If not whitelisted, sign out and set error

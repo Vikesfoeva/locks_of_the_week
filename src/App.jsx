@@ -1,8 +1,10 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
+import ProfileSetupGuard from './components/ProfileSetupGuard'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import SetupProfile from './pages/SetupProfile'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import Layout from './components/Layout'
@@ -17,27 +19,52 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/setup-profile" element={
+          <PrivateRoute>
+            <SetupProfile />
+          </PrivateRoute>
+        } />
         <Route element={<Layout />}>
           <Route path="/" element={
             <PrivateRoute>
-              <Dashboard />
+              <ProfileSetupGuard>
+                <Dashboard />
+              </ProfileSetupGuard>
             </PrivateRoute>
           } />
           <Route path="/admin" element={
             <PrivateRoute adminOnly>
-              <AdminDashboard />
+              <ProfileSetupGuard>
+                <AdminDashboard />
+              </ProfileSetupGuard>
             </PrivateRoute>
           } />
-          <Route path="/locks" element={<Locks />} />
+          <Route path="/locks" element={
+            <PrivateRoute>
+              <ProfileSetupGuard>
+                <Locks />
+              </ProfileSetupGuard>
+            </PrivateRoute>
+          } />
           <Route path="/weekly" element={
             <PrivateRoute>
-              <WeeklyLocks />
+              <ProfileSetupGuard>
+                <WeeklyLocks />
+              </ProfileSetupGuard>
             </PrivateRoute>
           } />
-          <Route path="/settings" element={<UserSettings />} />
+          <Route path="/settings" element={
+            <PrivateRoute>
+              <ProfileSetupGuard>
+                <UserSettings />
+              </ProfileSetupGuard>
+            </PrivateRoute>
+          } />
           <Route path="/standings" element={
             <PrivateRoute>
-              <Standings />
+              <ProfileSetupGuard>
+                <Standings />
+              </ProfileSetupGuard>
             </PrivateRoute>
           } />
         </Route>

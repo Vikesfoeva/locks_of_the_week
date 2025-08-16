@@ -491,6 +491,7 @@ const Standings = () => {
                 </div>
               </th>
               <th className="px-3 py-2 text-left border-r border-gray-300">WB</th>
+              <th className="px-3 py-2 text-left border-r border-gray-300">Project Payout</th>
               <th className="px-3 py-2 text-left">Rank Δ</th>
             </tr>
           </thead>
@@ -509,6 +510,13 @@ const Standings = () => {
                   <td className="px-3 py-2 border-r border-gray-300">{totalLocks}</td>
                   <td className="px-3 py-2 border-r border-gray-300">{winPct}</td>
                   <td className="px-3 py-2 border-r border-gray-300">{wb === 0 ? '-' : wb}</td>
+                  <td className="px-3 py-2 border-r border-gray-300">
+                    <span className={`font-semibold ${
+                      user.payout > 0 ? 'text-green-600' : 'text-gray-500'
+                    }`}>
+                      {user.payout > 0 ? `$${user.payout.toFixed(2)}` : '-'}
+                    </span>
+                  </td>
                   <td className="px-3 py-2">
                     <span className={
                       user.rankChange.startsWith('+')

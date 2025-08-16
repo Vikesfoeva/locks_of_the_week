@@ -135,11 +135,29 @@ connectToDb().then(() => {
   process.exit(1);
 });
 
+// Debug endpoint to check database connection
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const users = await db.collection('users').find({}).toArray();
+    console.log('[Backend] Debug: All users in database:', users);
+    res.json({ 
+      message: 'Database connection successful',
+      userCount: users.length,
+      users: users 
+    });
+  } catch (err) {
+    console.error('[Backend] Debug error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get all users or by email
 app.get('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email, firebaseUid } = req.query;
+    console.log('[Backend] GET /api/users called with:', { email, firebaseUid });
     let query = {};
     if (email) {
       // Normalize email to lowercase for case-insensitive lookup
@@ -147,17 +165,22 @@ app.get('/api/users', async (req, res) => {
     } else if (firebaseUid) {
       query = { firebaseUid };
     }
+    console.log('[Backend] Final query:', query);
     
     // If a specific user is requested, find one. Otherwise, find all.
     if (email || firebaseUid) {
+      console.log('[Backend] Searching for user with query:', query);
       const user = await db.collection('users').findOne(query);
+      console.log('[Backend] User search result:', user);
       if (user) {
         res.json(user);
       } else {
+        console.log('[Backend] User not found for query:', query);
         res.status(404).json({ error: 'User not found' });
       }
     } else {
       const users = await db.collection('users').find({}).toArray();
+      console.log('[Backend] All users in database:', users);
       res.json(users);
     }
   } catch (err) {
@@ -314,9 +337,15 @@ app.post('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email, firebaseUid, firstName, lastName, role, venmoHandle, duesPaid, dateDuesPaid, createdAt, updatedAt } = req.body;
+    console.log('[Backend] Creating user with data:', { email, firebaseUid, firstName, lastName });
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
+    if (!firebaseUid) {
+      return res.status(400).json({ error: 'Firebase UID is required' });
+    }
+    // Allow creation without Venmo ID - users will be redirected to setup if missing
+    // The frontend will handle the requirement and redirect appropriately
     // Normalize email to lowercase for consistent storage and comparison
     const normalizedEmail = email.toLowerCase();
     
@@ -333,18 +362,20 @@ app.post('/api/users', async (req, res) => {
     const now = new Date();
     const userDoc = {
       email: normalizedEmail, // Store normalized email
-      firebaseUid: firebaseUid || '',
+      firebaseUid: firebaseUid,
       firstName: firstName || '',
       lastName: lastName || '',
       role: role || 'user',
-      venmoHandle: venmoHandle || '',
+      venmoHandle: venmoHandle ? venmoHandle.trim() : '',
       duesPaid: duesPaid || false,
       dateDuesPaid: dateDuesPaid || '',
       createdAt: createdAt ? new Date(createdAt) : now,
       updatedAt: updatedAt ? new Date(updatedAt) : now,
     };
-    await db.collection('users').insertOne(userDoc);
-    res.status(201).json({ message: 'User created' });
+    const result = await db.collection('users').insertOne(userDoc);
+    console.log('[Backend] User created with ID:', result.insertedId);
+    console.log('[Backend] Created user document:', userDoc);
+    res.status(201).json({ message: 'User created', userId: result.insertedId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -715,13 +746,20 @@ app.get('/api/standings', async (req, res) => {
     const currentRanks = calculateRanks(userStatsByFirebaseUid, 'total');
     const previousRanks = previousGameWeek ? calculateRanks(userStatsByFirebaseUid, 'previousTotal') : null;
 
-    // 7. Combine and Return
+    // 7. Get payout settings
+    const payoutSettings = await mainDb.collection('league_configurations').findOne({ key: 'payout_settings' });
+    const payouts = payoutSettings ? payoutSettings.value : {
+      first: 0, second: 0, third: 0, fourth: 0, fifth: 0, last: 0
+    };
+
+    // 8. Combine and Return
     let combinedStandings = users.map(user => {
       const stats = user.firebaseUid ? userStatsByFirebaseUid[user.firebaseUid] : null;
       if (!stats) {
         return {
           _id: user._id.toString(), name: `${user.firstName} ${user.lastName}`,
-          rank: '-', wins: 0, losses: 0, ties: 0, weekWins: 0, weekLosses: 0, weekTies: 0, rankChange: '0'
+          rank: '-', wins: 0, losses: 0, ties: 0, weekWins: 0, weekLosses: 0, weekTies: 0, rankChange: '0',
+          payout: 0
         };
       }
       
@@ -733,7 +771,8 @@ app.get('/api/standings', async (req, res) => {
         _id: stats._id, name: stats.name, rank: rank,
         wins: stats.total.wins, losses: stats.total.losses, ties: stats.total.ties,
         weekWins: stats.currentWeek.wins, weekLosses: stats.currentWeek.losses, weekTies: stats.currentWeek.ties,
-        rankChange: rankChange > 0 ? `+${rankChange}` : `${rankChange}`
+        rankChange: rankChange > 0 ? `+${rankChange}` : `${rankChange}`,
+        payout: 0 // Will be calculated after sorting
       };
     });
     
@@ -743,10 +782,95 @@ app.get('/api/standings', async (req, res) => {
         return a.rank - b.rank;
     });
 
+    // 9. Calculate payouts based on final rankings
+    const totalUsers = combinedStandings.filter(user => user.rank !== '-').length;
+    combinedStandings.forEach((user, index) => {
+      if (user.rank === '-') {
+        user.payout = 0;
+        return;
+      }
+      
+      const rank = user.rank;
+      if (rank === 1) {
+        user.payout = payouts.first || 0;
+      } else if (rank === 2) {
+        user.payout = payouts.second || 0;
+      } else if (rank === 3) {
+        user.payout = payouts.third || 0;
+      } else if (rank === 4) {
+        user.payout = payouts.fourth || 0;
+      } else if (rank === 5) {
+        user.payout = payouts.fifth || 0;
+      } else if (rank === totalUsers) {
+        user.payout = payouts.last || 0;
+      } else {
+        user.payout = 0;
+      }
+    });
+
     res.json({ standings: combinedStandings, availableWeeks: availableGameWeeks, selectedWeek: selectedGameWeek });
 
   } catch (err) {
     console.error('Error fetching standings:', err);
     res.status(500).json({ error: 'Failed to fetch standings', details: err.message });
+  }
+});
+
+// Get payout settings
+app.get('/api/payout-settings', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const settings = await db.collection('league_configurations').findOne({ key: 'payout_settings' });
+    
+    if (!settings) {
+      // Return default settings if none exist
+      const defaultSettings = {
+        first: 0,
+        second: 0,
+        third: 0,
+        fourth: 0,
+        fifth: 0,
+        last: 0
+      };
+      return res.json(defaultSettings);
+    }
+    
+    res.json(settings.value);
+  } catch (err) {
+    console.error('Error fetching payout settings:', err);
+    res.status(500).json({ error: 'Failed to fetch payout settings', details: err.message });
+  }
+});
+
+// Update payout settings
+app.post('/api/payout-settings', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { first, second, third, fourth, fifth, last } = req.body;
+    
+    // Validate input
+    const payouts = { first, second, third, fourth, fifth, last };
+    for (const [place, amount] of Object.entries(payouts)) {
+      if (typeof amount !== 'number' || amount < 0) {
+        return res.status(400).json({ error: `Invalid payout amount for ${place} place` });
+      }
+    }
+    
+    await db.collection('league_configurations').updateOne(
+      { key: 'payout_settings' },
+      { 
+        $set: { 
+          key: 'payout_settings',
+          value: payouts,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    
+    res.json({ message: 'Payout settings updated successfully', settings: payouts });
+  } catch (err) {
+    console.error('Error updating payout settings:', err);
+    res.status(500).json({ error: 'Failed to update payout settings', details: err.message });
   }
 });

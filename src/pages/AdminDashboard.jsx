@@ -24,6 +24,20 @@ export default function AdminDashboard() {
   const [yearsLoading, setYearsLoading] = useState(true);
   const [yearsError, setYearsError] = useState(null);
 
+  // Payout settings state
+  const [payoutSettings, setPayoutSettings] = useState({
+    first: 0,
+    second: 0,
+    third: 0,
+    fourth: 0,
+    fifth: 0,
+    last: 0
+  });
+  const [payoutLoading, setPayoutLoading] = useState(true);
+  const [payoutError, setPayoutError] = useState(null);
+  const [savingPayout, setSavingPayout] = useState(false);
+  const [showPayoutConfirmModal, setShowPayoutConfirmModal] = useState(false);
+
   // Fetch available years and active year on mount
   useEffect(() => {
     const fetchYearsAndActive = async () => {
@@ -51,6 +65,25 @@ export default function AdminDashboard() {
       }
     };
     fetchYearsAndActive();
+  }, []);
+
+  // Fetch payout settings on mount
+  useEffect(() => {
+    const fetchPayoutSettings = async () => {
+      setPayoutLoading(true);
+      setPayoutError(null);
+      try {
+        const response = await fetch(`${API_URL}/payout-settings`);
+        if (!response.ok) throw new Error('Failed to fetch payout settings');
+        const settings = await response.json();
+        setPayoutSettings(settings);
+      } catch (err) {
+        setPayoutError(err.message);
+      } finally {
+        setPayoutLoading(false);
+      }
+    };
+    fetchPayoutSettings();
   }, []);
 
   // Fetch users and whitelist on component mount
@@ -295,6 +328,40 @@ export default function AdminDashboard() {
     }
   };
 
+  // Handler for payout settings changes
+  const handlePayoutChange = (place, value) => {
+    const numValue = parseFloat(value) || 0;
+    setPayoutSettings(prev => ({
+      ...prev,
+      [place]: numValue
+    }));
+  };
+
+  // Handler to show confirmation modal
+  const handleSavePayoutSettings = () => {
+    setShowPayoutConfirmModal(true);
+  };
+
+  // Handler to actually save payout settings after confirmation
+  const confirmSavePayoutSettings = async () => {
+    setSavingPayout(true);
+    setPayoutError(null);
+    setShowPayoutConfirmModal(false);
+    try {
+      const response = await fetch(`${API_URL}/payout-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payoutSettings)
+      });
+      if (!response.ok) throw new Error('Failed to save payout settings');
+      // Success message could be added here
+    } catch (err) {
+      setPayoutError(err.message);
+    } finally {
+      setSavingPayout(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center">Loading...</div>;
   }
@@ -370,6 +437,69 @@ export default function AdminDashboard() {
                 onClick={confirmDeleteWhitelistEmail}
               >
                 Remove from Whitelist
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payout Settings Confirmation Modal */}
+      {showPayoutConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Payout Settings</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to save these payout settings? This will affect how prizes are distributed to users.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Current Settings:</h4>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>1st Place:</span>
+                  <span className="font-medium">${payoutSettings.first.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>2nd Place:</span>
+                  <span className="font-medium">${payoutSettings.second.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>3rd Place:</span>
+                  <span className="font-medium">${payoutSettings.third.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>4th Place:</span>
+                  <span className="font-medium">${payoutSettings.fourth.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>5th Place:</span>
+                  <span className="font-medium">${payoutSettings.fifth.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last Place:</span>
+                  <span className="font-medium">${payoutSettings.last.toFixed(2)}</span>
+                </div>
+                <div className="border-t pt-1 mt-2">
+                  <div className="flex justify-between font-semibold">
+                    <span>Total Pool:</span>
+                    <span>${Object.values(payoutSettings).reduce((sum, val) => sum + val, 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowPayoutConfirmModal(false)}
+                disabled={savingPayout}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={confirmSavePayoutSettings}
+                disabled={savingPayout}
+              >
+                {savingPayout ? 'Saving...' : 'Confirm & Save'}
               </button>
             </div>
           </div>
@@ -617,6 +747,67 @@ export default function AdminDashboard() {
           </div>
           <button className="btn btn-primary" type="submit">Add to Whitelist</button>
         </form>
+      </div>
+
+      {/* Payout Settings */}
+      <div className="card">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Prizepool Payout Settings</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Set the payout amounts for 1st, 2nd, 3rd, 4th, 5th, and last place. Enter 0 to disable payout for any position.
+        </p>
+        {payoutLoading ? (
+          <div className="text-gray-500">Loading payout settings...</div>
+        ) : payoutError ? (
+          <div className="text-red-600">Error: {payoutError}</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                { key: 'first', label: '1st Place' },
+                { key: 'second', label: '2nd Place' },
+                { key: 'third', label: '3rd Place' },
+                { key: 'fourth', label: '4th Place' },
+                { key: 'fifth', label: '5th Place' },
+                { key: 'last', label: 'Last Place' }
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label htmlFor={`payout-${key}`} className="block text-sm font-medium text-gray-700 mb-1">
+                    {label}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      id={`payout-${key}`}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={payoutSettings[key]}
+                      onChange={(e) => handlePayoutChange(key, e.target.value)}
+                      onFocus={(e) => {
+                        // Select all text when focusing, which will clear the 0 when user starts typing
+                        e.target.select();
+                      }}
+                      className="input pl-8 w-full"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSavePayoutSettings}
+                disabled={savingPayout}
+                className="btn btn-primary"
+              >
+                {savingPayout ? 'Saving...' : 'Save Payout Settings'}
+              </button>
+              <div className="text-sm text-gray-600">
+                Total Pool: ${Object.values(payoutSettings).reduce((sum, val) => sum + val, 0).toFixed(2)}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active Year Selection - at bottom */}
