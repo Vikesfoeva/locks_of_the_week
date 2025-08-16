@@ -11,6 +11,8 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [deleteWhitelistModalOpen, setDeleteWhitelistModalOpen] = useState(false);
+  const [whitelistEmailToDelete, setWhitelistEmailToDelete] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [saveStatus, setSaveStatus] = useState({});
@@ -173,6 +175,35 @@ export default function AdminDashboard() {
     }
   };
 
+  // Handler for initiating whitelist email deletion
+  const initiateDeleteWhitelistEmail = (email) => {
+    setWhitelistEmailToDelete(email);
+    setDeleteWhitelistModalOpen(true);
+  };
+
+  // Handler for confirming whitelist email deletion
+  const confirmDeleteWhitelistEmail = async () => {
+    if (!whitelistEmailToDelete) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/whitelist/${encodeURIComponent(whitelistEmailToDelete)}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete email from whitelist');
+      }
+      
+      // Update local state after successful deletion
+      setWhitelist(whitelist.filter(email => email !== whitelistEmailToDelete));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleteWhitelistModalOpen(false);
+      setWhitelistEmailToDelete(null);
+    }
+  };
+
   // Get whitelisted users who haven't registered yet
   const getUnregisteredWhitelistedUsers = () => {
     const registeredEmails = users.map(user => user.email);
@@ -274,7 +305,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Delete Confirmation Modal */}
+      {/* Delete User Confirmation Modal */}
       {deleteModalOpen && userToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -304,6 +335,41 @@ export default function AdminDashboard() {
                 onClick={confirmDeleteUser}
               >
                 Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Whitelist Email Confirmation Modal */}
+      {deleteWhitelistModalOpen && whitelistEmailToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Whitelist Email Deletion</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to remove <span className="font-medium">{whitelistEmailToDelete}</span> from the whitelist? 
+              This action will:
+            </p>
+            <ul className="list-disc list-inside text-gray-600 mb-6">
+              <li>Remove the email from the whitelist</li>
+              <li>Prevent future registration with this email</li>
+            </ul>
+            <p className="text-red-600 mb-6">This action cannot be undone.</p>
+            <div className="flex justify-end space-x-4">
+              <button
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => {
+                  setDeleteWhitelistModalOpen(false);
+                  setWhitelistEmailToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                onClick={confirmDeleteWhitelistEmail}
+              >
+                Remove from Whitelist
               </button>
             </div>
           </div>
@@ -496,6 +562,7 @@ export default function AdminDashboard() {
               <tr className="bg-gray-50">
                 <th className="px-2 py-1 border">Email</th>
                 <th className="px-2 py-1 border">Status</th>
+                <th className="px-2 py-1 border">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -507,8 +574,28 @@ export default function AdminDashboard() {
                       Pending Registration
                     </span>
                   </td>
+                  <td className="border px-2 py-1 text-center">
+                    <button
+                      className="p-1 rounded transition-colors text-red-600 hover:text-red-800"
+                      onClick={() => initiateDeleteWhitelistEmail(email)}
+                      title="Remove from whitelist"
+                      style={{ lineHeight: 0 }}
+                    >
+                      {/* Trash Can SVG */}
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-red-600 hover:text-red-800">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12z" />
+                      </svg>
+                    </button>
+                  </td>
                 </tr>
               ))}
+              {getUnregisteredWhitelistedUsers().length === 0 && (
+                <tr>
+                  <td colSpan="3" className="border px-2 py-4 text-center text-gray-500">
+                    No whitelisted users pending registration
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
