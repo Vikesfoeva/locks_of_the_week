@@ -50,6 +50,37 @@ const WeeklyLocks = () => {
     return status; // Return as-is for any other status values
   };
 
+  // Helper function to format game date and time
+  const formatGameDateTime = (commenceTime) => {
+    if (!commenceTime) return '--';
+    return new Date(commenceTime).toLocaleString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  // Helper function to format just the date
+  const formatGameDate = (commenceTime) => {
+    if (!commenceTime) return '--';
+    return new Date(commenceTime).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // Helper function to format just the time
+  const formatGameTime = (commenceTime) => {
+    if (!commenceTime) return '--';
+    return new Date(commenceTime).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
   const [activeYearLoading, setActiveYearLoading] = useState(true);
@@ -101,6 +132,20 @@ const WeeklyLocks = () => {
   const [resultPopoverPosition, setResultPopoverPosition] = useState({ top: 0, left: 0 });
   const resultPopoverOpenRef = React.useRef(false);
 
+  const [dateFilter, setDateFilter] = useState([]);
+  const [dateFilterDraft, setDateFilterDraft] = useState([]);
+  const [dateSearch, setDateSearch] = useState('');
+  const dateBtnRef = React.useRef(null);
+  const [datePopoverPosition, setDatePopoverPosition] = useState({ top: 0, left: 0 });
+  const datePopoverOpenRef = React.useRef(false);
+
+  const [timeFilter, setTimeFilter] = useState([]);
+  const [timeFilterDraft, setTimeFilterDraft] = useState([]);
+  const [timeSearch, setTimeSearch] = useState('');
+  const timeBtnRef = React.useRef(null);
+  const [timePopoverPosition, setTimePopoverPosition] = useState({ top: 0, left: 0 });
+  const timePopoverOpenRef = React.useRef(false);
+
   const handleSort = (key) => {
     let direction = 'ascending';
     if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -116,12 +161,16 @@ const WeeklyLocks = () => {
     setHomeTeamFilter([]);
     setLockFilter([]);
     setResultFilter([]);
+    setDateFilter([]);
+    setTimeFilter([]);
     setUserSearch('');
     setLeagueSearch('');
     setAwayTeamSearch('');
     setHomeTeamSearch('');
     setLockSearch('');
     setResultSearch('');
+    setDateSearch('');
+    setTimeSearch('');
   };
 
   const getUniqueValues = (picks, key, subKey = null) => {
@@ -146,62 +195,60 @@ const WeeklyLocks = () => {
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
-    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
-  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter]);
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter]);
 
   const filteredPicksForLeague = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
-    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
-  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
 
   const filteredPicksForAwayTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
-    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
-  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
 
   const filteredPicksForHomeTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
-    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap]);
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
 
   const filteredPicksForLock = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--'))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap]);
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap, dateFilter, timeFilter]);
 
   const filteredPicksForResult = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap]);
-
-  const uniqueUsers = getUniqueValues(filteredPicksForUser, 'user');
-  const uniqueLeagues = getUniqueValues(filteredPicksForLeague, 'gameDetails', 'league');
-  const uniqueAwayTeams = getUniqueValues(filteredPicksForAwayTeam, 'gameDetails', 'away_team_abbrev');
-  const uniqueHomeTeams = getUniqueValues(filteredPicksForHomeTeam, 'gameDetails', 'home_team_abbrev');
-  const uniqueLocks = getUniqueValues(filteredPicksForLock, 'lock');
-  const uniqueResults = getUniqueValues(filteredPicksForResult, 'result');
-  
-  const filteredUsers = uniqueUsers.filter(val => val.toLowerCase().includes(userSearch.toLowerCase()));
-  const filteredLeagues = uniqueLeagues.filter(val => val.toLowerCase().includes(leagueSearch.toLowerCase()));
-  const filteredAwayTeams = uniqueAwayTeams.filter(val => val.toLowerCase().includes(awayTeamSearch.toLowerCase()));
-  const filteredHomeTeams = uniqueHomeTeams.filter(val => val.toLowerCase().includes(homeTeamSearch.toLowerCase()));
-  const filteredLocks = uniqueLocks.filter(val => val.toLowerCase().includes(lockSearch.toLowerCase()));
-  const filteredResults = uniqueResults.filter(val => val.toLowerCase().includes(resultSearch.toLowerCase()));
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter]);
 
   // For checking if a filter is active, we need the total number of unique values from the original data
   const totalUniqueUsers = useMemo(() => getUniqueValues(allPicks, 'user'), [allPicks, userMap]);
@@ -210,6 +257,39 @@ const WeeklyLocks = () => {
   const totalUniqueHomeTeams = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'home_team_abbrev'), [allPicks]);
   const totalUniqueLocks = useMemo(() => getUniqueValues(allPicks, 'lock'), [allPicks]);
   const totalUniqueResults = useMemo(() => getUniqueValues(allPicks, 'result'), [allPicks]);
+  const totalUniqueDates = useMemo(() => Array.from(new Set(
+    allPicks
+      .map(pick => pick.gameDetails?.commence_time)
+      .filter(Boolean)
+      .map(commenceTime => formatGameDate(commenceTime))
+      .filter(Boolean)
+  )).sort(), [allPicks]);
+  const totalUniqueTimes = useMemo(() => Array.from(new Set(
+    allPicks
+      .map(pick => pick.gameDetails?.commence_time)
+      .filter(Boolean)
+      .map(commenceTime => formatGameTime(commenceTime))
+      .filter(Boolean)
+  )).sort(), [allPicks]);
+
+  const uniqueUsers = getUniqueValues(filteredPicksForUser, 'user');
+  const uniqueLeagues = getUniqueValues(filteredPicksForLeague, 'gameDetails', 'league');
+  const uniqueAwayTeams = getUniqueValues(filteredPicksForAwayTeam, 'gameDetails', 'away_team_abbrev');
+  const uniqueHomeTeams = getUniqueValues(filteredPicksForHomeTeam, 'gameDetails', 'home_team_abbrev');
+  const uniqueLocks = getUniqueValues(filteredPicksForLock, 'lock');
+  const uniqueResults = getUniqueValues(filteredPicksForResult, 'result');
+  // Use totalUniqueDates for filter modal to always show all available dates
+  const uniqueDates = totalUniqueDates;
+  const uniqueTimes = totalUniqueTimes;
+  
+  const filteredUsers = uniqueUsers.filter(val => val.toLowerCase().includes(userSearch.toLowerCase()));
+  const filteredLeagues = uniqueLeagues.filter(val => val.toLowerCase().includes(leagueSearch.toLowerCase()));
+  const filteredAwayTeams = uniqueAwayTeams.filter(val => val.toLowerCase().includes(awayTeamSearch.toLowerCase()));
+  const filteredHomeTeams = uniqueHomeTeams.filter(val => val.toLowerCase().includes(homeTeamSearch.toLowerCase()));
+  const filteredLocks = uniqueLocks.filter(val => val.toLowerCase().includes(lockSearch.toLowerCase()));
+  const filteredResults = uniqueResults.filter(val => val.toLowerCase().includes(resultSearch.toLowerCase()));
+  const filteredDates = uniqueDates.filter(val => val.toLowerCase().includes(dateSearch.toLowerCase()));
+  const filteredTimes = uniqueTimes.filter(val => val.toLowerCase().includes(timeSearch.toLowerCase()));
 
   const isUserFiltered = userFilter.length > 0 && userFilter.length < totalUniqueUsers.length;
   const isLeagueFiltered = leagueFilter.length > 0 && leagueFilter.length < totalUniqueLeagues.length;
@@ -217,6 +297,8 @@ const WeeklyLocks = () => {
   const isHomeTeamFiltered = homeTeamFilter.length > 0 && homeTeamFilter.length < totalUniqueHomeTeams.length;
   const isLockFiltered = lockFilter.length > 0 && lockFilter.length < totalUniqueLocks.length;
   const isResultFiltered = resultFilter.length > 0 && resultFilter.length < totalUniqueResults.length;
+  const isDateFiltered = dateFilter.length > 0 && dateFilter.length < totalUniqueDates.length;
+  const isTimeFiltered = timeFilter.length > 0 && timeFilter.length < totalUniqueTimes.length;
 
   const filteredAndSortedPicks = useMemo(() => {
     let filtered = [...allPicks];
@@ -242,6 +324,12 @@ const WeeklyLocks = () => {
     if (resultFilter.length > 0) {
         filtered = filtered.filter(pick => resultFilter.includes(pick.result || '--'));
     }
+    if (dateFilter.length > 0) {
+        filtered = filtered.filter(pick => pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)));
+    }
+    if (timeFilter.length > 0) {
+        filtered = filtered.filter(pick => pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)));
+    }
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
@@ -254,6 +342,15 @@ const WeeklyLocks = () => {
         } else if (sortConfig.key === 'lock') {
             aValue = a.pickType === 'spread' ? `${a.pickSide} Line` : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
             bValue = b.pickType === 'spread' ? `${b.pickSide} Line` : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        } else if (sortConfig.key === 'dateTime') {
+            aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
+            bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
+        } else if (sortConfig.key === 'date') {
+            aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
+            bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
+        } else if (sortConfig.key === 'time') {
+            aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
+            bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
         } else if (['league', 'away_team_abbrev', 'home_team_abbrev'].includes(sortConfig.key)) {
           aValue = a.gameDetails?.[sortConfig.key];
           bValue = b.gameDetails?.[sortConfig.key];
@@ -273,7 +370,7 @@ const WeeklyLocks = () => {
     }
 
     return filtered;
-  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap]);
+  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, userMap]);
 
   // Fetch active year on mount
   useEffect(() => {
@@ -424,7 +521,7 @@ const WeeklyLocks = () => {
 
   // Table rendering
   return (
-    <div className="max-w-6xl mx-auto p-4">
+    <div className="max-w-full mx-auto p-2 md:p-4 lg:p-6">
       <h1 className="text-2xl font-bold mb-4">Weekly Locks</h1>
       <div className="mb-4">
         <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
@@ -498,8 +595,8 @@ const WeeklyLocks = () => {
         <>
           <h2 className="text-xl font-semibold mb-2">All Locks for This Week</h2>
           {viewMode === 'table' ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+            <div className="overflow-x-auto min-w-full">
+              <table className="w-full bg-white border border-gray-300 rounded shadow text-xs sm:text-sm md:text-base">
                 <thead>
                   <tr className="bg-gray-100 text-left border-b border-gray-300">
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -936,6 +1033,180 @@ const WeeklyLocks = () => {
                             </Popover>
                         </div>
                     </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                            <span>Date</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('date')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('date')} />
+                            </div>
+                            {/* Date Filter Popover */}
+                            <Popover as="span" className="relative">
+                              {({ open, close }) => {
+                                datePopoverOpenRef.current = open;
+                                return (
+                                  <>
+                                    <Popover.Button
+                                      ref={dateBtnRef}
+                                      className="ml-1 p-1 rounded hover:bg-gray-200"
+                                      onClick={e => {
+                                        setDateFilterDraft(dateFilter.length ? dateFilter : [...uniqueDates]);
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setDatePopoverPosition({
+                                          top: rect.bottom + window.scrollY + 4,
+                                          left: rect.left + window.scrollX,
+                                        });
+                                      }}
+                                    >
+                                      {isDateFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                    </Popover.Button>
+                                    <Portal>
+                                      {open && (
+                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: datePopoverPosition.top, left: datePopoverPosition.left }}>
+                                          <div className="font-semibold mb-2">Filter Date</div>
+                                          <div className="flex items-center mb-2 gap-2 text-xs">
+                                            <button className="underline" onClick={() => setDateFilterDraft([...uniqueDates])} type="button">Select all</button>
+                                            <span>-</span>
+                                            <button className="underline" onClick={() => setDateFilterDraft([])} type="button">Clear</button>
+                                          </div>
+                                          <input
+                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                            placeholder="Search..."
+                                            value={dateSearch}
+                                            onChange={e => setDateSearch(e.target.value)}
+                                          />
+                                          <div className="max-h-40 overflow-y-auto mb-2">
+                                            {filteredDates.map(val => (
+                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={dateFilterDraft.includes(val)}
+                                                  onChange={() => setDateFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                                />
+                                                <span>{val}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                              onClick={e => { e.stopPropagation(); setDateFilterDraft(dateFilter); close(); }}
+                                              type="button"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1 rounded bg-green-600 text-white"
+                                              onClick={e => { 
+                                                e.stopPropagation(); 
+                                                if (dateFilterDraft.length === uniqueDates.length) {
+                                                    setDateFilter([]);
+                                                } else {
+                                                    setDateFilter(dateFilterDraft); 
+                                                }
+                                                close(); 
+                                              }}
+                                              type="button"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </Popover.Panel>
+                                      )}
+                                    </Portal>
+                                  </>
+                                );
+                              }}
+                            </Popover>
+                        </div>
+                    </th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                            <span>Time</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('time')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('time')} />
+                            </div>
+                            {/* Time Filter Popover */}
+                            <Popover as="span" className="relative">
+                              {({ open, close }) => {
+                                timePopoverOpenRef.current = open;
+                                return (
+                                  <>
+                                    <Popover.Button
+                                      ref={timeBtnRef}
+                                      className="ml-1 p-1 rounded hover:bg-gray-200"
+                                      onClick={e => {
+                                        setTimeFilterDraft(timeFilter.length ? timeFilter : [...uniqueTimes]);
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setTimePopoverPosition({
+                                          top: rect.bottom + window.scrollY + 4,
+                                          left: rect.left + window.scrollX,
+                                        });
+                                      }}
+                                    >
+                                      {isTimeFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
+                                    </Popover.Button>
+                                    <Portal>
+                                      {open && (
+                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: timePopoverPosition.top, left: timePopoverPosition.left }}>
+                                          <div className="font-semibold mb-2">Filter Time</div>
+                                          <div className="flex items-center mb-2 gap-2 text-xs">
+                                            <button className="underline" onClick={() => setTimeFilterDraft([...uniqueTimes])} type="button">Select all</button>
+                                            <span>-</span>
+                                            <button className="underline" onClick={() => setTimeFilterDraft([])} type="button">Clear</button>
+                                          </div>
+                                          <input
+                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                                            placeholder="Search..."
+                                            value={timeSearch}
+                                            onChange={e => setTimeSearch(e.target.value)}
+                                          />
+                                          <div className="max-h-40 overflow-y-auto mb-2">
+                                            {filteredTimes.map(val => (
+                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={timeFilterDraft.includes(val)}
+                                                  onChange={() => setTimeFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
+                                                />
+                                                <span>{val}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
+                                              onClick={e => { e.stopPropagation(); setTimeFilterDraft(timeFilter); close(); }}
+                                              type="button"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1 rounded bg-green-600 text-white"
+                                              onClick={e => { 
+                                                e.stopPropagation(); 
+                                                if (timeFilterDraft.length === uniqueTimes.length) {
+                                                    setTimeFilter([]);
+                                                } else {
+                                                    setTimeFilter(timeFilterDraft); 
+                                                }
+                                                close(); 
+                                              }}
+                                              type="button"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </Popover.Panel>
+                                      )}
+                                    </Portal>
+                                  </>
+                                );
+                              }}
+                            </Popover>
+                        </div>
+                    </th>
                     <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
                     <th className="px-2 py-2 border-r border-gray-300">Score</th>
                     <th className="px-2 py-2 border-r border-gray-300">Status</th>
@@ -1039,8 +1310,10 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
+                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                         <td className="px-2 py-2">{pick.result || '--'}</td>
                       </tr>
@@ -1051,12 +1324,12 @@ const WeeklyLocks = () => {
             </div>
           ) : (
             <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] px-8 overflow-x-auto">
-             <table className="w-full bg-white border border-gray-300 rounded shadow text-xs md:text-sm">
+             <table className="w-full bg-white border border-gray-300 rounded shadow text-xs sm:text-sm md:text-base">
                <thead>
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300">User</th>
                    {[1,2,3].map(i => (
-                     <th key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
+                     <th key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
                    ))}
                  </tr>
                  <tr className="bg-gray-50 text-left border-b border-gray-300">
@@ -1067,6 +1340,8 @@ const WeeklyLocks = () => {
                        <th className="px-2 py-2 border-r border-gray-300">Away</th>
                        <th className="px-2 py-2 border-r border-gray-300">Home</th>
                        <th className="px-2 py-2 border-r border-gray-300">Lock</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Date</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Time</th>
                        <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
                        <th className="px-2 py-2 border-r border-gray-300">Score</th>
                        <th className="px-2 py-2 border-r border-gray-300">Status</th>
@@ -1091,13 +1366,15 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.result || '--'}</td>
                            </React.Fragment>
                          ) : (
-                           <td key={i} colSpan={8} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
+                           <td key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
                          );
                        })}
                      </tr>
