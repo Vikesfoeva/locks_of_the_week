@@ -755,24 +755,24 @@ app.get('/api/standings', async (req, res) => {
       if (!stats) return;
 
       const result = pick.result ? pick.result.toUpperCase() : '';
-      const isWin = result === 'W';
-      const isLoss = result === 'L';
-      const isTie = result === 'T';
+      const isWin = result === 'WIN';
+      const isLoss = result === 'LOSS';
+      const isTie = result === 'TIE';
       
-      stats.total.wins += isWin;
-      stats.total.losses += isLoss;
-      stats.total.ties += isTie;
+      stats.total.wins += isWin ? 1 : 0;
+      stats.total.losses += isLoss ? 1 : 0;
+      stats.total.ties += isTie ? 1 : 0;
 
       if (pick.collectionName === selectedGameWeek) {
-        stats.currentWeek.wins += isWin;
-        stats.currentWeek.losses += isLoss;
-        stats.currentWeek.ties += isTie;
+        stats.currentWeek.wins += isWin ? 1 : 0;
+        stats.currentWeek.losses += isLoss ? 1 : 0;
+        stats.currentWeek.ties += isTie ? 1 : 0;
       }
 
       if (previousGameWeek && availableGameWeeks.indexOf(pick.collectionName) <= availableGameWeeks.indexOf(previousGameWeek)) {
-        stats.previousTotal.wins += isWin;
-        stats.previousTotal.losses += isLoss;
-        stats.previousTotal.ties += isTie;
+        stats.previousTotal.wins += isWin ? 1 : 0;
+        stats.previousTotal.losses += isLoss ? 1 : 0;
+        stats.previousTotal.ties += isTie ? 1 : 0;
       }
     });
 

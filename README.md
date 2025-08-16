@@ -13,6 +13,7 @@ This project is a full-stack application that allows users to register, log in, 
 -   **Dashboard**: A personalized dashboard for each user.
 -   **Standings**: View the leaderboard and user rankings.
 -   **Admin Panel**: A dashboard for administrators to manage the application.
+-   **Excel Export**: Export weekly locks data to Excel format for analysis and record-keeping.
 -   **Responsive Design**: The application is designed to work on various screen sizes.
 
 ## Tech Stack
@@ -25,6 +26,7 @@ This project is a full-stack application that allows users to register, log in, 
 -   [React Router](https://reactrouter.com/)
 -   [Headless UI](https://headlessui.dev/)
 -   [Heroicons](https://heroicons.com/)
+-   [SheetJS (xlsx)](https://github.com/SheetJS/sheetjs) - For Excel export functionality
 
 ### Backend
 

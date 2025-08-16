@@ -3,9 +3,10 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { Popover, Portal } from '@headlessui/react';
-import { FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
+import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import PopularLocksModal from '../components/PopularLocksModal';
+import * as XLSX from 'xlsx';
 
 // Helper function to parse collection name to a Date object for sorting and display
 const parseCollectionNameToDate = (collectionName) => {
@@ -96,6 +97,71 @@ const WeeklyLocks = () => {
     if (result === 'WIN') return 'bg-green-50';
     if (result === 'LOSS') return 'bg-red-50';
     return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+  };
+
+  // Excel export function
+  const exportToExcel = () => {
+    if (!filteredAndSortedPicks || filteredAndSortedPicks.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    // Prepare the data for export
+    const exportData = filteredAndSortedPicks.map((pick) => {
+      const userName = userMap[pick.userId] || pick.userId;
+      const game = pick.gameDetails;
+      
+      return {
+        'User': userName,
+        'League': game?.league || '--',
+        'Away': game?.away_team_abbrev || '--',
+        'Home': game?.home_team_abbrev || '--',
+        'Lock': pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--',
+        'Date': formatGameDate(game?.commence_time),
+        'Time': formatGameTime(game?.commence_time),
+        'Line/O/U': pick.line !== undefined ? pick.line : '--',
+        'Score': typeof pick.awayScore === 'number' && typeof pick.homeScore === 'number' ? `${pick.awayScore} - ${pick.homeScore}` : '--',
+        'Status': formatStatus(pick.status),
+        'W/L/T': formatResult(pick.result)
+      };
+    });
+
+    // Create workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // Auto-size columns
+    const columnWidths = [
+      { wch: 20 }, // User
+      { wch: 15 }, // League
+      { wch: 8 },  // Away
+      { wch: 8 },  // Home
+      { wch: 12 }, // Lock
+      { wch: 12 }, // Date
+      { wch: 10 }, // Time
+      { wch: 10 }, // Line/O/U
+      { wch: 12 }, // Score
+      { wch: 10 }, // Status
+      { wch: 8 }   // W/L/T
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Get the week name for the filename
+    const weekName = selectedCollection ? 
+      (() => {
+        const date = parseCollectionNameToDate(selectedCollection);
+        return date ? `Week_of_${date.toLocaleString('default', { month: 'long' })}_${date.getDate()}_${date.getFullYear()}` : selectedCollection;
+      })() : 
+      'Weekly_Locks';
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Weekly Locks');
+
+    // Generate filename
+    const fileName = `${weekName}_Locks_Export.xlsx`;
+
+    // Save the file
+    XLSX.writeFile(workbook, fileName);
   };
 
   // Active year state
@@ -601,6 +667,17 @@ const WeeklyLocks = () => {
             type="button"
           >
             Reset Filters
+          </button>
+        )}
+        {userPicks.length === 3 && allPicks.length > 0 && (
+          <button
+            className="border border-green-600 text-green-700 bg-white px-4 py-2 rounded hover:bg-green-50 flex items-center gap-2"
+            onClick={exportToExcel}
+            type="button"
+            title="Export to Excel"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            Export to Excel
           </button>
         )}
       </div>
