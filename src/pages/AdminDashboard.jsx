@@ -25,6 +25,10 @@ export default function AdminDashboard() {
   const [yearsLoading, setYearsLoading] = useState(true);
   const [yearsError, setYearsError] = useState(null);
 
+  // Most recent week state for locks made calculation
+  const [mostRecentWeek, setMostRecentWeek] = useState(null);
+  const [userPicksForRecentWeek, setUserPicksForRecentWeek] = useState({});
+
   // Payout settings state
   const [payoutSettings, setPayoutSettings] = useState({
     first: 0,
@@ -48,6 +52,21 @@ export default function AdminDashboard() {
   const [announcementError, setAnnouncementError] = useState(null);
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [showAnnouncementConfirmModal, setShowAnnouncementConfirmModal] = useState(false);
+
+  // Helper function to parse collection name to a Date object for sorting
+  const parseCollectionNameToDate = (collectionName) => {
+    if (!collectionName || typeof collectionName !== 'string') return null;
+    const parts = collectionName.split('_'); // Expected format: "odds_YYYY_MM_DD"
+    if (parts.length === 4 && parts[0] === 'odds') {
+      const year = parseInt(parts[1], 10);
+      const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS Date
+      const day = parseInt(parts[3], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+    return null;
+  };
 
   // Fetch available years and active year on mount
   useEffect(() => {
@@ -77,6 +96,64 @@ export default function AdminDashboard() {
     };
     fetchYearsAndActive();
   }, []);
+
+  // Fetch most recent week when active year changes
+  useEffect(() => {
+    const fetchMostRecentWeek = async () => {
+      if (!activeYear) return;
+      
+      try {
+        const collectionsRes = await fetch(`${API_URL}/collections`);
+        if (!collectionsRes.ok) throw new Error('Failed to fetch collections');
+        const collections = await collectionsRes.json();
+        
+        // Filter collections for the active year and sort by date (most recent first)
+        const currentYearCollections = collections
+          .filter(name => name.includes(`odds_${activeYear}_`))
+          .filter(name => parseCollectionNameToDate(name) !== null)
+          .sort((a, b) => {
+            const dateA = parseCollectionNameToDate(a);
+            const dateB = parseCollectionNameToDate(b);
+            return dateB - dateA;
+          });
+
+        const mostRecent = currentYearCollections[0] || null;
+        setMostRecentWeek(mostRecent);
+      } catch (err) {
+        console.error('Error fetching most recent week:', err);
+      }
+    };
+
+    fetchMostRecentWeek();
+  }, [activeYear]);
+
+  // Fetch picks for the most recent week for all users
+  useEffect(() => {
+    const fetchUserPicksForRecentWeek = async () => {
+      if (!mostRecentWeek || !activeYear) return;
+      
+      try {
+        const picksRes = await fetch(`${API_URL}/picks?collectionName=${mostRecentWeek}&year=${activeYear}`);
+        if (!picksRes.ok) throw new Error('Failed to fetch picks');
+        const allPicks = await picksRes.json();
+        
+        // Group picks by userId
+        const picksByUser = {};
+        allPicks.forEach(pick => {
+          if (!picksByUser[pick.userId]) {
+            picksByUser[pick.userId] = [];
+          }
+          picksByUser[pick.userId].push(pick);
+        });
+        
+        setUserPicksForRecentWeek(picksByUser);
+      } catch (err) {
+        console.error('Error fetching user picks for recent week:', err);
+      }
+    };
+
+    fetchUserPicksForRecentWeek();
+  }, [mostRecentWeek, activeYear]);
 
   // Fetch payout settings on mount
   useEffect(() => {
@@ -645,8 +722,14 @@ export default function AdminDashboard() {
                 <th className="px-2 py-1 border">Cell Phone</th>
                 <th className="px-2 py-1 border">Dues Paid</th>
                 <th className="px-2 py-1 border">Date Paid</th>
-                <th className="px-2 py-1 border">Locks Submitted</th>
-                <th className="px-2 py-1 border">Locks Made</th>
+                <th className="px-2 py-1 border">
+                  Locks Made
+                  {mostRecentWeek && (
+                    <div className="text-xs text-gray-500 font-normal">
+                      {mostRecentWeek.replace('odds_', '').replace(/_/g, '/')}
+                    </div>
+                  )}
+                </th>
                 <th className="px-2 py-1 border">Actions</th>
               </tr>
             </thead>
@@ -743,10 +826,7 @@ export default function AdminDashboard() {
                     )}
                   </td>
                   <td className="border px-2 py-1 text-center">
-                    {user.picksSubmitted ? 'Yes' : 'No'}
-                  </td>
-                  <td className="border px-2 py-1 text-center">
-                    {user.picksMade || 0}/3
+                    {userPicksForRecentWeek[user.firebaseUid]?.length || 0}/3
                   </td>
                   <td className="border px-2 py-1 text-center space-x-2">
                     {editingUser === user._id ? (
