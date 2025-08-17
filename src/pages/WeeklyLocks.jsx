@@ -82,6 +82,21 @@ const WeeklyLocks = () => {
     });
   };
 
+  // Helper function to format line value with + sign for positive numbers (only for spreads)
+  const formatLineValue = (line, pickType) => {
+    if (line === undefined || line === null) return '--';
+    if (typeof line === 'number') {
+      // Only add + sign for spread picks, not for total (over/under) picks
+      if (pickType === 'spread') {
+        return line > 0 ? `+${line}` : line.toString();
+      } else {
+        // For totals (over/under), just return the number as is
+        return line.toString();
+      }
+    }
+    return line.toString();
+  };
+
   // Helper function to format just the time
   const formatGameTime = (commenceTime) => {
     if (!commenceTime) return '--';
@@ -128,7 +143,7 @@ const WeeklyLocks = () => {
         'Lock': pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--',
         'Date': formatGameDate(game?.commence_time),
         'Time': formatGameTime(game?.commence_time),
-        'Line/O/U': pick.line !== undefined ? pick.line : '--',
+        'Line/O/U': formatLineValue(pick.line, pick.pickType),
         'Score': formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev),
         'Status': formatStatus(pick.status),
         'W/L/T': formatResult(pick.result)
@@ -1415,7 +1430,7 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                         <td className="px-2 py-2">{formatResult(pick.result)}</td>
@@ -1471,7 +1486,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{pick.line !== undefined ? pick.line : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
@@ -1491,7 +1506,7 @@ const WeeklyLocks = () => {
       ) : (
         <p>You need to have 3 locks submitted for the selected week to view all locks.</p>
       )}
-              {showPopularPicks && <PopularLocksModal picks={allPicks} onClose={() => setShowPopularPicks(false)} />}
+              {showPopularPicks && <PopularLocksModal picks={allPicks} userMap={userMap} onClose={() => setShowPopularPicks(false)} />}
     </div>
   );
 };
