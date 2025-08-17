@@ -576,14 +576,14 @@ const Locks = () => {
     );
   });
 
-  // Unique values for each column - always calculate from full dataset to avoid disappearing options
-  const uniqueLeagues = getUniqueValues(games, 'league');
-  const uniqueAwayTeams = getUniqueValues(games, 'awayTeam');
-  const uniqueAwayTeamFulls = getUniqueValues(games, 'awayTeamFull');
-  const uniqueHomeTeams = getUniqueValues(games, 'homeTeam');
-  const uniqueHomeTeamFulls = getUniqueValues(games, 'homeTeamFull');
-  const uniqueDates = getUniqueValues(games, 'commenceTime', true);
-  const uniqueTimes = getUniqueValues(games, 'commenceTime', false, true);
+  // Unique values for each column - calculate from filtered datasets to show only available options
+  const uniqueLeagues = getUniqueValues(filteredGamesForLeague, 'league');
+  const uniqueAwayTeams = getUniqueValues(filteredGamesForAwayTeam, 'awayTeam');
+  const uniqueAwayTeamFulls = getUniqueValues(filteredGamesForAwayTeamFull, 'awayTeamFull');
+  const uniqueHomeTeams = getUniqueValues(filteredGamesForHomeTeam, 'homeTeam');
+  const uniqueHomeTeamFulls = getUniqueValues(filteredGamesForHomeTeamFull, 'homeTeamFull');
+  const uniqueDates = getUniqueValues(filteredGamesForDate, 'commenceTime', true);
+  const uniqueTimes = getUniqueValues(filteredGamesForTime, 'commenceTime', false, true);
 
 
 
@@ -800,8 +800,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       leagueModal.handleSelectionChange(selectedLeagues);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -825,8 +823,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       awayTeamModal.handleSelectionChange(selectedAwayTeams);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -850,8 +846,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(awayTeamFullModal, uniqueAwayTeamFulls, (selectedAwayTeamFulls) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -875,8 +869,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       homeTeamModal.handleSelectionChange(selectedHomeTeams);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -900,8 +892,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(homeTeamFullModal, uniqueHomeTeamFulls, (selectedHomeTeamFulls) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -925,8 +915,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(dateModal, uniqueDates, (selectedDates) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       dateModal.handleSelectionChange(selectedDates);
                     }, {
                       IconComponent: FunnelIconOutline,
@@ -950,8 +938,6 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(timeModal, uniqueTimes, (selectedTimes) => {
-                      // If all items are selected, it means no filtering (show all)
-                      // If some items are selected, apply the filter
                       timeModal.handleSelectionChange(selectedTimes);
                     }, {
                       IconComponent: FunnelIconOutline,

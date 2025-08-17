@@ -7,18 +7,22 @@ import React, { useState, useRef, useCallback } from 'react';
 export function useFilterModal(initialItems = [], initialSelected = []) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState(initialSelected);
+  const [appliedItems, setAppliedItems] = useState(initialSelected); // Track the actually applied filter
   const [searchValue, setSearchValue] = useState('');
   const [currentItems, setCurrentItems] = useState(initialItems);
+  const [originalItems, setOriginalItems] = useState(initialItems); // Track the original full list of items
   const triggerRef = useRef(null);
 
   // Open modal and initialize state
   const openModal = useCallback((items = initialItems, selected = initialSelected) => {
-    // If no items are selected, show all items as selected (no filtering)
-    setSelectedItems(selected.length > 0 ? selected : [...items]);
+    // Use appliedItems if available, otherwise use the passed selected items
+    const itemsToShow = appliedItems.length > 0 ? appliedItems : (selected.length > 0 ? selected : [...items]);
+    setSelectedItems(itemsToShow);
     setSearchValue('');
     setIsOpen(true);
     setCurrentItems(items);
-  }, [initialItems, initialSelected]);
+    setOriginalItems(items); // Store the original items for this filter
+  }, [initialItems, initialSelected, appliedItems]);
 
   // Close modal
   const closeModal = useCallback(() => {
@@ -39,15 +43,21 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
   // Apply filters and close modal
   const applyFilters = useCallback((onApply) => {
     if (onApply) {
-      onApply(selectedItems);
+      // If all items are selected, it means no filtering (clear the filter)
+      // If some items are selected, apply the filter
+      const itemsToApply = selectedItems.length === originalItems.length ? [] : selectedItems;
+      setAppliedItems(itemsToApply); // Update the applied filter state
+      onApply(itemsToApply);
     }
     closeModal();
-  }, [selectedItems, closeModal]);
+  }, [selectedItems, originalItems, closeModal]);
 
   return {
     // State
     isOpen,
     selectedItems,
+    appliedItems,
+    originalItems,
     searchValue,
     triggerRef,
     
@@ -59,7 +69,7 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
     applyFilters,
     
     // Computed
-    isFiltered: selectedItems.length > 0 && selectedItems.length < currentItems.length,
+    isFiltered: appliedItems.length > 0 && appliedItems.length < originalItems.length,
   };
 }
 
@@ -89,8 +99,8 @@ export function createFilterButtonProps(modal, items, onApply, options = {}) {
     iconClassName = "h-4 w-4",
   } = options;
 
-  // Determine if filter is active based on whether some items are excluded
-  const isFilterActive = modal.selectedItems.length > 0 && modal.selectedItems.length < items.length;
+  // Use the modal's isFiltered property directly to ensure consistency
+  const isFilterActive = modal.isFiltered;
 
   return {
     ref: modal.triggerRef,

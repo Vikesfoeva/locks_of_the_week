@@ -684,12 +684,7 @@ const WeeklyLocks = () => {
                         </div>
                         <button
                           {...createFilterButtonProps(userModal, uniqueUsers, (selectedUsers) => {
-                            // Apply the filter with special logic for "select all" case
-                            if (selectedUsers.length === uniqueUsers.length) {
-                              userModal.handleSelectionChange([]);
-                            } else {
-                              userModal.handleSelectionChange(selectedUsers);
-                            }
+                            userModal.handleSelectionChange(selectedUsers);
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
@@ -706,11 +701,7 @@ const WeeklyLocks = () => {
                         </div>
                         <button
                           {...createFilterButtonProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
-                            if (selectedLeagues.length === uniqueLeagues.length) {
-                              leagueModal.handleSelectionChange([]);
-                            } else {
-                              leagueModal.handleSelectionChange(selectedLeagues);
-                            }
+                            leagueModal.handleSelectionChange(selectedLeagues);
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
@@ -727,11 +718,7 @@ const WeeklyLocks = () => {
                         </div>
                         <button
                           {...createFilterButtonProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
-                            if (selectedAwayTeams.length === uniqueAwayTeams.length) {
-                              awayTeamModal.handleSelectionChange([]);
-                            } else {
-                              awayTeamModal.handleSelectionChange(selectedAwayTeams);
-                            }
+                            awayTeamModal.handleSelectionChange(selectedAwayTeams);
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
@@ -748,11 +735,7 @@ const WeeklyLocks = () => {
                             </div>
                             <button
                               {...createFilterButtonProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
-                                if (selectedHomeTeams.length === uniqueHomeTeams.length) {
-                                  homeTeamModal.handleSelectionChange([]);
-                                } else {
-                                  homeTeamModal.handleSelectionChange(selectedHomeTeams);
-                                }
+                                homeTeamModal.handleSelectionChange(selectedHomeTeams);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -769,11 +752,7 @@ const WeeklyLocks = () => {
                             </div>
                             <button
                               {...createFilterButtonProps(lockModal, uniqueLocks, (selectedLocks) => {
-                                if (selectedLocks.length === uniqueLocks.length) {
-                                  lockModal.handleSelectionChange([]);
-                                } else {
-                                  lockModal.handleSelectionChange(selectedLocks);
-                                }
+                                lockModal.handleSelectionChange(selectedLocks);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -790,11 +769,7 @@ const WeeklyLocks = () => {
                             </div>
                             <button
                               {...createFilterButtonProps(dateModal, uniqueDates, (selectedDates) => {
-                                if (selectedDates.length === uniqueDates.length) {
-                                  dateModal.handleSelectionChange([]);
-                                } else {
-                                  dateModal.handleSelectionChange(selectedDates);
-                                }
+                                dateModal.handleSelectionChange(selectedDates);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -811,11 +786,7 @@ const WeeklyLocks = () => {
                             </div>
                             <button
                               {...createFilterButtonProps(timeModal, uniqueTimes, (selectedTimes) => {
-                                if (selectedTimes.length === uniqueTimes.length) {
-                                  timeModal.handleSelectionChange([]);
-                                } else {
-                                  timeModal.handleSelectionChange(selectedTimes);
-                                }
+                                timeModal.handleSelectionChange(selectedTimes);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -835,11 +806,7 @@ const WeeklyLocks = () => {
                             </div>
                             <button
                               {...createFilterButtonProps(resultModal, uniqueResults, (selectedResults) => {
-                                if (selectedResults.length === uniqueResults.length) {
-                                  resultModal.handleSelectionChange([]);
-                                } else {
-                                  resultModal.handleSelectionChange(selectedResults);
-                                }
+                                resultModal.handleSelectionChange(selectedResults);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -943,11 +910,7 @@ const WeeklyLocks = () => {
       {/* Filter Modals using the new improved positioning system */}
       <FilterModal
         {...createFilterModalProps(userModal, uniqueUsers, (selectedUsers) => {
-          if (selectedUsers.length === uniqueUsers.length) {
-            userModal.handleSelectionChange([]);
-          } else {
-            userModal.handleSelectionChange(selectedUsers);
-          }
+          userModal.handleSelectionChange(selectedUsers);
         }, {
           title: 'Filter Users',
           placement: 'bottom-start',
@@ -956,11 +919,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
-          if (selectedLeagues.length === uniqueLeagues.length) {
-            leagueModal.handleSelectionChange([]);
-          } else {
-            leagueModal.handleSelectionChange(selectedLeagues);
-          }
+          leagueModal.handleSelectionChange(selectedLeagues);
         }, {
           title: 'Filter League',
           placement: 'bottom-start',
@@ -969,11 +928,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
-          if (selectedHomeTeams.length === uniqueHomeTeams.length) {
-            homeTeamModal.handleSelectionChange([]);
-          } else {
-            homeTeamModal.handleSelectionChange(selectedHomeTeams);
-          }
+          homeTeamModal.handleSelectionChange(selectedHomeTeams);
         }, {
           title: 'Filter Home Team',
           placement: 'bottom-start',
@@ -982,11 +937,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
-          if (selectedAwayTeams.length === uniqueAwayTeams.length) {
-            awayTeamModal.handleSelectionChange([]);
-          } else {
-            awayTeamModal.handleSelectionChange(selectedAwayTeams);
-          }
+          awayTeamModal.handleSelectionChange(selectedAwayTeams);
         }, {
           title: 'Filter Away Team',
           placement: 'bottom-start',
@@ -995,11 +946,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(lockModal, uniqueLocks, (selectedLocks) => {
-          if (selectedLocks.length === uniqueLocks.length) {
-            lockModal.handleSelectionChange([]);
-          } else {
-            lockModal.handleSelectionChange(selectedLocks);
-          }
+          lockModal.handleSelectionChange(selectedLocks);
         }, {
           title: 'Filter Lock',
           placement: 'bottom-start',
@@ -1008,11 +955,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(dateModal, uniqueDates, (selectedDates) => {
-          if (selectedDates.length === uniqueDates.length) {
-            dateModal.handleSelectionChange([]);
-          } else {
-            dateModal.handleSelectionChange(selectedDates);
-          }
+          dateModal.handleSelectionChange(selectedDates);
         }, {
           title: 'Filter Date',
           placement: 'bottom-start',
@@ -1021,11 +964,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(timeModal, uniqueTimes, (selectedTimes) => {
-          if (selectedTimes.length === uniqueTimes.length) {
-            timeModal.handleSelectionChange([]);
-          } else {
-            timeModal.handleSelectionChange(selectedTimes);
-          }
+          timeModal.handleSelectionChange(selectedTimes);
         }, {
           title: 'Filter Time',
           placement: 'bottom-start',
@@ -1034,11 +973,7 @@ const WeeklyLocks = () => {
       
       <FilterModal
         {...createFilterModalProps(resultModal, uniqueResults, (selectedResults) => {
-          if (selectedResults.length === uniqueResults.length) {
-            resultModal.handleSelectionChange([]);
-          } else {
-            resultModal.handleSelectionChange(selectedResults);
-          }
+          resultModal.handleSelectionChange(selectedResults);
         }, {
           title: 'Filter W/L/T',
           placement: 'bottom-start',

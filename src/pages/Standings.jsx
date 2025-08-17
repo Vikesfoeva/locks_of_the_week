@@ -180,8 +180,41 @@ const Standings = () => {
       })
     : threeZeroStandings;
 
-  // Filter logic
-  const filteredStandings = (viewMode === 'regular' ? enhancedStandings : currentStandings).filter(user => {
+  // Create filtered datasets for each filter to show only available options
+  const baseStandings = viewMode === 'regular' ? enhancedStandings : currentStandings;
+  
+  const filteredStandingsForUserName = baseStandings.filter(user => {
+    const rank = String(user.rank || '');
+    const winPct = viewMode === 'regular' ? getWinPct(user) : `${user.percentage || 0}%`;
+    
+    return (
+      (rankFilter.length === 0 || rankFilter.includes(rank)) &&
+      (winPctFilter.length === 0 || winPctFilter.includes(winPct))
+    );
+  });
+  
+  const filteredStandingsForRank = baseStandings.filter(user => {
+    const userName = String(user.name || '');
+    const winPct = viewMode === 'regular' ? getWinPct(user) : `${user.percentage || 0}%`;
+    
+    return (
+      (userNameFilter.length === 0 || userNameFilter.includes(userName)) &&
+      (winPctFilter.length === 0 || winPctFilter.includes(winPct))
+    );
+  });
+  
+  const filteredStandingsForWinPct = baseStandings.filter(user => {
+    const userName = String(user.name || '');
+    const rank = String(user.rank || '');
+    
+    return (
+      (userNameFilter.length === 0 || userNameFilter.includes(userName)) &&
+      (rankFilter.length === 0 || rankFilter.includes(rank))
+    );
+  });
+
+  // Filter logic for all columns
+  const filteredStandings = baseStandings.filter(user => {
     const userName = String(user.name || '');
     const rank = String(user.rank || '');
     const winPct = viewMode === 'regular' ? getWinPct(user) : `${user.percentage || 0}%`;
@@ -226,14 +259,14 @@ const Standings = () => {
     return 0;
   });
 
-  // Get unique values for filters based on current view mode
-  const uniqueUserNames = getUniqueValues(currentStandings, 'name');
+  // Get unique values for filters based on filtered datasets to show only available options
+  const uniqueUserNames = getUniqueValues(filteredStandingsForUserName, 'name');
   const uniqueRanks = viewMode === 'regular' 
-    ? getUniqueValues(currentStandings, 'rank')
-    : currentStandings.map((_, index) => String(index + 1)); // Generate ranks for 3-0 view
+    ? getUniqueValues(filteredStandingsForRank, 'rank')
+    : filteredStandingsForRank.map((_, index) => String(index + 1)); // Generate ranks for 3-0 view
   const uniqueWinPcts = viewMode === 'regular' 
-    ? getUniqueValues(currentStandings, 'winPct')
-    : currentStandings.map(user => `${user.percentage || 0}%`);
+    ? getUniqueValues(filteredStandingsForWinPct, 'winPct')
+    : filteredStandingsForWinPct.map(user => `${user.percentage || 0}%`);
 
 
 
@@ -407,11 +440,7 @@ const Standings = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(rankModal, uniqueRanks, (selectedRanks) => {
-                      if (selectedRanks.length === uniqueRanks.length) {
-                        rankModal.handleSelectionChange([]);
-                      } else {
-                        rankModal.handleSelectionChange(selectedRanks);
-                      }
+                      rankModal.handleSelectionChange(selectedRanks);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -434,11 +463,7 @@ const Standings = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(userNameModal, uniqueUserNames, (selectedUserNames) => {
-                      if (selectedUserNames.length === uniqueUserNames.length) {
-                        userNameModal.handleSelectionChange([]);
-                      } else {
-                        userNameModal.handleSelectionChange(selectedUserNames);
-                      }
+                      userNameModal.handleSelectionChange(selectedUserNames);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -470,11 +495,7 @@ const Standings = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(winPctModal, uniqueWinPcts, (selectedWinPcts) => {
-                      if (selectedWinPcts.length === uniqueWinPcts.length) {
-                        winPctModal.handleSelectionChange([]);
-                      } else {
-                        winPctModal.handleSelectionChange(selectedWinPcts);
-                      }
+                      winPctModal.handleSelectionChange(selectedWinPcts);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -763,11 +784,7 @@ const Standings = () => {
       {/* Filter Modals */}
       <FilterModal
         {...createFilterModalProps(rankModal, uniqueRanks, (selectedRanks) => {
-          if (selectedRanks.length === uniqueRanks.length) {
-            rankModal.handleSelectionChange([]);
-          } else {
-            rankModal.handleSelectionChange(selectedRanks);
-          }
+          rankModal.handleSelectionChange(selectedRanks);
         }, {
           title: 'Filter Rank',
           placement: 'bottom-start',
@@ -776,11 +793,7 @@ const Standings = () => {
 
       <FilterModal
         {...createFilterModalProps(userNameModal, uniqueUserNames, (selectedUserNames) => {
-          if (selectedUserNames.length === uniqueUserNames.length) {
-            userNameModal.handleSelectionChange([]);
-          } else {
-            userNameModal.handleSelectionChange(selectedUserNames);
-          }
+          userNameModal.handleSelectionChange(selectedUserNames);
         }, {
           title: 'Filter Name',
           placement: 'bottom-start',
@@ -789,11 +802,7 @@ const Standings = () => {
 
       <FilterModal
         {...createFilterModalProps(winPctModal, uniqueWinPcts, (selectedWinPcts) => {
-          if (selectedWinPcts.length === uniqueWinPcts.length) {
-            winPctModal.handleSelectionChange([]);
-          } else {
-            winPctModal.handleSelectionChange(selectedWinPcts);
-          }
+          winPctModal.handleSelectionChange(selectedWinPcts);
         }, {
           title: 'Filter Win %',
           placement: 'bottom-start',
