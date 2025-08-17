@@ -96,9 +96,6 @@ export default function UserSettings() {
             placeholder="(555) 123-4567"
             required
           />
-          <p className="mt-1 text-sm text-gray-500">
-            Format will be applied automatically as you type
-          </p>
         </div>
         {error && <div className="text-red-600 text-sm">{error}</div>}
         {success && <div className="text-green-600 text-sm">{success}</div>}
