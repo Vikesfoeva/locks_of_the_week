@@ -39,6 +39,16 @@ export default function AdminDashboard() {
   const [savingPayout, setSavingPayout] = useState(false);
   const [showPayoutConfirmModal, setShowPayoutConfirmModal] = useState(false);
 
+  // Announcement state
+  const [announcement, setAnnouncement] = useState({
+    message: '',
+    active: false
+  });
+  const [announcementLoading, setAnnouncementLoading] = useState(true);
+  const [announcementError, setAnnouncementError] = useState(null);
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  const [showAnnouncementConfirmModal, setShowAnnouncementConfirmModal] = useState(false);
+
   // Fetch available years and active year on mount
   useEffect(() => {
     const fetchYearsAndActive = async () => {
@@ -85,6 +95,28 @@ export default function AdminDashboard() {
       }
     };
     fetchPayoutSettings();
+  }, []);
+
+  // Fetch announcement on mount
+  useEffect(() => {
+    const fetchAnnouncement = async () => {
+      setAnnouncementLoading(true);
+      setAnnouncementError(null);
+      try {
+        const response = await fetch(`${API_URL}/announcements`);
+        if (!response.ok) throw new Error('Failed to fetch announcement');
+        const data = await response.json();
+        setAnnouncement({
+          message: data.message || '',
+          active: data.active || false
+        });
+      } catch (err) {
+        setAnnouncementError(err.message);
+      } finally {
+        setAnnouncementLoading(false);
+      }
+    };
+    fetchAnnouncement();
   }, []);
 
   // Fetch users and whitelist on component mount
@@ -369,6 +401,39 @@ export default function AdminDashboard() {
     }
   };
 
+  // Handler for announcement changes
+  const handleAnnouncementChange = (field, value) => {
+    setAnnouncement(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Handler to show announcement confirmation modal
+  const handleSaveAnnouncement = () => {
+    setShowAnnouncementConfirmModal(true);
+  };
+
+  // Handler to actually save announcement after confirmation
+  const confirmSaveAnnouncement = async () => {
+    setSavingAnnouncement(true);
+    setAnnouncementError(null);
+    setShowAnnouncementConfirmModal(false);
+    try {
+      const response = await fetch(`${API_URL}/announcements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(announcement)
+      });
+      if (!response.ok) throw new Error('Failed to save announcement');
+      // Success message could be added here
+    } catch (err) {
+      setAnnouncementError(err.message);
+    } finally {
+      setSavingAnnouncement(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center">Loading...</div>;
   }
@@ -507,6 +572,53 @@ export default function AdminDashboard() {
                 disabled={savingPayout}
               >
                 {savingPayout ? 'Saving...' : 'Confirm & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Announcement Confirmation Modal */}
+      {showAnnouncementConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Announcement</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to save this announcement? This will be displayed prominently on the main dashboard for all users.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Announcement Preview:</h4>
+              <div className="text-sm">
+                <div className="mb-2">
+                  <span className="font-medium">Message:</span>
+                  <p className="text-gray-700 mt-1">{announcement.message || '(No message)'}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Status:</span>
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                    announcement.active 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {announcement.active ? 'Active (Will be shown)' : 'Inactive (Hidden)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowAnnouncementConfirmModal(false)}
+                disabled={savingAnnouncement}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={confirmSaveAnnouncement}
+                disabled={savingAnnouncement}
+              >
+                {savingAnnouncement ? 'Saving...' : 'Confirm & Save'}
               </button>
             </div>
           </div>
@@ -825,6 +937,65 @@ export default function AdminDashboard() {
               <div className="text-sm text-gray-600">
                 Total Pool: ${Object.values(payoutSettings).reduce((sum, val) => sum + val, 0).toFixed(2)}
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Announcement Management */}
+      <div className="card">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Dashboard Announcement</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Set an announcement message that will be displayed on the main dashboard. Users will see this message prominently displayed.
+        </p>
+        {announcementLoading ? (
+          <div className="text-gray-500">Loading announcement...</div>
+        ) : announcementError ? (
+          <div className="text-red-600">Error: {announcementError}</div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="announcement-message" className="block text-sm font-medium text-gray-700 mb-2">
+                Announcement Message
+              </label>
+              <textarea
+                id="announcement-message"
+                value={announcement.message}
+                onChange={(e) => handleAnnouncementChange('message', e.target.value)}
+                className="input w-full h-24 resize-none"
+                placeholder="Enter announcement message here..."
+                maxLength={500}
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                {announcement.message.length}/500 characters
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={announcement.active}
+                  onChange={(e) => handleAnnouncementChange('active', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">
+                  Show announcement on dashboard
+                </span>
+              </label>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSaveAnnouncement}
+                disabled={savingAnnouncement}
+                className="btn btn-primary"
+              >
+                {savingAnnouncement ? 'Saving...' : 'Save Announcement'}
+              </button>
+              {announcement.active && announcement.message && (
+                <div className="text-sm text-green-600">
+                  ✓ Announcement is active and will be shown to users
+                </div>
+              )}
             </div>
           </div>
         )}

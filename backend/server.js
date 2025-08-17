@@ -938,3 +938,68 @@ app.post('/api/payout-settings', async (req, res) => {
     res.status(500).json({ error: 'Failed to update payout settings', details: err.message });
   }
 });
+
+// Get announcements
+app.get('/api/announcements', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const announcement = await db.collection('league_configurations').findOne({ key: 'announcement' });
+    
+    if (!announcement) {
+      return res.json({ message: '', active: false });
+    }
+    
+    res.json({
+      message: announcement.value.message || '',
+      active: announcement.value.active || false,
+      updatedAt: announcement.value.updatedAt
+    });
+  } catch (err) {
+    console.error('Error fetching announcement:', err);
+    res.status(500).json({ error: 'Failed to fetch announcement', details: err.message });
+  }
+});
+
+// Update announcement
+app.post('/api/announcements', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { message, active } = req.body;
+    
+    // Validate input
+    if (typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message must be a string' });
+    }
+    
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'Active must be a boolean' });
+    }
+    
+    await db.collection('league_configurations').updateOne(
+      { key: 'announcement' },
+      { 
+        $set: { 
+          key: 'announcement',
+          value: {
+            message: message.trim(),
+            active: active,
+            updatedAt: new Date()
+          }
+        }
+      },
+      { upsert: true }
+    );
+    
+    res.json({ 
+      message: 'Announcement updated successfully', 
+      announcement: {
+        message: message.trim(),
+        active: active,
+        updatedAt: new Date()
+      }
+    });
+  } catch (err) {
+    console.error('Error updating announcement:', err);
+    res.status(500).json({ error: 'Failed to update announcement', details: err.message });
+  }
+});
