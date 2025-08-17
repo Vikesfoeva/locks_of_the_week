@@ -53,6 +53,13 @@ export default function AdminDashboard() {
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [showAnnouncementConfirmModal, setShowAnnouncementConfirmModal] = useState(false);
 
+  // 3-0 Week Prize Pool state
+  const [threeZeroPrizePool, setThreeZeroPrizePool] = useState(0);
+  const [threeZeroPrizePoolLoading, setThreeZeroPrizePoolLoading] = useState(true);
+  const [threeZeroPrizePoolError, setThreeZeroPrizePoolError] = useState(null);
+  const [savingThreeZeroPrizePool, setSavingThreeZeroPrizePool] = useState(false);
+  const [showThreeZeroPrizePoolConfirmModal, setShowThreeZeroPrizePoolConfirmModal] = useState(false);
+
   // Helper function to parse collection name to a Date object for sorting
   const parseCollectionNameToDate = (collectionName) => {
     if (!collectionName || typeof collectionName !== 'string') return null;
@@ -194,6 +201,26 @@ export default function AdminDashboard() {
       }
     };
     fetchAnnouncement();
+  }, []);
+
+  // Fetch 3-0 week prize pool on mount
+  useEffect(() => {
+    const fetchThreeZeroPrizePool = async () => {
+      setThreeZeroPrizePoolLoading(true);
+      setThreeZeroPrizePoolError(null);
+      try {
+        const response = await fetch(`${API_URL}/three-zero-prize-pool`);
+        if (!response.ok) throw new Error('Failed to fetch 3-0 week prize pool');
+        const data = await response.json();
+        setThreeZeroPrizePool(data.prizePool);
+      } catch (err) {
+        console.error('Error fetching 3-0 week prize pool:', err);
+        setThreeZeroPrizePoolError(err.message);
+      } finally {
+        setThreeZeroPrizePoolLoading(false);
+      }
+    };
+    fetchThreeZeroPrizePool();
   }, []);
 
   // Fetch users and whitelist on component mount
@@ -511,6 +538,36 @@ export default function AdminDashboard() {
     }
   };
 
+  // Handler for 3-0 week prize pool changes
+  const handleThreeZeroPrizePoolChange = (value) => {
+    setThreeZeroPrizePool(parseFloat(value) || 0);
+  };
+
+  // Handler to show 3-0 prize pool confirmation modal
+  const handleSaveThreeZeroPrizePool = () => {
+    setShowThreeZeroPrizePoolConfirmModal(true);
+  };
+
+  // Handler to actually save 3-0 prize pool after confirmation
+  const confirmSaveThreeZeroPrizePool = async () => {
+    setSavingThreeZeroPrizePool(true);
+    setThreeZeroPrizePoolError(null);
+    setShowThreeZeroPrizePoolConfirmModal(false);
+    try {
+      const response = await fetch(`${API_URL}/three-zero-prize-pool`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prizePool: threeZeroPrizePool })
+      });
+      if (!response.ok) throw new Error('Failed to save 3-0 week prize pool');
+      console.log('3-0 week prize pool saved successfully');
+    } catch (err) {
+      setThreeZeroPrizePoolError(err.message);
+    } finally {
+      setSavingThreeZeroPrizePool(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center">Loading...</div>;
   }
@@ -696,6 +753,43 @@ export default function AdminDashboard() {
                 disabled={savingAnnouncement}
               >
                 {savingAnnouncement ? 'Saving...' : 'Confirm & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3-0 Week Prize Pool Confirmation Modal */}
+      {showThreeZeroPrizePoolConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm 3-0 Week Prize Pool</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to set the 3-0 week prize pool to this amount? This will affect how prizes are distributed to users who achieve perfect weeks.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Prize Pool Setting:</h4>
+              <div className="text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Prize Pool:</span>
+                  <span className="font-medium">${threeZeroPrizePool.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setShowThreeZeroPrizePoolConfirmModal(false)}
+                disabled={savingThreeZeroPrizePool}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={confirmSaveThreeZeroPrizePool}
+                disabled={savingThreeZeroPrizePool}
+              >
+                {savingThreeZeroPrizePool ? 'Saving...' : 'Confirm & Save'}
               </button>
             </div>
           </div>
@@ -1076,6 +1170,55 @@ export default function AdminDashboard() {
                   ✓ Announcement is active and will be shown to users
                 </div>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3-0 Week Prize Pool Settings */}
+      <div className="card">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">3-0 Week Prize Pool</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Set the total prize pool for users who achieve perfect 3-0 weeks. Users earn a percentage of this pool based on their share of total 3-0 weeks.
+        </p>
+        {threeZeroPrizePoolLoading ? (
+          <div className="text-gray-500">Loading 3-0 week prize pool...</div>
+        ) : threeZeroPrizePoolError ? (
+          <div className="text-red-600">Error: {threeZeroPrizePoolError}</div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="three-zero-prize-pool" className="block text-sm font-medium text-gray-700 mb-2">
+                Total Prize Pool
+              </label>
+              <div className="relative max-w-xs">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                <input
+                  id="three-zero-prize-pool"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={threeZeroPrizePool}
+                  onChange={(e) => handleThreeZeroPrizePoolChange(e.target.value)}
+                  onFocus={(e) => {
+                    e.target.select();
+                  }}
+                  className="input pl-8 w-full"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSaveThreeZeroPrizePool}
+                disabled={savingThreeZeroPrizePool}
+                className="btn btn-primary"
+              >
+                {savingThreeZeroPrizePool ? 'Saving...' : 'Save Prize Pool'}
+              </button>
+              <div className="text-sm text-gray-600">
+                Current Pool: ${threeZeroPrizePool.toFixed(2)}
+              </div>
             </div>
           </div>
         )}

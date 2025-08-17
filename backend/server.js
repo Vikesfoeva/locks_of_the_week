@@ -1003,3 +1003,179 @@ app.post('/api/announcements', async (req, res) => {
     res.status(500).json({ error: 'Failed to update announcement', details: err.message });
   }
 });
+
+// Get 3-0 week prize pool setting
+app.get('/api/three-zero-prize-pool', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const settings = await db.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
+    
+    if (!settings) {
+      return res.json({ prizePool: 0 });
+    }
+    
+    res.json({ prizePool: settings.value || 0 });
+  } catch (err) {
+    console.error('Error fetching 3-0 prize pool:', err);
+    res.status(500).json({ error: 'Failed to fetch 3-0 prize pool', details: err.message });
+  }
+});
+
+// Update 3-0 week prize pool setting
+app.post('/api/three-zero-prize-pool', async (req, res) => {
+  try {
+    const db = await connectToDb();
+    const { prizePool } = req.body;
+    
+    // Validate input
+    if (typeof prizePool !== 'number' || prizePool < 0) {
+      return res.status(400).json({ error: 'Prize pool must be a non-negative number' });
+    }
+    
+    await db.collection('league_configurations').updateOne(
+      { key: 'three_zero_prize_pool' },
+      { 
+        $set: { 
+          key: 'three_zero_prize_pool',
+          value: prizePool,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    
+    res.json({ message: '3-0 week prize pool updated successfully', prizePool });
+  } catch (err) {
+    console.error('Error updating 3-0 prize pool:', err);
+    res.status(500).json({ error: 'Failed to update 3-0 prize pool', details: err.message });
+  }
+});
+
+// Calculate 3-0 weeks for all users
+app.get('/api/three-zero-standings', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year } = req.query;
+
+    // 1. Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+
+    // 2. Get available weeks from the specific year's database collections
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const collections = await yearDb.listCollections().toArray();
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    let availableGameWeeks = collections
+      .map(col => col.name)
+      .filter(name => oddsPattern.test(name));
+    
+    const users = await mainDb.collection('users').find({}).toArray();
+
+    if (availableGameWeeks.length === 0) {
+      const emptyStandings = users.map(user => ({
+        _id: user._id.toString(),
+        name: `${user.firstName} ${user.lastName}`,
+        threeZeroWeeks: 0,
+        percentage: 0,
+        payout: 0
+      }));
+      return res.json({ standings: emptyStandings, totalThreeZeroWeeks: 0, prizePool: 0 });
+    }
+    
+    availableGameWeeks.sort((a, b) => {
+      const dateA = parseCollectionNameToDate(a);
+      const dateB = parseCollectionNameToDate(b);
+      if (!dateA || !dateB) return a.localeCompare(b);
+      return dateA - dateB;
+    });
+
+    // 3. Fetch all picks for all weeks
+    const allPicks = await picksCollection.find({ 
+      collectionName: { $in: availableGameWeeks } 
+    }).toArray();
+
+    // 4. Calculate 3-0 weeks for each user
+    const userThreeZeroWeeks = {};
+    users.forEach(user => {
+      if (user.firebaseUid) {
+        userThreeZeroWeeks[user.firebaseUid] = {
+          _id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          threeZeroWeeks: 0
+        };
+      }
+    });
+
+    // Group picks by user and week
+    const userWeekPicks = {};
+    allPicks.forEach(pick => {
+      if (!userWeekPicks[pick.userId]) {
+        userWeekPicks[pick.userId] = {};
+      }
+      if (!userWeekPicks[pick.userId][pick.collectionName]) {
+        userWeekPicks[pick.userId][pick.collectionName] = [];
+      }
+      userWeekPicks[pick.userId][pick.collectionName].push(pick);
+    });
+
+    // Calculate 3-0 weeks for each user
+    Object.keys(userWeekPicks).forEach(userId => {
+      const userWeeks = userWeekPicks[userId];
+      Object.keys(userWeeks).forEach(week => {
+        const weekPicks = userWeeks[week];
+        if (weekPicks.length === 3) {
+          // Check if all 3 picks are wins
+          const allWins = weekPicks.every(pick => pick.result && pick.result.toUpperCase() === 'WIN');
+          if (allWins && userThreeZeroWeeks[userId]) {
+            userThreeZeroWeeks[userId].threeZeroWeeks++;
+          }
+        }
+      });
+    });
+
+    // 5. Calculate total 3-0 weeks and prize pool distribution
+    const totalThreeZeroWeeks = Object.values(userThreeZeroWeeks).reduce((sum, user) => sum + user.threeZeroWeeks, 0);
+    
+    // Get prize pool setting
+    const prizePoolSettings = await mainDb.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
+    const prizePool = prizePoolSettings ? prizePoolSettings.value : 0;
+
+    // 6. Create standings with payouts
+    const standings = users.map(user => {
+      const userStats = user.firebaseUid ? userThreeZeroWeeks[user.firebaseUid] : null;
+      const threeZeroWeeks = userStats ? userStats.threeZeroWeeks : 0;
+      const percentage = totalThreeZeroWeeks > 0 ? (threeZeroWeeks / totalThreeZeroWeeks) * 100 : 0;
+      const payout = totalThreeZeroWeeks > 0 ? (threeZeroWeeks / totalThreeZeroWeeks) * prizePool : 0;
+
+      return {
+        _id: user._id.toString(),
+        name: `${user.firstName} ${user.lastName}`,
+        threeZeroWeeks,
+        percentage: parseFloat(percentage.toFixed(1)),
+        payout: parseFloat(payout.toFixed(2))
+      };
+    });
+
+    // Sort by 3-0 weeks (descending)
+    standings.sort((a, b) => b.threeZeroWeeks - a.threeZeroWeeks || a.name.localeCompare(b.name));
+
+    res.json({ 
+      standings, 
+      totalThreeZeroWeeks, 
+      prizePool: prizePool || 0,
+      availableWeeks: availableGameWeeks
+    });
+
+  } catch (err) {
+    console.error('Error fetching 3-0 standings:', err);
+    res.status(500).json({ error: 'Failed to fetch 3-0 standings', details: err.message });
+  }
+});

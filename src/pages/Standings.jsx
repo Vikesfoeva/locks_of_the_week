@@ -11,6 +11,14 @@ const Standings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const isInitialMount = useRef(true);
+  
+  // 3-0 Week standings state
+  const [viewMode, setViewMode] = useState('regular'); // 'regular' or 'threeZero'
+  const [threeZeroStandings, setThreeZeroStandings] = useState([]);
+  const [threeZeroData, setThreeZeroData] = useState({
+    totalThreeZeroWeeks: 0,
+    prizePool: 0
+  });
 
   // Filtering state
   const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
@@ -41,6 +49,22 @@ const Standings = () => {
   const rankPopoverOpenRef = useRef(false);
   const winPctPopoverOpenRef = useRef(false);
 
+  const fetchThreeZeroStandings = async (year) => {
+    try {
+      const response = await fetch(`/api/three-zero-standings?year=${year}`);
+      if (!response.ok) throw new Error('Failed to fetch 3-0 week standings');
+      const data = await response.json();
+      setThreeZeroStandings(data.standings);
+      setThreeZeroData({
+        totalThreeZeroWeeks: data.totalThreeZeroWeeks,
+        prizePool: data.prizePool
+      });
+    } catch (err) {
+      console.error('Error fetching 3-0 week standings:', err);
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -61,6 +85,9 @@ const Standings = () => {
         setStandings(standingsData.standings);
         setAvailableWeeks(standingsData.availableWeeks);
         setSelectedWeek(standingsData.selectedWeek);
+
+        // 3. Fetch 3-0 week standings
+        await fetchThreeZeroStandings(year);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -134,11 +161,26 @@ const Standings = () => {
     setWinPctFilter([]);
   };
 
+  // Get current data based on view mode
+  const currentStandings = viewMode === 'regular' ? standings : threeZeroStandings;
+
+  // Enhance regular standings with 3-0 week data
+  const enhancedStandings = viewMode === 'regular' 
+    ? standings.map(user => {
+        const threeZeroUser = threeZeroStandings.find(tz => tz._id === user._id);
+        return {
+          ...user,
+          threeZeroWeeks: threeZeroUser?.threeZeroWeeks || 0,
+          threeZeroPayout: threeZeroUser?.payout || 0
+        };
+      })
+    : threeZeroStandings;
+
   // Filter logic
-  const filteredStandings = standings.filter(user => {
+  const filteredStandings = (viewMode === 'regular' ? enhancedStandings : currentStandings).filter(user => {
     const userName = String(user.name || '');
     const rank = String(user.rank || '');
-    const winPct = getWinPct(user);
+    const winPct = viewMode === 'regular' ? getWinPct(user) : `${user.percentage || 0}%`;
     
     return (
       (userNameFilter.length === 0 || userNameFilter.includes(userName)) &&
@@ -154,11 +196,22 @@ const Standings = () => {
     let aValue, bValue;
     
     if (key === 'winPct') {
-      aValue = parseFloat(getWinPct(a).replace('%', ''));
-      bValue = parseFloat(getWinPct(b).replace('%', ''));
+      if (viewMode === 'regular') {
+        aValue = parseFloat(getWinPct(a).replace('%', ''));
+        bValue = parseFloat(getWinPct(b).replace('%', ''));
+      } else {
+        aValue = a.percentage || 0;
+        bValue = b.percentage || 0;
+      }
     } else if (key === 'rank') {
       aValue = parseInt(a.rank) || 0;
       bValue = parseInt(b.rank) || 0;
+    } else if (key === 'threeZeroWeeks') {
+      aValue = a.threeZeroWeeks || 0;
+      bValue = b.threeZeroWeeks || 0;
+    } else if (key === 'payout') {
+      aValue = a.payout || 0;
+      bValue = b.payout || 0;
     } else {
       aValue = a[key] ? a[key].toString().toLowerCase() : '';
       bValue = b[key] ? b[key].toString().toLowerCase() : '';
@@ -169,10 +222,14 @@ const Standings = () => {
     return 0;
   });
 
-  // Get unique values for filters
-  const uniqueUserNames = getUniqueValues(standings, 'name');
-  const uniqueRanks = getUniqueValues(standings, 'rank');
-  const uniqueWinPcts = getUniqueValues(standings, 'winPct');
+  // Get unique values for filters based on current view mode
+  const uniqueUserNames = getUniqueValues(currentStandings, 'name');
+  const uniqueRanks = viewMode === 'regular' 
+    ? getUniqueValues(currentStandings, 'rank')
+    : currentStandings.map((_, index) => String(index + 1)); // Generate ranks for 3-0 view
+  const uniqueWinPcts = viewMode === 'regular' 
+    ? getUniqueValues(currentStandings, 'winPct')
+    : currentStandings.map(user => `${user.percentage || 0}%`);
 
   // Filtered values for search
   const filteredUserNames = uniqueUserNames.filter(val => String(val).toLowerCase().includes(userNameSearch.toLowerCase()));
@@ -188,13 +245,47 @@ const Standings = () => {
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-2">
-        <div className="text-center sm:text-left">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Overall Standings - {activeYear}</h1>
-          <p className="text-gray-600">Complete season performance rankings</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+    <div className="max-w-7xl mx-auto p-4">
+      {/* Title and Description */}
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          {viewMode === 'regular' ? 'Overall Standings' : '3-0 Week Standings'} - {activeYear}
+        </h1>
+        <p className="text-gray-600">
+          {viewMode === 'regular' 
+            ? 'Complete season performance rankings'
+            : `Perfect week achievements (${threeZeroData.totalThreeZeroWeeks} total 3-0 weeks)`
+          }
+        </p>
+      </div>
+
+      {/* Controls Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        {/* Left side - View Mode Toggle */}
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                viewMode === 'regular'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              onClick={() => setViewMode('regular')}
+            >
+              Regular Standings
+            </button>
+            <button
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                viewMode === 'threeZero'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              onClick={() => setViewMode('threeZero')}
+            >
+              3-0 Weeks
+            </button>
+          </div>
+          
           <button
             className="border border-gray-300 text-gray-700 bg-white px-4 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 font-medium"
             onClick={handleResetFilters}
@@ -202,6 +293,34 @@ const Standings = () => {
           >
             Reset Filters
           </button>
+        </div>
+
+        {/* Right side - Week Selector and Legend */}
+        <div className="flex items-center gap-3">
+          {viewMode === 'regular' && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="week-select" className="font-medium text-gray-700">View as of week:</label>
+              <select
+                id="week-select"
+                value={selectedWeek || ''}
+                onChange={e => setSelectedWeek(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200"
+                disabled={availableWeeks.length === 0}
+              >
+                {availableWeeks.map((week, index) => {
+                  const parts = week.split('_');
+                  // parts[1] is year, parts[2] is month, parts[3] is day
+                  const date = new Date(parts[1], parts[2] - 1, parts[3]);
+                  const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+                  return (
+                    <option key={week} value={week}>
+                      Week {index + 1} - {formattedDate}
+                    </option>
+                  );
+                }).reverse()}
+              </select>
+            </div>
+          )}
           
           <Popover as="span" className="relative">
             {({ open, close }) => {
@@ -232,7 +351,11 @@ const Standings = () => {
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-gray-700">Prize Winner</span>
+                            <span className="text-gray-700">Season Prize Winner</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                            <span className="text-gray-700">3-0 Week Prize Winner</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="w-4 h-4 bg-red-400 rounded-full flex-shrink-0"></div>
@@ -254,38 +377,20 @@ const Standings = () => {
               );
             }}
           </Popover>
-          <div className="flex items-center gap-2">
-            <label htmlFor="week-select" className="font-medium text-gray-700">View as of week:</label>
-            <select
-              id="week-select"
-              value={selectedWeek || ''}
-              onChange={e => setSelectedWeek(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200"
-              disabled={availableWeeks.length === 0}
-            >
-              {availableWeeks.map((week, index) => {
-                const parts = week.split('_');
-                // parts[1] is year, parts[2] is month, parts[3] is day
-                const date = new Date(parts[1], parts[2] - 1, parts[3]);
-                const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
-                return (
-                  <option key={week} value={week}>
-                    Week {index + 1} - {formattedDate}
-                  </option>
-                );
-              }).reverse()}
-            </select>
-          </div>
         </div>
       </div>
-      {standings.length === 0 ? (
-        <div className="text-center p-8">No standings data available for this week.</div>
+      {currentStandings.length === 0 ? (
+        <div className="text-center p-8">
+          {viewMode === 'regular' ? 'No standings data available for this week.' : 'No 3-0 week data available.'}
+        </div>
       ) : (
       <>
-        <div className="overflow-x-auto shadow-lg rounded-xl border border-gray-200">
-        <table className="min-w-full bg-white">
-          <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
-            <tr>
+        {viewMode === 'regular' ? (
+          // Regular standings table
+          <div className="overflow-x-auto shadow-lg rounded-xl border border-gray-200">
+          <table className="min-w-full bg-white">
+            <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
+              <tr>
               <th className="px-4 py-4 text-left border-r border-gray-200">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Rank</span>
@@ -374,7 +479,7 @@ const Standings = () => {
               </th>
               <th className="px-4 py-4 text-left border-r border-gray-200">
                 <div className="flex items-center gap-1">
-                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">User Name</span>
+                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Name</span>
                   <div className="flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
@@ -409,7 +514,7 @@ const Standings = () => {
                           <Portal>
                             {open && (
                               <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: userNamePopoverPosition.top, left: userNamePopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter User Name</div>
+                                <div className="font-semibold mb-2">Filter Name</div>
                                 <div className="flex items-center mb-2 gap-2 text-xs">
                                   <button className="underline" onClick={() => setUserNameFilterDraft([...uniqueUserNames])} type="button">Select all</button>
                                   <span>-</span>
@@ -557,6 +662,36 @@ const Standings = () => {
                 <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">WB</span>
               </th>
               <th className="px-4 py-4 text-left border-r border-gray-200">
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Weeks</span>
+                  <div className="flex flex-col ml-1">
+                    <ChevronUpIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroWeeks' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); handleSort('threeZeroWeeks'); }}
+                    />
+                    <ChevronDownIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroWeeks' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); handleSort('threeZeroWeeks'); }}
+                    />
+                  </div>
+                </div>
+              </th>
+              <th className="px-4 py-4 text-left border-r border-gray-200">
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Payout</span>
+                  <div className="flex flex-col ml-1">
+                    <ChevronUpIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroPayout' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); handleSort('threeZeroPayout'); }}
+                    />
+                    <ChevronDownIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroPayout' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); handleSort('threeZeroPayout'); }}
+                    />
+                  </div>
+                </div>
+              </th>
+              <th className="px-4 py-4 text-left border-r border-gray-200">
                 <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Projected Payout</span>
               </th>
               <th className="px-4 py-4 text-left">
@@ -607,17 +742,17 @@ const Standings = () => {
                     </span>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
-                    <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded whitespace-nowrap">
                       {`${user.wins}-${user.losses}-${user.ties}`}
                     </span>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
-                    <span className="font-mono text-sm text-gray-600">
+                    <span className="font-mono text-xs text-gray-600 whitespace-nowrap">
                       {weekRecord}
                     </span>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
-                    <span className="font-semibold text-gray-700">
+                    <span className="font-semibold text-sm text-gray-700">
                       {totalLocks}
                     </span>
                   </td>
@@ -631,15 +766,34 @@ const Standings = () => {
                     </span>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
-                    <span className="text-gray-600 font-medium">
+                    <span className="text-gray-600 font-medium text-sm">
                       {user.gamesBack === '0.0' ? '-' : user.gamesBack}
                     </span>
+                  </td>
+                  <td className="px-4 py-4 border-r border-gray-200">
+                    <span className={`font-bold text-base ${
+                      user.threeZeroWeeks > 0 ? 'text-blue-600' : 'text-gray-400'
+                    }`}>
+                      {user.threeZeroWeeks || 0}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 border-r border-gray-200">
+                    {user.threeZeroPayout > 0 ? (
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                        <span className="font-bold text-blue-700 text-base bg-blue-100 px-2 py-1 rounded-full">
+                          ${user.threeZeroPayout.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 font-medium">-</span>
+                    )}
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
                     {isWinner ? (
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        <span className="font-bold text-green-700 text-lg bg-green-100 px-3 py-1 rounded-full">
+                        <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
                           ${user.payout.toFixed(2)}
                         </span>
                       </div>
@@ -648,7 +802,7 @@ const Standings = () => {
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`font-bold text-sm px-2 py-1 rounded-full ${
+                    <span className={`font-bold text-xs px-2 py-1 rounded-full ${
                       user.rankChange.startsWith('+')
                         ? 'text-green-700 bg-green-100'
                         : user.rankChange.startsWith('-')
@@ -662,8 +816,123 @@ const Standings = () => {
               );
             })}
           </tbody>
-        </table>
-      </div>
+          </table>
+          </div>
+        ) : (
+          // 3-0 Week standings table
+          <div className="overflow-x-auto shadow-lg rounded-xl border border-gray-200">
+            <table className="min-w-full bg-white">
+              <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
+                <tr>
+                  <th className="px-4 py-4 text-left border-r border-gray-200">
+                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Rank</span>
+                  </th>
+                  <th className="px-4 py-4 text-left border-r border-gray-200">
+                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Name</span>
+                  </th>
+                  <th className="px-4 py-4 text-left border-r border-gray-200">
+                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Weeks</span>
+                  </th>
+                  <th className="px-4 py-4 text-left border-r border-gray-200">
+                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Percentage</span>
+                  </th>
+                  <th className="px-4 py-4 text-left">
+                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Payout</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedStandings.map((user, idx) => {
+                  const rank = idx + 1;
+                  const isTopThree = rank <= 3;
+                  const hasEarnings = user.payout > 0;
+                  
+                  // Determine row styling
+                  let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
+                  if (isTopThree && user.threeZeroWeeks > 0) {
+                    rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
+                  } else if (idx % 2 === 0) {
+                    rowClassName += ' bg-white';
+                  } else {
+                    rowClassName += ' bg-gray-50';
+                  }
+                  
+                  return (
+                    <tr key={user._id} className={rowClassName}>
+                      <td className="px-4 py-4 border-r border-gray-200">
+                        <div className="flex items-center">
+                          {isTopThree && user.threeZeroWeeks > 0 && (
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
+                              rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : 'bg-amber-600'
+                            }`}>
+                              {rank}
+                            </div>
+                          )}
+                          <span className={`font-bold text-lg ${isTopThree && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
+                            {(!isTopThree || user.threeZeroWeeks === 0) && rank}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 border-r border-gray-200">
+                        <span className={`font-medium ${isTopThree && user.threeZeroWeeks > 0 ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
+                          {user.name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 border-r border-gray-200">
+                        <span className="font-bold text-lg text-blue-600">
+                          {user.threeZeroWeeks || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 border-r border-gray-200">
+                        <span className={`font-bold text-lg ${
+                          user.percentage >= 20 ? 'text-green-600' :
+                          user.percentage >= 10 ? 'text-blue-600' :
+                          'text-gray-500'
+                        }`}>
+                          {user.percentage?.toFixed(1) || '0.0'}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        {hasEarnings ? (
+                          <div className="flex items-center">
+                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                            <span className="font-bold text-green-700 text-lg bg-green-100 px-3 py-1 rounded-full">
+                              ${user.payout?.toFixed(2) || '0.00'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 font-medium">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {/* Summary info for 3-0 weeks */}
+        {viewMode === 'threeZero' && (
+          <div className="mt-4 bg-blue-50 rounded-lg p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-blue-600">{threeZeroData.totalThreeZeroWeeks}</div>
+                <div className="text-sm text-gray-600">Total 3-0 Weeks</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600">${threeZeroData.prizePool.toFixed(2)}</div>
+                <div className="text-sm text-gray-600">Total Prize Pool</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {threeZeroStandings.filter(user => user.threeZeroWeeks > 0).length}
+                </div>
+                <div className="text-sm text-gray-600">Users with 3-0 Weeks</div>
+              </div>
+            </div>
+          </div>
+        )}
       </>
       )}
     </div>
