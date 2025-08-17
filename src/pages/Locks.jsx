@@ -29,7 +29,8 @@ const Locks = () => {
     homeTeamFull: '',
     date: '',
   });
-  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'commenceTime', direction: 'asc' });
+  const [hideStartedGames, setHideStartedGames] = useState(true);
   const [awayTeamFilterOpen, setAwayTeamFilterOpen] = useState(false);
   const [awayTeamFilterDraft, setAwayTeamFilterDraft] = useState([]);
   const [awayTeamFilter, setAwayTeamFilter] = useState([]);
@@ -469,6 +470,7 @@ const Locks = () => {
     setHomeTeamFilter([]);
     setHomeTeamFullFilter([]);
     setDateFilter([]);
+    setHideStartedGames(true);
   };
 
   const handleFilterChange = (e, key) => {
@@ -496,49 +498,91 @@ const Locks = () => {
   };
 
   // Compute filteredGames for each filter popover, excluding that filter
-  const filteredGamesForLeague = games.filter(game => (
-    (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
-    (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
-    (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
-  ));
-  const filteredGamesForAwayTeam = games.filter(game => (
-    (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
-    (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
-    (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
-  ));
-  const filteredGamesForAwayTeamFull = games.filter(game => (
-    (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
-    (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
-    (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
-  ));
-  const filteredGamesForHomeTeam = games.filter(game => (
-    (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
-    (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
-    (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
-  ));
-  const filteredGamesForHomeTeamFull = games.filter(game => (
-    (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
-    (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
-    (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
-    (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-    (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
-  ));
-  const filteredGamesForDate = games.filter(game => (
-    (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
-    (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
-    (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
-    (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-    (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull))
-  ));
+  const filteredGamesForLeague = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+    );
+  });
+  const filteredGamesForAwayTeam = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+    );
+  });
+  const filteredGamesForAwayTeamFull = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+    );
+  });
+  const filteredGamesForHomeTeam = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+    );
+  });
+  const filteredGamesForHomeTeamFull = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+    );
+  });
+  const filteredGamesForDate = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull))
+    );
+  });
 
   // Unique values for each column, context-aware
   const uniqueLeagues = getUniqueValues(filteredGamesForLeague, 'league');
@@ -632,6 +676,11 @@ const Locks = () => {
 
   // Filter logic for all columns
   const filteredGames = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
     return (
       (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
       (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
@@ -641,6 +690,9 @@ const Locks = () => {
       (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
     );
   });
+
+  // Count games that have already started for the indicator
+  const startedGamesCount = games.filter(game => new Date(game.commenceTime) < new Date()).length;
 
   const sortedGames = [...filteredGames].sort((a, b) => {
     const { key, direction } = sortConfig;
@@ -760,6 +812,23 @@ const Locks = () => {
           >
             <PrinterIcon className="h-5 w-5 mr-2" />
             Print Games
+          </button>
+          <button
+            className={`px-4 py-2 rounded flex items-center gap-2 ${
+              hideStartedGames 
+                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+            }`}
+            onClick={() => setHideStartedGames(!hideStartedGames)}
+            type="button"
+            title={hideStartedGames ? "Currently hiding games that have already started" : "Currently showing all games including those that have started"}
+          >
+            {hideStartedGames ? '✓' : '○'} Hide Started Games
+            {hideStartedGames && startedGamesCount > 0 && (
+              <span className="ml-1 text-xs bg-white text-blue-600 px-1.5 py-0.5 rounded-full">
+                {startedGamesCount}
+              </span>
+            )}
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
