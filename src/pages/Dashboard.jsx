@@ -263,20 +263,29 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Compact Schedule Information - Bottom */}
+      {/* Detailed Score Update Schedule - Bottom */}
       <div className="card">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium text-gray-900">Score Update Schedule</h3>
-            <p className="text-xs text-gray-600 mt-1">
-              Mon-Fri: 8PM-12AM | Sat: 12PM-12AM | Sun: 1PM-12AM (ET)
-            </p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Score Update Schedule</h3>
+            <div className="space-y-2 text-xs text-gray-600">
+              <div>
+                <span className="font-medium text-gray-700">Weekdays (Monday-Friday):</span>
+                <p className="ml-2">Score updates run once daily at 11:59 PM ET</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Weekends:</span>
+                <p className="ml-2">Saturday: Updates every 30 minutes from 12:00 PM to 11:30 PM ET (24 updates total)</p>
+                <p className="ml-2">Sunday: Updates every 30 minutes from 1:00 PM to 11:30 PM ET (22 updates total)</p>
+              </div>
+            </div>
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 ml-4 flex-shrink-0">
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Updates every 15 min
+            <span className="block">Daily & 30-min</span>
+            <span className="block">updates</span>
           </div>
         </div>
       </div>
