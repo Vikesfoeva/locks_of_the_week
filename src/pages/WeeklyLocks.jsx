@@ -120,6 +120,7 @@ const WeeklyLocks = () => {
     if (!result) return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
     if (result === 'WIN') return 'bg-green-50';
     if (result === 'LOSS') return 'bg-red-50';
+    if (result === 'TIE') return 'bg-orange-50';
     return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
   };
 
