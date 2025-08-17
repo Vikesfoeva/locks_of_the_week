@@ -93,6 +93,8 @@ const Locks = () => {
 
   // Add confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [userMessage, setUserMessage] = useState('');
+  const [showMessageInput, setShowMessageInput] = useState(false);
 
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
@@ -376,8 +378,23 @@ const Locks = () => {
       return;
     }
 
-    // Show confirmation modal
+    // Show message input first
+    setShowMessageInput(true);
+  };
+
+  const handleMessageSubmit = () => {
+    if (!userMessage.trim()) {
+      setError('Please enter a message before submitting.');
+      return;
+    }
+    
+    setShowMessageInput(false);
     setShowConfirmModal(true);
+  };
+
+  // Convert newlines to <br> tags for HTML parsing
+  const formatMessageForBackend = (message) => {
+    return message.replace(/\n/g, '<br>');
   };
 
   const handleConfirmSubmit = async () => {
@@ -396,11 +413,15 @@ const Locks = () => {
         userId: currentUser.uid,
         collectionName: selectedCollection,
         year: activeYear,
-        picks: picksPayload
+        picks: picksPayload,
+        userMessage: formatMessageForBackend(userMessage.trim())
       });
 
       setSuccess(`Successfully submitted ${picksPayload.length} lock(s) for ${selectedCollection}!`);
       setTimeout(() => setSuccess(false), 3000);
+
+      // Clear the user message after successful submission
+      setUserMessage('');
 
       const updatedPicksForCurrentCollection = selectedPicks.map(p => {
         if (p.status === 'pending' && p.collectionName === selectedCollection && picksToSubmit.find(submittedPick => submittedPick.key === p.key)) {
@@ -1493,6 +1514,49 @@ const Locks = () => {
       {showToast && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50">
           {toastMessage}
+        </div>
+      )}
+
+      {/* Message Input Modal */}
+      {showMessageInput && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Add a Message</h3>
+            <p className="text-gray-600 mb-4">
+              Please enter a message to accompany your locks submission:
+            </p>
+            <textarea
+              value={userMessage}
+              onChange={(e) => setUserMessage(e.target.value)}
+              placeholder="Enter your message here..."
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={6}
+              maxLength={2000}
+            />
+            <div className="flex justify-between items-center mt-2 mb-4">
+              <span className="text-sm text-gray-500">
+                {userMessage.length}/2000 characters
+              </span>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowMessageInput(false);
+                  setUserMessage('');
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMessageSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={!userMessage.trim()}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

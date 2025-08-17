@@ -512,7 +512,7 @@ function getPicksCollectionName(year) {
 app.post('/api/picks', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { userId, collectionName, picks, year } = req.body;
+    const { userId, collectionName, picks, year, userMessage } = req.body;
 
     if (!userId || !collectionName || !Array.isArray(picks) || picks.length === 0 || !year) {
       return res.status(400).json({ error: 'userId, collectionName, year, and picks array are required' });
@@ -589,11 +589,12 @@ app.post('/api/picks', async (req, res) => {
       
       // Send to Google Apps Script
       const axios = require('axios');
-      await axios.post('https://script.google.com/macros/s/AKfycbwbiIhNSICO4Ogrr1UoBmjxwYMaWKI3CX5D5ty4HMADf2c8V0WXGAQi5Q5nnh_gJ38PwA/exec', {
+      await axios.post('https://script.google.com/macros/s/AKfycbyadWILArkJxn3zHzwwUjO0uTVDBSSNcLU9P6cu7griL9gEfpZj6rZ01fAic0g_7Y4z3g/exec', {
         picks: detailedPicks,
         username: username,
         email: email,
         collectionName: collectionName,
+        userMessage: userMessage || '',
         submissionTime: new Date().toISOString()
       });
       
