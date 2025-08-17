@@ -134,7 +134,19 @@ const Standings = () => {
       // Convert all values to strings for consistent handling
       return String(item[key] || '');
     });
-    return Array.from(new Set(values)).filter(Boolean).sort();
+    
+    const uniqueValues = Array.from(new Set(values)).filter(Boolean);
+    
+    // Sort numerically for win percentages (highest first), alphabetically for others
+    if (key === 'winPct') {
+      return uniqueValues.sort((a, b) => {
+        const aNum = parseFloat(a.replace('%', ''));
+        const bNum = parseFloat(b.replace('%', ''));
+        return bNum - aNum; // Reverse order: highest first
+      });
+    }
+    
+    return uniqueValues.sort();
   };
 
   const handleSort = (key) => {

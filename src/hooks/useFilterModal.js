@@ -56,7 +56,7 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
     applyFilters,
     
     // Computed
-    isFiltered: selectedItems.length > 0 && selectedItems.length < initialItems.length,
+    isFiltered: selectedItems.length > 0,
   };
 }
 
@@ -86,6 +86,9 @@ export function createFilterButtonProps(modal, items, onApply, options = {}) {
     iconClassName = "h-4 w-4",
   } = options;
 
+  // Determine if filter is active based on whether there are selected items
+  const isFilterActive = modal.selectedItems.length > 0;
+
   return {
     ref: modal.triggerRef,
     className,
@@ -93,12 +96,12 @@ export function createFilterButtonProps(modal, items, onApply, options = {}) {
       e.stopPropagation(); // Prevent event bubbling
       modal.openModal(items, modal.selectedItems);
     },
-    children: modal.isFiltered && IconComponentSolid ? 
+    children: isFilterActive && IconComponentSolid ? 
       React.createElement(IconComponentSolid, { className: `${iconClassName} text-blue-600` }) :
       IconComponent ? 
         React.createElement(IconComponent, { className: `${iconClassName} text-gray-500` }) :
         React.createElement('svg', {
-          className: `${iconClassName} ${modal.isFiltered ? 'text-blue-600' : 'text-gray-500'}`,
+          className: `${iconClassName} ${isFilterActive ? 'text-blue-600' : 'text-gray-500'}`,
           fill: 'none',
           stroke: 'currentColor',
           viewBox: '0 0 24 24'

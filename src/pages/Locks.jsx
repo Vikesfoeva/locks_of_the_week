@@ -1052,11 +1052,7 @@ const Locks = () => {
       {/* Filter Modals */}
       <FilterModal
         {...createFilterModalProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
-          if (selectedLeagues.length === uniqueLeagues.length) {
-            leagueModal.handleSelectionChange([]);
-          } else {
-            leagueModal.handleSelectionChange(selectedLeagues);
-          }
+          leagueModal.handleSelectionChange(selectedLeagues);
         }, {
           title: 'Filter League',
           placement: 'bottom-start',
@@ -1065,11 +1061,7 @@ const Locks = () => {
 
       <FilterModal
         {...createFilterModalProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
-          if (selectedAwayTeams.length === uniqueAwayTeams.length) {
-            awayTeamModal.handleSelectionChange([]);
-          } else {
-            awayTeamModal.handleSelectionChange(selectedAwayTeams);
-          }
+          awayTeamModal.handleSelectionChange(selectedAwayTeams);
         }, {
           title: 'Filter Away Team',
           placement: 'bottom-start',
@@ -1078,11 +1070,7 @@ const Locks = () => {
 
       <FilterModal
         {...createFilterModalProps(awayTeamFullModal, uniqueAwayTeamFulls, (selectedAwayTeamFulls) => {
-          if (selectedAwayTeamFulls.length === uniqueAwayTeamFulls.length) {
-            awayTeamFullModal.handleSelectionChange([]);
-          } else {
-            awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
-          }
+          awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
         }, {
           title: 'Filter Away Team Full',
           placement: 'bottom-start',
@@ -1091,11 +1079,7 @@ const Locks = () => {
 
       <FilterModal
         {...createFilterModalProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
-          if (selectedHomeTeams.length === uniqueHomeTeams.length) {
-            homeTeamModal.handleSelectionChange([]);
-          } else {
-            homeTeamModal.handleSelectionChange(selectedHomeTeams);
-          }
+          homeTeamModal.handleSelectionChange(selectedHomeTeams);
         }, {
           title: 'Filter Home Team',
           placement: 'bottom-start',
@@ -1104,11 +1088,7 @@ const Locks = () => {
 
       <FilterModal
         {...createFilterModalProps(homeTeamFullModal, uniqueHomeTeamFulls, (selectedHomeTeamFulls) => {
-          if (selectedHomeTeamFulls.length === uniqueHomeTeamFulls.length) {
-            homeTeamFullModal.handleSelectionChange([]);
-          } else {
-            homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
-          }
+          homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
         }, {
           title: 'Filter Home Team Full',
           placement: 'bottom-start',
@@ -1117,11 +1097,7 @@ const Locks = () => {
 
       <FilterModal
         {...createFilterModalProps(dateModal, uniqueDates, (selectedDates) => {
-          if (selectedDates.length === uniqueDates.length) {
-            dateModal.handleSelectionChange([]);
-          } else {
-            dateModal.handleSelectionChange(selectedDates);
-          }
+          dateModal.handleSelectionChange(selectedDates);
         }, {
           title: 'Filter Date',
           placement: 'bottom-start',
