@@ -391,6 +391,7 @@ const Locks = () => {
     try {
       const picksPayload = picksToSubmit.map(({ key, status, ...rest }) => rest);
       
+      // Submit picks to the main API (this will also handle Google Apps Script)
       await axios.post(`${API_URL}/picks`, {
         userId: currentUser.uid,
         collectionName: selectedCollection,

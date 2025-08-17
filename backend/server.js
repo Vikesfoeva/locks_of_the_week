@@ -545,6 +545,65 @@ app.post('/api/picks', async (req, res) => {
     }));
 
     await mainDb.collection(picksCollection).insertMany(picksToInsert);
+    
+    // Send data to Google Apps Script
+    try {
+      // Get user details for the Google Apps Script
+      const user = await mainDb.collection('users').findOne({ firebaseUid: userId });
+      const username = user && user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.displayName || 'Unknown User';
+      const email = user?.email || '';
+      
+      // Get detailed pick information including game details
+      const dbName = `cy_${year}`;
+      const dbClient = await client.connect();
+      const db = dbClient.db(dbName);
+      const games = await db.collection(collectionName).find({}).toArray();
+      
+      // Build a map for quick lookup
+      const gameMap = {};
+      for (const game of games) {
+        if (game._id) {
+          gameMap[game._id.toString()] = game;
+        }
+      }
+      
+      const detailedPicks = picksToInsert.map(pick => {
+        const game = pick.gameId ? gameMap[pick.gameId] : null;
+        return {
+          ...pick,
+          gameDetails: game ? {
+            league: game.league,
+            awayTeam: game.away_team_abbrev,
+            awayTeamFull: game.away_team_full,
+            homeTeam: game.home_team_abbrev,
+            homeTeamFull: game.home_team_full,
+            commenceTime: game.commence_time,
+            awaySpread: game.away_spread,
+            homeSpread: game.home_spread,
+            total: game.total
+          } : null
+        };
+      });
+      
+      // Send to Google Apps Script
+      const axios = require('axios');
+      await axios.post('https://script.google.com/macros/s/AKfycbwbiIhNSICO4Ogrr1UoBmjxwYMaWKI3CX5D5ty4HMADf2c8V0WXGAQi5Q5nnh_gJ38PwA/exec', {
+        picks: detailedPicks,
+        username: username,
+        email: email,
+        collectionName: collectionName,
+        submissionTime: new Date().toISOString()
+      });
+      
+      console.log('Successfully sent picks data to Google Apps Script');
+    } catch (googleScriptError) {
+      console.error('Failed to send data to Google Apps Script:', googleScriptError);
+      // Don't fail the entire submission if Google Apps Script fails
+      // Just log the error and continue
+    }
+    
     res.status(201).json({ message: 'Picks submitted successfully', submittedPicks: picksToInsert });
   } catch (err) {
     console.error("Error submitting picks:", err);
