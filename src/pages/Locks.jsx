@@ -40,6 +40,7 @@ const Locks = () => {
   const homeTeamModal = useFilterModal([], []);
   const homeTeamFullModal = useFilterModal([], []);
   const dateModal = useFilterModal([], []);
+  const timeModal = useFilterModal([], []);
 
   // Extract current filter values for compatibility with existing logic
   const leagueFilter = leagueModal.selectedItems;
@@ -48,6 +49,7 @@ const Locks = () => {
   const homeTeamFilter = homeTeamModal.selectedItems;
   const homeTeamFullFilter = homeTeamFullModal.selectedItems;
   const dateFilter = dateModal.selectedItems;
+  const timeFilter = timeModal.selectedItems;
 
   // New state variables for collection management
   const [collections, setCollections] = useState([]); // To store available collection names
@@ -95,6 +97,24 @@ const Locks = () => {
     });
   };
 
+  // Helper function to format just the date
+  const formatGameDateOnly = (commenceTime) => {
+    if (!commenceTime) return '';
+    return new Date(commenceTime).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // Helper function to format just the time
+  const formatGameTimeOnly = (commenceTime) => {
+    if (!commenceTime) return '';
+    return new Date(commenceTime).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
 
 
   useEffect(() => {
@@ -377,7 +397,7 @@ const Locks = () => {
     printWindow.document.write(`<h1>${weekString}</h1>`);
 
     printWindow.document.write('<table>');
-    printWindow.document.write('<thead><tr><th>Sport</th><th>Away</th><th>Away Team</th><th>Home</th><th>Home Team</th><th>Date & Time</th><th>Spread</th><th>Total</th></tr></thead>');
+    printWindow.document.write('<thead><tr><th>Sport</th><th>Away</th><th>Away Team</th><th>Home</th><th>Home Team</th><th>Date</th><th>Time</th><th>Spread</th><th>Total</th></tr></thead>');
     printWindow.document.write('<tbody>');
 
     sortedGames.forEach(game => {
@@ -392,7 +412,8 @@ const Locks = () => {
         <td>${game.awayTeamFull}</td>
         <td>${game.homeTeam}</td>
         <td>${game.homeTeamFull}</td>
-        <td>${formatGameDate(game.commenceTime)}</td>
+        <td>${formatGameDateOnly(game.commenceTime)}</td>
+        <td>${formatGameTimeOnly(game.commenceTime)}</td>
         <td>${awaySpread}<br/>${homeSpread}</td>
         <td>${overTotal}<br/>${underTotal}</td>
       </tr>`);
@@ -412,6 +433,7 @@ const Locks = () => {
     homeTeamModal.handleSelectionChange([]);
     homeTeamFullModal.handleSelectionChange([]);
     dateModal.handleSelectionChange([]);
+    timeModal.handleSelectionChange([]);
     setHideStartedGames(true);
   };
 
@@ -429,10 +451,16 @@ const Locks = () => {
   };
 
   // Helper to get unique values for a column from a given array
-  const getUniqueValues = (arr, key, isDate = false) => {
-    const values = arr.map(game => {
+  const getUniqueValues = (arr, key, isDate = false, isTime = false) => {
+    // Filter out games that have already started if hideStartedGames is true
+    const filteredArr = hideStartedGames ? arr.filter(game => new Date(game.commenceTime) >= new Date()) : arr;
+    
+    const values = filteredArr.map(game => {
       if (isDate) {
-        return formatGameDate(game.commenceTime);
+        return formatGameDateOnly(game.commenceTime);
+      }
+      if (isTime) {
+        return formatGameTimeOnly(game.commenceTime);
       }
       return game[key] || '';
     });
@@ -451,7 +479,8 @@ const Locks = () => {
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
   const filteredGamesForAwayTeam = games.filter(game => {
@@ -465,7 +494,8 @@ const Locks = () => {
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
   const filteredGamesForAwayTeamFull = games.filter(game => {
@@ -479,7 +509,8 @@ const Locks = () => {
       (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
   const filteredGamesForHomeTeam = games.filter(game => {
@@ -493,7 +524,8 @@ const Locks = () => {
       (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
   const filteredGamesForHomeTeamFull = games.filter(game => {
@@ -508,7 +540,8 @@ const Locks = () => {
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
   const filteredGamesForDate = games.filter(game => {
@@ -522,17 +555,35 @@ const Locks = () => {
       (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
-      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull))
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
 
-  // Unique values for each column, context-aware
-  const uniqueLeagues = getUniqueValues(filteredGamesForLeague, 'league');
-  const uniqueAwayTeams = getUniqueValues(filteredGamesForAwayTeam, 'awayTeam');
-  const uniqueAwayTeamFulls = getUniqueValues(filteredGamesForAwayTeamFull, 'awayTeamFull');
-  const uniqueHomeTeams = getUniqueValues(filteredGamesForHomeTeam, 'homeTeam');
-  const uniqueHomeTeamFulls = getUniqueValues(filteredGamesForHomeTeamFull, 'homeTeamFull');
-  const uniqueDates = getUniqueValues(filteredGamesForDate, 'commenceTime', true);
+  const filteredGamesForTime = games.filter(game => {
+    // Filter out games that have already started if hideStartedGames is true
+    if (hideStartedGames && new Date(game.commenceTime) < new Date()) {
+      return false;
+    }
+    
+    return (
+      (leagueFilter.length === 0 || leagueFilter.includes(game.league)) &&
+      (awayTeamFilter.length === 0 || awayTeamFilter.includes(game.awayTeam)) &&
+      (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
+      (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
+      (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime)))
+    );
+  });
+
+  // Unique values for each column - always calculate from full dataset to avoid disappearing options
+  const uniqueLeagues = getUniqueValues(games, 'league');
+  const uniqueAwayTeams = getUniqueValues(games, 'awayTeam');
+  const uniqueAwayTeamFulls = getUniqueValues(games, 'awayTeamFull');
+  const uniqueHomeTeams = getUniqueValues(games, 'homeTeam');
+  const uniqueHomeTeamFulls = getUniqueValues(games, 'homeTeamFull');
+  const uniqueDates = getUniqueValues(games, 'commenceTime', true);
+  const uniqueTimes = getUniqueValues(games, 'commenceTime', false, true);
 
 
 
@@ -551,7 +602,8 @@ const Locks = () => {
       (awayTeamFullFilter.length === 0 || awayTeamFullFilter.includes(game.awayTeamFull)) &&
       (homeTeamFilter.length === 0 || homeTeamFilter.includes(game.homeTeam)) &&
       (homeTeamFullFilter.length === 0 || homeTeamFullFilter.includes(game.homeTeamFull)) &&
-      (dateFilter.length === 0 || dateFilter.includes(formatGameDate(game.commenceTime)))
+      (dateFilter.length === 0 || dateFilter.includes(formatGameDateOnly(game.commenceTime))) &&
+      (timeFilter.length === 0 || timeFilter.includes(formatGameTimeOnly(game.commenceTime)))
     );
   });
 
@@ -563,7 +615,7 @@ const Locks = () => {
     if (!key) return 0;
     let aValue = a[key];
     let bValue = b[key];
-    if (key === 'commenceTime') {
+    if (key === 'commenceTime' || key === 'date' || key === 'time') {
       aValue = new Date(aValue);
       bValue = new Date(bValue);
     } else {
@@ -584,6 +636,7 @@ const Locks = () => {
   const isHomeTeamFiltered = homeTeamModal.isFiltered;
   const isHomeTeamFullFiltered = homeTeamFullModal.isFiltered;
   const isDateFiltered = dateModal.isFiltered;
+  const isTimeFiltered = timeModal.isFiltered;
 
   // Now we can safely use early returns after all hooks and helper functions
   if (loading) return <div>Loading games...</div>;
@@ -747,11 +800,9 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
-                      if (selectedLeagues.length === uniqueLeagues.length) {
-                        leagueModal.handleSelectionChange([]);
-                      } else {
-                        leagueModal.handleSelectionChange(selectedLeagues);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      leagueModal.handleSelectionChange(selectedLeagues);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -774,11 +825,9 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
-                      if (selectedAwayTeams.length === uniqueAwayTeams.length) {
-                        awayTeamModal.handleSelectionChange([]);
-                      } else {
-                        awayTeamModal.handleSelectionChange(selectedAwayTeams);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      awayTeamModal.handleSelectionChange(selectedAwayTeams);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -801,11 +850,9 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(awayTeamFullModal, uniqueAwayTeamFulls, (selectedAwayTeamFulls) => {
-                      if (selectedAwayTeamFulls.length === uniqueAwayTeamFulls.length) {
-                        awayTeamFullModal.handleSelectionChange([]);
-                      } else {
-                        awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -828,11 +875,9 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
-                      if (selectedHomeTeams.length === uniqueHomeTeams.length) {
-                        homeTeamModal.handleSelectionChange([]);
-                      } else {
-                        homeTeamModal.handleSelectionChange(selectedHomeTeams);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      homeTeamModal.handleSelectionChange(selectedHomeTeams);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -855,11 +900,9 @@ const Locks = () => {
                   </div>
                   <button
                     {...createFilterButtonProps(homeTeamFullModal, uniqueHomeTeamFulls, (selectedHomeTeamFulls) => {
-                      if (selectedHomeTeamFulls.length === uniqueHomeTeamFulls.length) {
-                        homeTeamFullModal.handleSelectionChange([]);
-                      } else {
-                        homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -869,24 +912,47 @@ const Locks = () => {
               </th>
               <th className="px-2 py-2">
                 <div className="flex items-center gap-1">
-                  <span>Date & Time</span>
+                  <span>Date</span>
                   <div className="flex flex-col ml-1">
                     <ChevronUpIcon
-                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'commenceTime' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
-                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'commenceTime', direction: 'asc' }); }}
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'date', direction: 'asc' }); }}
                     />
                     <ChevronDownIcon
-                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'commenceTime' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
-                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'commenceTime', direction: 'desc' }); }}
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'date', direction: 'desc' }); }}
                     />
                   </div>
                   <button
                     {...createFilterButtonProps(dateModal, uniqueDates, (selectedDates) => {
-                      if (selectedDates.length === uniqueDates.length) {
-                        dateModal.handleSelectionChange([]);
-                      } else {
-                        dateModal.handleSelectionChange(selectedDates);
-                      }
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      dateModal.handleSelectionChange(selectedDates);
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
+                </div>
+              </th>
+              <th className="px-2 py-2">
+                <div className="flex items-center gap-1">
+                  <span>Time</span>
+                  <div className="flex flex-col ml-1">
+                    <ChevronUpIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'time', direction: 'asc' }); }}
+                    />
+                    <ChevronDownIcon
+                      className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                      onClick={e => { e.stopPropagation(); setSortConfig({ key: 'time', direction: 'desc' }); }}
+                    />
+                  </div>
+                  <button
+                    {...createFilterButtonProps(timeModal, uniqueTimes, (selectedTimes) => {
+                      // If all items are selected, it means no filtering (show all)
+                      // If some items are selected, apply the filter
+                      timeModal.handleSelectionChange(selectedTimes);
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
@@ -923,7 +989,8 @@ const Locks = () => {
                   <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
                   <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
                   <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game.commenceTime)}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDateOnly(game.commenceTime)}</td>
+                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTimeOnly(game.commenceTime)}</td>
                   <td className="px-2 py-2 border-r border-gray-300">
                     <div className="flex flex-col gap-1">
                       <label>
@@ -1100,6 +1167,15 @@ const Locks = () => {
           dateModal.handleSelectionChange(selectedDates);
         }, {
           title: 'Filter Date',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(timeModal, uniqueTimes, (selectedTimes) => {
+          timeModal.handleSelectionChange(selectedTimes);
+        }, {
+          title: 'Filter Time',
           placement: 'bottom-start',
         })}
       />
