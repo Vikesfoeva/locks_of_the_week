@@ -802,7 +802,7 @@ app.get('/api/standings', async (req, res) => {
         return {
           _id: user._id.toString(), name: `${user.firstName} ${user.lastName}`,
           rank: '-', wins: 0, losses: 0, ties: 0, weekWins: 0, weekLosses: 0, weekTies: 0, rankChange: '0',
-          payout: 0
+          payout: 0, gamesBack: '-'
         };
       }
       
@@ -815,7 +815,8 @@ app.get('/api/standings', async (req, res) => {
         wins: stats.total.wins, losses: stats.total.losses, ties: stats.total.ties,
         weekWins: stats.currentWeek.wins, weekLosses: stats.currentWeek.losses, weekTies: stats.currentWeek.ties,
         rankChange: rankChange > 0 ? `+${rankChange}` : `${rankChange}`,
-        payout: 0 // Will be calculated after sorting
+        payout: 0, // Will be calculated after sorting
+        gamesBack: 0 // Will be calculated after sorting
       };
     });
     
@@ -825,14 +826,34 @@ app.get('/api/standings', async (req, res) => {
         return a.rank - b.rank;
     });
 
-    // 9. Calculate payouts based on final rankings
+    // 9. Calculate payouts and games back based on final rankings
     const totalUsers = combinedStandings.filter(user => user.rank !== '-').length;
+    const leader = combinedStandings.find(user => user.rank === 1);
+    
     combinedStandings.forEach((user, index) => {
       if (user.rank === '-') {
         user.payout = 0;
+        user.gamesBack = '-';
         return;
       }
       
+      // Calculate games back from leader
+      if (leader && user.rank > 1) {
+        const leaderWins = leader.wins;
+        const leaderLosses = leader.losses;
+        const userWins = user.wins;
+        const userLosses = user.losses;
+        
+        // Games back = leader wins - user wins (showing full games back)
+        const gamesBack = leaderWins - userWins;
+        user.gamesBack = gamesBack > 0 ? gamesBack.toFixed(1) : '0.0';
+      } else if (leader && user.rank === 1) {
+        user.gamesBack = '0.0'; // Leader
+      } else {
+        user.gamesBack = '-'; // No leader or invalid data
+      }
+      
+      // Calculate payouts
       const rank = user.rank;
       if (rank === 1) {
         user.payout = payouts.first || 0;

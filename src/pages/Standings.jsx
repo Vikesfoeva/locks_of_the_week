@@ -180,8 +180,6 @@ const Standings = () => {
   const isUserNameFiltered = userNameFilter.length > 0 && userNameFilter.length < uniqueUserNames.length;
   const isRankFiltered = rankFilter.length > 0 && rankFilter.length < uniqueRanks.length;
   const isWinPctFiltered = winPctFilter.length > 0 && winPctFilter.length < uniqueWinPcts.length;
-  
-  const firstPlaceWins = standings.length > 0 ? standings[0].wins : 0;
 
   if (loading) return <div className="text-center p-8">Loading standings...</div>;
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
@@ -500,7 +498,6 @@ const Standings = () => {
               const winPct = getWinPct(user);
               const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
               const totalLocks = user.wins + user.losses + user.ties;
-              const wb = firstPlaceWins - user.wins;
               return (
                 <tr key={user._id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-3 py-2 font-semibold border-r border-gray-300">{user.rank}</td>
@@ -509,7 +506,7 @@ const Standings = () => {
                   <td className="px-3 py-2 border-r border-gray-300">{weekRecord}</td>
                   <td className="px-3 py-2 border-r border-gray-300">{totalLocks}</td>
                   <td className="px-3 py-2 border-r border-gray-300">{winPct}</td>
-                  <td className="px-3 py-2 border-r border-gray-300">{wb === 0 ? '-' : wb}</td>
+                  <td className="px-3 py-2 border-r border-gray-300">{user.gamesBack === '0.0' ? '-' : user.gamesBack}</td>
                   <td className="px-3 py-2 border-r border-gray-300">
                     <span className={`font-semibold ${
                       user.payout > 0 ? 'text-green-600' : 'text-gray-500'
