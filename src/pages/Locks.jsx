@@ -8,6 +8,8 @@ import { LockOpenIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
 import { API_URL } from '../config';
 import ConfirmModal from '../components/ConfirmModal';
+import FilterModal from '../components/FilterModal';
+import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 
 const CURRENT_WEEK = 1; // TODO: Replace with dynamic week logic
 
@@ -31,55 +33,21 @@ const Locks = () => {
   });
   const [sortConfig, setSortConfig] = useState({ key: 'commenceTime', direction: 'asc' });
   const [hideStartedGames, setHideStartedGames] = useState(true);
-  const [awayTeamFilterOpen, setAwayTeamFilterOpen] = useState(false);
-  const [awayTeamFilterDraft, setAwayTeamFilterDraft] = useState([]);
-  const [awayTeamFilter, setAwayTeamFilter] = useState([]);
-  const [awayTeamSearch, setAwayTeamSearch] = useState('');
-  const funnelBtnRef = useRef(null);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+  // Initialize filter modals using the new hook system
+  const leagueModal = useFilterModal([], []);
+  const awayTeamModal = useFilterModal([], []);
+  const awayTeamFullModal = useFilterModal([], []);
+  const homeTeamModal = useFilterModal([], []);
+  const homeTeamFullModal = useFilterModal([], []);
+  const dateModal = useFilterModal([], []);
 
-  // State for all popover filters
-  const [leagueFilterDraft, setLeagueFilterDraft] = useState([]);
-  const [leagueFilter, setLeagueFilter] = useState([]);
-  const [leagueSearch, setLeagueSearch] = useState('');
-  const leagueBtnRef = useRef(null);
-  const [leaguePopoverPosition, setLeaguePopoverPosition] = useState({ top: 0, left: 0 });
-  const leaguePopoverOpenRef = useRef(false);
-
-  const [awayTeamFullFilterOpen, setAwayTeamFullFilterOpen] = useState(false);
-  const [awayTeamFullFilterDraft, setAwayTeamFullFilterDraft] = useState([]);
-  const [awayTeamFullFilter, setAwayTeamFullFilter] = useState([]);
-  const [awayTeamFullSearch, setAwayTeamFullSearch] = useState('');
-  const awayTeamFullBtnRef = useRef(null);
-  const [awayTeamFullPopoverPosition, setAwayTeamFullPopoverPosition] = useState({ top: 0, left: 0 });
-
-  const [homeTeamFilterOpen, setHomeTeamFilterOpen] = useState(false);
-  const [homeTeamFilterDraft, setHomeTeamFilterDraft] = useState([]);
-  const [homeTeamFilter, setHomeTeamFilter] = useState([]);
-  const [homeTeamSearch, setHomeTeamSearch] = useState('');
-  const homeTeamBtnRef = useRef(null);
-  const [homeTeamPopoverPosition, setHomeTeamPopoverPosition] = useState({ top: 0, left: 0 });
-
-  const [homeTeamFullFilterOpen, setHomeTeamFullFilterOpen] = useState(false);
-  const [homeTeamFullFilterDraft, setHomeTeamFullFilterDraft] = useState([]);
-  const [homeTeamFullFilter, setHomeTeamFullFilter] = useState([]);
-  const [homeTeamFullSearch, setHomeTeamFullSearch] = useState('');
-  const homeTeamFullBtnRef = useRef(null);
-  const [homeTeamFullPopoverPosition, setHomeTeamFullPopoverPosition] = useState({ top: 0, left: 0 });
-
-  const [dateFilterOpen, setDateFilterOpen] = useState(false);
-  const [dateFilterDraft, setDateFilterDraft] = useState([]);
-  const [dateFilter, setDateFilter] = useState([]);
-  const [dateSearch, setDateSearch] = useState('');
-  const dateBtnRef = useRef(null);
-  const [datePopoverPosition, setDatePopoverPosition] = useState({ top: 0, left: 0 });
-
-  // Add refs for all popovers
-  const awayTeamPopoverOpenRef = useRef(false);
-  const awayTeamFullPopoverOpenRef = useRef(false);
-  const homeTeamPopoverOpenRef = useRef(false);
-  const homeTeamFullPopoverOpenRef = useRef(false);
-  const datePopoverOpenRef = useRef(false);
+  // Extract current filter values for compatibility with existing logic
+  const leagueFilter = leagueModal.selectedItems;
+  const awayTeamFilter = awayTeamModal.selectedItems;
+  const awayTeamFullFilter = awayTeamFullModal.selectedItems;
+  const homeTeamFilter = homeTeamModal.selectedItems;
+  const homeTeamFullFilter = homeTeamFullModal.selectedItems;
+  const dateFilter = dateModal.selectedItems;
 
   // New state variables for collection management
   const [collections, setCollections] = useState([]); // To store available collection names
@@ -127,56 +95,7 @@ const Locks = () => {
     });
   };
 
-  // Add useEffect hooks for all popovers
-  useEffect(() => {
-    if (awayTeamPopoverOpenRef.current && funnelBtnRef.current) {
-      const rect = funnelBtnRef.current.getBoundingClientRect();
-      setPopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [awayTeamPopoverOpenRef.current]);
 
-  useEffect(() => {
-    if (awayTeamFullPopoverOpenRef.current && awayTeamFullBtnRef.current) {
-      const rect = awayTeamFullBtnRef.current.getBoundingClientRect();
-      setAwayTeamFullPopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [awayTeamFullPopoverOpenRef.current]);
-
-  useEffect(() => {
-    if (homeTeamPopoverOpenRef.current && homeTeamBtnRef.current) {
-      const rect = homeTeamBtnRef.current.getBoundingClientRect();
-      setHomeTeamPopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [homeTeamPopoverOpenRef.current]);
-
-  useEffect(() => {
-    if (homeTeamFullPopoverOpenRef.current && homeTeamFullBtnRef.current) {
-      const rect = homeTeamFullBtnRef.current.getBoundingClientRect();
-      setHomeTeamFullPopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [homeTeamFullPopoverOpenRef.current]);
-
-  useEffect(() => {
-    if (datePopoverOpenRef.current && dateBtnRef.current) {
-      const rect = dateBtnRef.current.getBoundingClientRect();
-      setDatePopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [datePopoverOpenRef.current]);
 
   useEffect(() => {
     const fetchGamesAndUserPicks = async () => {
@@ -486,12 +405,13 @@ const Locks = () => {
   };
 
   const handleResetFilters = () => {
-    setLeagueFilter([]);
-    setAwayTeamFilter([]);
-    setAwayTeamFullFilter([]);
-    setHomeTeamFilter([]);
-    setHomeTeamFullFilter([]);
-    setDateFilter([]);
+    // Reset all modal system filters
+    leagueModal.handleSelectionChange([]);
+    awayTeamModal.handleSelectionChange([]);
+    awayTeamFullModal.handleSelectionChange([]);
+    homeTeamModal.handleSelectionChange([]);
+    homeTeamFullModal.handleSelectionChange([]);
+    dateModal.handleSelectionChange([]);
     setHideStartedGames(true);
   };
 
@@ -614,87 +534,9 @@ const Locks = () => {
   const uniqueHomeTeamFulls = getUniqueValues(filteredGamesForHomeTeamFull, 'homeTeamFull');
   const uniqueDates = getUniqueValues(filteredGamesForDate, 'commenceTime', true);
 
-  // Filtered values for search
-  const filteredLeagues = uniqueLeagues.filter(val => val.toLowerCase().includes(leagueSearch.toLowerCase()));
-  const filteredAwayTeams = uniqueAwayTeams.filter(val => val.toLowerCase().includes(awayTeamSearch.toLowerCase()));
-  const filteredAwayTeamFulls = uniqueAwayTeamFulls.filter(val => val.toLowerCase().includes(awayTeamFullSearch.toLowerCase()));
-  const filteredHomeTeams = uniqueHomeTeams.filter(val => val.toLowerCase().includes(homeTeamSearch.toLowerCase()));
-  const filteredHomeTeamFulls = uniqueHomeTeamFulls.filter(val => val.toLowerCase().includes(homeTeamFullSearch.toLowerCase()));
-  const filteredDates = uniqueDates.filter(val => val.toLowerCase().includes(dateSearch.toLowerCase()));
 
-  // Open popover handlers for each column
-  const openLeaguePopover = () => {
-    setLeagueFilterDraft(leagueFilter.length ? leagueFilter : [...uniqueLeagues]);
-    setTimeout(() => {
-      if (leagueBtnRef.current) {
-        const rect = leagueBtnRef.current.getBoundingClientRect();
-        setLeaguePopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
-  const openAwayTeamPopover = () => {
-    setAwayTeamFilterDraft(awayTeamFilter.length ? awayTeamFilter : [...uniqueAwayTeams]);
-    setTimeout(() => {
-      if (funnelBtnRef.current) {
-        const rect = funnelBtnRef.current.getBoundingClientRect();
-        setPopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
-  const openAwayTeamFullPopover = () => {
-    setAwayTeamFullFilterDraft(awayTeamFullFilter.length ? awayTeamFullFilter : [...uniqueAwayTeamFulls]);
-    setTimeout(() => {
-      if (awayTeamFullBtnRef.current) {
-        const rect = awayTeamFullBtnRef.current.getBoundingClientRect();
-        setAwayTeamFullPopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
-  const openHomeTeamPopover = () => {
-    setHomeTeamFilterDraft(homeTeamFilter.length ? homeTeamFilter : [...uniqueHomeTeams]);
-    setTimeout(() => {
-      if (homeTeamBtnRef.current) {
-        const rect = homeTeamBtnRef.current.getBoundingClientRect();
-        setHomeTeamPopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
-  const openHomeTeamFullPopover = () => {
-    setHomeTeamFullFilterDraft(homeTeamFullFilter.length ? homeTeamFullFilter : [...uniqueHomeTeamFulls]);
-    setTimeout(() => {
-      if (homeTeamFullBtnRef.current) {
-        const rect = homeTeamFullBtnRef.current.getBoundingClientRect();
-        setHomeTeamFullPopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
-  const openDatePopover = () => {
-    setDateFilterDraft(dateFilter.length ? dateFilter : [...uniqueDates]);
-    setTimeout(() => {
-      if (dateBtnRef.current) {
-        const rect = dateBtnRef.current.getBoundingClientRect();
-        setDatePopoverPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-        });
-      }
-    }, 0);
-  };
+
+
 
   // Filter logic for all columns
   const filteredGames = games.filter(game => {
@@ -733,24 +575,15 @@ const Locks = () => {
     return 0;
   });
 
-  // Add useEffect hooks at the top level for each popover
-  useEffect(() => {
-    if (leaguePopoverOpenRef.current && leagueBtnRef.current) {
-      const rect = leagueBtnRef.current.getBoundingClientRect();
-      setLeaguePopoverPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
-    }
-  }, [leaguePopoverOpenRef.current]);
+
 
   // For each filter column, determine if it is actually filtered (not empty and not all options)
-  const isLeagueFiltered = leagueFilter.length > 0 && leagueFilter.length < uniqueLeagues.length;
-  const isAwayTeamFiltered = awayTeamFilter.length > 0 && awayTeamFilter.length < uniqueAwayTeams.length;
-  const isAwayTeamFullFiltered = awayTeamFullFilter.length > 0 && awayTeamFullFilter.length < uniqueAwayTeamFulls.length;
-  const isHomeTeamFiltered = homeTeamFilter.length > 0 && homeTeamFilter.length < uniqueHomeTeams.length;
-  const isHomeTeamFullFiltered = homeTeamFullFilter.length > 0 && homeTeamFullFilter.length < uniqueHomeTeamFulls.length;
-  const isDateFiltered = dateFilter.length > 0 && dateFilter.length < uniqueDates.length;
+  const isLeagueFiltered = leagueModal.isFiltered;
+  const isAwayTeamFiltered = awayTeamModal.isFiltered;
+  const isAwayTeamFullFiltered = awayTeamFullModal.isFiltered;
+  const isHomeTeamFiltered = homeTeamModal.isFiltered;
+  const isHomeTeamFullFiltered = homeTeamFullModal.isFiltered;
+  const isDateFiltered = dateModal.isFiltered;
 
   // Now we can safely use early returns after all hooks and helper functions
   if (loading) return <div>Loading games...</div>;
@@ -912,77 +745,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'league', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      leaguePopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={leagueBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setLeagueFilterDraft(leagueFilter.length ? leagueFilter : [...uniqueLeagues]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setLeaguePopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isLeagueFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: leaguePopoverPosition.top, left: leaguePopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter League</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setLeagueFilterDraft([...uniqueLeagues])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setLeagueFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={leagueSearch}
-                                  onChange={e => setLeagueSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredLeagues.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={leagueFilterDraft.includes(val)}
-                                        onChange={() => setLeagueFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setLeagueFilterDraft(leagueFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setLeagueFilter(leagueFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
+                      if (selectedLeagues.length === uniqueLeagues.length) {
+                        leagueModal.handleSelectionChange([]);
+                      } else {
+                        leagueModal.handleSelectionChange(selectedLeagues);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2 border-r border-gray-300">
@@ -998,77 +772,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'awayTeam', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      awayTeamPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={funnelBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setAwayTeamFilterDraft(awayTeamFilter.length ? awayTeamFilter : [...uniqueAwayTeams]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isAwayTeamFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: popoverPosition.top, left: popoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Away Team</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setAwayTeamFilterDraft([...uniqueAwayTeams])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setAwayTeamFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={awayTeamSearch}
-                                  onChange={e => setAwayTeamSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredAwayTeams.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={awayTeamFilterDraft.includes(val)}
-                                        onChange={() => setAwayTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setAwayTeamFilterDraft(awayTeamFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setAwayTeamFilter(awayTeamFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
+                      if (selectedAwayTeams.length === uniqueAwayTeams.length) {
+                        awayTeamModal.handleSelectionChange([]);
+                      } else {
+                        awayTeamModal.handleSelectionChange(selectedAwayTeams);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">
@@ -1084,77 +799,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'awayTeamFull', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      awayTeamFullPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={awayTeamFullBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setAwayTeamFullFilterDraft(awayTeamFullFilter.length ? awayTeamFullFilter : [...uniqueAwayTeamFulls]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setAwayTeamFullPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isAwayTeamFullFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: awayTeamFullPopoverPosition.top, left: awayTeamFullPopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Away Team</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setAwayTeamFullFilterDraft([...uniqueAwayTeamFulls])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setAwayTeamFullFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={awayTeamFullSearch}
-                                  onChange={e => setAwayTeamFullSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredAwayTeamFulls.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={awayTeamFullFilterDraft.includes(val)}
-                                        onChange={() => setAwayTeamFullFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setAwayTeamFullFilterDraft(awayTeamFullFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setAwayTeamFullFilter(awayTeamFullFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(awayTeamFullModal, uniqueAwayTeamFulls, (selectedAwayTeamFulls) => {
+                      if (selectedAwayTeamFulls.length === uniqueAwayTeamFulls.length) {
+                        awayTeamFullModal.handleSelectionChange([]);
+                      } else {
+                        awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2 border-r border-gray-300">
@@ -1170,77 +826,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'homeTeam', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      homeTeamPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={homeTeamBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setHomeTeamFilterDraft(homeTeamFilter.length ? homeTeamFilter : [...uniqueHomeTeams]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHomeTeamPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isHomeTeamFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: homeTeamPopoverPosition.top, left: homeTeamPopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Home Team</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setHomeTeamFilterDraft([...uniqueHomeTeams])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setHomeTeamFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={homeTeamSearch}
-                                  onChange={e => setHomeTeamSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredHomeTeams.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={homeTeamFilterDraft.includes(val)}
-                                        onChange={() => setHomeTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setHomeTeamFilterDraft(homeTeamFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setHomeTeamFilter(homeTeamFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
+                      if (selectedHomeTeams.length === uniqueHomeTeams.length) {
+                        homeTeamModal.handleSelectionChange([]);
+                      } else {
+                        homeTeamModal.handleSelectionChange(selectedHomeTeams);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">
@@ -1256,77 +853,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'homeTeamFull', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      homeTeamFullPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={homeTeamFullBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setHomeTeamFullFilterDraft(homeTeamFullFilter.length ? homeTeamFullFilter : [...uniqueHomeTeamFulls]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHomeTeamFullPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isHomeTeamFullFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: homeTeamFullPopoverPosition.top, left: homeTeamFullPopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Home Team</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setHomeTeamFullFilterDraft([...uniqueHomeTeamFulls])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setHomeTeamFullFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={homeTeamFullSearch}
-                                  onChange={e => setHomeTeamFullSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredHomeTeamFulls.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={homeTeamFullFilterDraft.includes(val)}
-                                        onChange={() => setHomeTeamFullFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setHomeTeamFullFilterDraft(homeTeamFullFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setHomeTeamFullFilter(homeTeamFullFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(homeTeamFullModal, uniqueHomeTeamFulls, (selectedHomeTeamFulls) => {
+                      if (selectedHomeTeamFulls.length === uniqueHomeTeamFulls.length) {
+                        homeTeamFullModal.handleSelectionChange([]);
+                      } else {
+                        homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2">
@@ -1342,77 +880,18 @@ const Locks = () => {
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'commenceTime', direction: 'desc' }); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      datePopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={dateBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setDateFilterDraft(dateFilter.length ? dateFilter : [...uniqueDates]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setDatePopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isDateFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: datePopoverPosition.top, left: datePopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Date</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setDateFilterDraft([...uniqueDates])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setDateFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={dateSearch}
-                                  onChange={e => setDateSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredDates.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={dateFilterDraft.includes(val)}
-                                        onChange={() => setDateFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setDateFilterDraft(dateFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setDateFilter(dateFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(dateModal, uniqueDates, (selectedDates) => {
+                      if (selectedDates.length === uniqueDates.length) {
+                        dateModal.handleSelectionChange([]);
+                      } else {
+                        dateModal.handleSelectionChange(selectedDates);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-2 py-2 border-r border-gray-300">Spread</th>
@@ -1568,6 +1047,85 @@ const Locks = () => {
         message={`Are you sure you want to submit ${selectedPicks.filter(p => p.status === 'pending' && p.collectionName === selectedCollection).length} lock(s) for this week? This action cannot be undone.`}
         confirmText="Submit Locks"
         cancelText="Cancel"
+      />
+
+      {/* Filter Modals */}
+      <FilterModal
+        {...createFilterModalProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
+          if (selectedLeagues.length === uniqueLeagues.length) {
+            leagueModal.handleSelectionChange([]);
+          } else {
+            leagueModal.handleSelectionChange(selectedLeagues);
+          }
+        }, {
+          title: 'Filter League',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
+          if (selectedAwayTeams.length === uniqueAwayTeams.length) {
+            awayTeamModal.handleSelectionChange([]);
+          } else {
+            awayTeamModal.handleSelectionChange(selectedAwayTeams);
+          }
+        }, {
+          title: 'Filter Away Team',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(awayTeamFullModal, uniqueAwayTeamFulls, (selectedAwayTeamFulls) => {
+          if (selectedAwayTeamFulls.length === uniqueAwayTeamFulls.length) {
+            awayTeamFullModal.handleSelectionChange([]);
+          } else {
+            awayTeamFullModal.handleSelectionChange(selectedAwayTeamFulls);
+          }
+        }, {
+          title: 'Filter Away Team Full',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
+          if (selectedHomeTeams.length === uniqueHomeTeams.length) {
+            homeTeamModal.handleSelectionChange([]);
+          } else {
+            homeTeamModal.handleSelectionChange(selectedHomeTeams);
+          }
+        }, {
+          title: 'Filter Home Team',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(homeTeamFullModal, uniqueHomeTeamFulls, (selectedHomeTeamFulls) => {
+          if (selectedHomeTeamFulls.length === uniqueHomeTeamFulls.length) {
+            homeTeamFullModal.handleSelectionChange([]);
+          } else {
+            homeTeamFullModal.handleSelectionChange(selectedHomeTeamFulls);
+          }
+        }, {
+          title: 'Filter Home Team Full',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(dateModal, uniqueDates, (selectedDates) => {
+          if (selectedDates.length === uniqueDates.length) {
+            dateModal.handleSelectionChange([]);
+          } else {
+            dateModal.handleSelectionChange(selectedDates);
+          }
+        }, {
+          title: 'Filter Date',
+          placement: 'bottom-start',
+        })}
       />
     </div>
   );

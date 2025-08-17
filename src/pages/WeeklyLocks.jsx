@@ -6,6 +6,8 @@ import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import PopularLocksModal from '../components/PopularLocksModal';
+import FilterModal from '../components/FilterModal';
+import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 import * as XLSX from 'xlsx';
 
 // Helper function to parse collection name to a Date object for sorting and display
@@ -197,62 +199,27 @@ const WeeklyLocks = () => {
   // Sorting and Filtering State
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   
-  // State for popover filters
-  const [userFilter, setUserFilter] = useState([]);
-  const [userFilterDraft, setUserFilterDraft] = useState([]);
-  const [userSearch, setUserSearch] = useState('');
-  const userBtnRef = React.useRef(null);
-  const [userPopoverPosition, setUserPopoverPosition] = useState({ top: 0, left: 0 });
-  const userPopoverOpenRef = React.useRef(false);
+  // Initialize filter modals using the new hook system
+  const userModal = useFilterModal([], []);
+  const leagueModal = useFilterModal([], []);
+  const awayTeamModal = useFilterModal([], []);
+  const homeTeamModal = useFilterModal([], []);
+  const lockModal = useFilterModal([], []);
+  const resultModal = useFilterModal([], []);
+  const dateModal = useFilterModal([], []);
+  const timeModal = useFilterModal([], []);
 
-  const [leagueFilter, setLeagueFilter] = useState([]);
-  const [leagueFilterDraft, setLeagueFilterDraft] = useState([]);
-  const [leagueSearch, setLeagueSearch] = useState('');
-  const leagueBtnRef = React.useRef(null);
-  const [leaguePopoverPosition, setLeaguePopoverPosition] = useState({ top: 0, left: 0 });
-  const leaguePopoverOpenRef = React.useRef(false);
+  // Extract current filter values for compatibility with existing logic
+  const userFilter = userModal.selectedItems;
+  const leagueFilter = leagueModal.selectedItems;
+  const awayTeamFilter = awayTeamModal.selectedItems;
+  const homeTeamFilter = homeTeamModal.selectedItems;
+  const lockFilter = lockModal.selectedItems;
+  const resultFilter = resultModal.selectedItems;
+  const dateFilter = dateModal.selectedItems;
+  const timeFilter = timeModal.selectedItems;
 
-  const [awayTeamFilter, setAwayTeamFilter] = useState([]);
-  const [awayTeamFilterDraft, setAwayTeamFilterDraft] = useState([]);
-  const [awayTeamSearch, setAwayTeamSearch] = useState('');
-  const awayTeamBtnRef = React.useRef(null);
-  const [awayTeamPopoverPosition, setAwayTeamPopoverPosition] = useState({ top: 0, left: 0 });
-  const awayTeamPopoverOpenRef = React.useRef(false);
 
-  const [homeTeamFilter, setHomeTeamFilter] = useState([]);
-  const [homeTeamFilterDraft, setHomeTeamFilterDraft] = useState([]);
-  const [homeTeamSearch, setHomeTeamSearch] = useState('');
-  const homeTeamBtnRef = React.useRef(null);
-  const [homeTeamPopoverPosition, setHomeTeamPopoverPosition] = useState({ top: 0, left: 0 });
-  const homeTeamPopoverOpenRef = React.useRef(false);
-
-  const [lockFilter, setLockFilter] = useState([]);
-  const [lockFilterDraft, setLockFilterDraft] = useState([]);
-  const [lockSearch, setLockSearch] = useState('');
-  const lockBtnRef = React.useRef(null);
-  const [lockPopoverPosition, setLockPopoverPosition] = useState({ top: 0, left: 0 });
-  const lockPopoverOpenRef = React.useRef(false);
-
-  const [resultFilter, setResultFilter] = useState([]);
-  const [resultFilterDraft, setResultFilterDraft] = useState([]);
-  const [resultSearch, setResultSearch] = useState('');
-  const resultBtnRef = React.useRef(null);
-  const [resultPopoverPosition, setResultPopoverPosition] = useState({ top: 0, left: 0 });
-  const resultPopoverOpenRef = React.useRef(false);
-
-  const [dateFilter, setDateFilter] = useState([]);
-  const [dateFilterDraft, setDateFilterDraft] = useState([]);
-  const [dateSearch, setDateSearch] = useState('');
-  const dateBtnRef = React.useRef(null);
-  const [datePopoverPosition, setDatePopoverPosition] = useState({ top: 0, left: 0 });
-  const datePopoverOpenRef = React.useRef(false);
-
-  const [timeFilter, setTimeFilter] = useState([]);
-  const [timeFilterDraft, setTimeFilterDraft] = useState([]);
-  const [timeSearch, setTimeSearch] = useState('');
-  const timeBtnRef = React.useRef(null);
-  const [timePopoverPosition, setTimePopoverPosition] = useState({ top: 0, left: 0 });
-  const timePopoverOpenRef = React.useRef(false);
 
   const handleSort = (key) => {
     let direction = 'ascending';
@@ -263,22 +230,15 @@ const WeeklyLocks = () => {
   };
 
   const handleResetFilters = () => {
-    setUserFilter([]);
-    setLeagueFilter([]);
-    setAwayTeamFilter([]);
-    setHomeTeamFilter([]);
-    setLockFilter([]);
-    setResultFilter([]);
-    setDateFilter([]);
-    setTimeFilter([]);
-    setUserSearch('');
-    setLeagueSearch('');
-    setAwayTeamSearch('');
-    setHomeTeamSearch('');
-    setLockSearch('');
-    setResultSearch('');
-    setDateSearch('');
-    setTimeSearch('');
+    // Reset all modal system filters
+    userModal.handleSelectionChange([]);
+    leagueModal.handleSelectionChange([]);
+    awayTeamModal.handleSelectionChange([]);
+    homeTeamModal.handleSelectionChange([]);
+    lockModal.handleSelectionChange([]);
+    resultModal.handleSelectionChange([]);
+    dateModal.handleSelectionChange([]);
+    timeModal.handleSelectionChange([]);
   };
 
   const getUniqueValues = (picks, key, subKey = null) => {
@@ -288,6 +248,9 @@ const WeeklyLocks = () => {
         value = userMap[pick.userId] || pick.userId;
       } else if (key === 'lock') {
         value = pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+      } else if (key === 'result') {
+        // Special handling for result field - include '--' for games without results
+        value = pick.result || '--';
       } else if (subKey) {
         value = pick.gameDetails?.[subKey];
       } else {
@@ -390,15 +353,9 @@ const WeeklyLocks = () => {
   const uniqueDates = totalUniqueDates;
   const uniqueTimes = totalUniqueTimes;
   
-  const filteredUsers = uniqueUsers.filter(val => val.toLowerCase().includes(userSearch.toLowerCase()));
-  const filteredLeagues = uniqueLeagues.filter(val => val.toLowerCase().includes(leagueSearch.toLowerCase()));
-  const filteredAwayTeams = uniqueAwayTeams.filter(val => val.toLowerCase().includes(awayTeamSearch.toLowerCase()));
-  const filteredHomeTeams = uniqueHomeTeams.filter(val => val.toLowerCase().includes(homeTeamSearch.toLowerCase()));
-  const filteredLocks = uniqueLocks.filter(val => val.toLowerCase().includes(lockSearch.toLowerCase()));
-  const filteredResults = uniqueResults.filter(val => val.toLowerCase().includes(resultSearch.toLowerCase()));
-  const filteredDates = uniqueDates.filter(val => val.toLowerCase().includes(dateSearch.toLowerCase()));
-  const filteredTimes = uniqueTimes.filter(val => val.toLowerCase().includes(timeSearch.toLowerCase()));
 
+
+  // Filter status checks using the new modal system
   const isUserFiltered = userFilter.length > 0 && userFilter.length < totalUniqueUsers.length;
   const isLeagueFiltered = leagueFilter.length > 0 && leagueFilter.length < totalUniqueLeagues.length;
   const isAwayTeamFiltered = awayTeamFilter.length > 0 && awayTeamFilter.length < totalUniqueAwayTeams.length;
@@ -725,83 +682,19 @@ const WeeklyLocks = () => {
                           <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
                           <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
                         </div>
-                        <Popover as="span" className="relative">
-                          {({ open, close }) => {
-                            userPopoverOpenRef.current = open;
-                            return (
-                              <>
-                                <Popover.Button
-                                  ref={userBtnRef}
-                                  className="ml-1 p-1 rounded hover:bg-gray-200"
-                                  onClick={e => {
-                                    setUserFilterDraft(userFilter.length ? userFilter : [...uniqueUsers]);
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setUserPopoverPosition({
-                                      top: rect.bottom + window.scrollY + 4,
-                                      left: rect.left + window.scrollX,
-                                    });
-                                  }}
-                                >
-                                  {isUserFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                </Popover.Button>
-                                <Portal>
-                                  {open && (
-                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: userPopoverPosition.top, left: userPopoverPosition.left }}>
-                                      <div className="font-semibold mb-2">Filter Users</div>
-                                      <div className="flex items-center mb-2 gap-2 text-xs">
-                                        <button className="underline" onClick={() => setUserFilterDraft([...uniqueUsers])} type="button">Select all</button>
-                                        <span>-</span>
-                                        <button className="underline" onClick={() => setUserFilterDraft([])} type="button">Clear</button>
-                                      </div>
-                                      <input
-                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                        placeholder="Search..."
-                                        value={userSearch}
-                                        onChange={e => setUserSearch(e.target.value)}
-                                      />
-                                      <div className="max-h-40 overflow-y-auto mb-2">
-                                        {filteredUsers.map(val => (
-                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={userFilterDraft.includes(val)}
-                                              onChange={() => setUserFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                            />
-                                            <span>{val}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                      <div className="flex justify-end gap-2 mt-2">
-                                        <button
-                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                          onClick={e => { e.stopPropagation(); setUserFilterDraft(userFilter); close(); }}
-                                          type="button"
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button
-                                          className="px-3 py-1 rounded bg-green-600 text-white"
-                                          onClick={e => { 
-                                            e.stopPropagation(); 
-                                            if (userFilterDraft.length === uniqueUsers.length) {
-                                                setUserFilter([]);
-                                            } else {
-                                                setUserFilter(userFilterDraft); 
-                                            }
-                                            close(); 
-                                          }}
-                                          type="button"
-                                        >
-                                          OK
-                                        </button>
-                                      </div>
-                                    </Popover.Panel>
-                                  )}
-                                </Portal>
-                              </>
-                            );
-                          }}
-                        </Popover>
+                        <button
+                          {...createFilterButtonProps(userModal, uniqueUsers, (selectedUsers) => {
+                            // Apply the filter with special logic for "select all" case
+                            if (selectedUsers.length === uniqueUsers.length) {
+                              userModal.handleSelectionChange([]);
+                            } else {
+                              userModal.handleSelectionChange(selectedUsers);
+                            }
+                          }, {
+                            IconComponent: FunnelIconOutline,
+                            IconComponentSolid: FunnelIconSolid,
+                          })}
+                        />
                       </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -811,84 +704,18 @@ const WeeklyLocks = () => {
                           <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
                           <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
                         </div>
-                        {/* League Filter Popover */}
-                        <Popover as="span" className="relative">
-                          {({ open, close }) => {
-                            leaguePopoverOpenRef.current = open;
-                            return (
-                              <>
-                                <Popover.Button
-                                  ref={leagueBtnRef}
-                                  className="ml-1 p-1 rounded hover:bg-gray-200"
-                                  onClick={e => {
-                                    setLeagueFilterDraft(leagueFilter.length ? leagueFilter : [...uniqueLeagues]);
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setLeaguePopoverPosition({
-                                      top: rect.bottom + window.scrollY + 4,
-                                      left: rect.left + window.scrollX,
-                                    });
-                                  }}
-                                >
-                                  {isLeagueFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                </Popover.Button>
-                                <Portal>
-                                  {open && (
-                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: leaguePopoverPosition.top, left: leaguePopoverPosition.left }}>
-                                      <div className="font-semibold mb-2">Filter League</div>
-                                      <div className="flex items-center mb-2 gap-2 text-xs">
-                                        <button className="underline" onClick={() => setLeagueFilterDraft([...uniqueLeagues])} type="button">Select all</button>
-                                        <span>-</span>
-                                        <button className="underline" onClick={() => setLeagueFilterDraft([])} type="button">Clear</button>
-                                      </div>
-                                      <input
-                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                        placeholder="Search..."
-                                        value={leagueSearch}
-                                        onChange={e => setLeagueSearch(e.target.value)}
-                                      />
-                                      <div className="max-h-40 overflow-y-auto mb-2">
-                                        {filteredLeagues.map(val => (
-                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={leagueFilterDraft.includes(val)}
-                                              onChange={() => setLeagueFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                            />
-                                            <span>{val}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                      <div className="flex justify-end gap-2 mt-2">
-                                        <button
-                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                          onClick={e => { e.stopPropagation(); setLeagueFilterDraft(leagueFilter); close(); }}
-                                          type="button"
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button
-                                          className="px-3 py-1 rounded bg-green-600 text-white"
-                                          onClick={e => { 
-                                            e.stopPropagation(); 
-                                            if (leagueFilterDraft.length === uniqueLeagues.length) {
-                                                setLeagueFilter([]);
-                                            } else {
-                                                setLeagueFilter(leagueFilterDraft); 
-                                            }
-                                            close(); 
-                                          }}
-                                          type="button"
-                                        >
-                                          OK
-                                        </button>
-                                      </div>
-                                    </Popover.Panel>
-                                  )}
-                                </Portal>
-                              </>
-                            );
-                          }}
-                        </Popover>
+                        <button
+                          {...createFilterButtonProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
+                            if (selectedLeagues.length === uniqueLeagues.length) {
+                              leagueModal.handleSelectionChange([]);
+                            } else {
+                              leagueModal.handleSelectionChange(selectedLeagues);
+                            }
+                          }, {
+                            IconComponent: FunnelIconOutline,
+                            IconComponentSolid: FunnelIconSolid,
+                          })}
+                        />
                       </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -898,84 +725,18 @@ const WeeklyLocks = () => {
                             <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
                             <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
                         </div>
-                        {/* Away Team Filter Popover */}
-                        <Popover as="span" className="relative">
-                          {({ open, close }) => {
-                            awayTeamPopoverOpenRef.current = open;
-                            return (
-                              <>
-                                <Popover.Button
-                                  ref={awayTeamBtnRef}
-                                  className="ml-1 p-1 rounded hover:bg-gray-200"
-                                  onClick={e => {
-                                    setAwayTeamFilterDraft(awayTeamFilter.length ? awayTeamFilter : [...uniqueAwayTeams]);
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setAwayTeamPopoverPosition({
-                                      top: rect.bottom + window.scrollY + 4,
-                                      left: rect.left + window.scrollX,
-                                    });
-                                  }}
-                                >
-                                  {isAwayTeamFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                </Popover.Button>
-                                <Portal>
-                                  {open && (
-                                    <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: awayTeamPopoverPosition.top, left: awayTeamPopoverPosition.left }}>
-                                      <div className="font-semibold mb-2">Filter Away Team</div>
-                                      <div className="flex items-center mb-2 gap-2 text-xs">
-                                        <button className="underline" onClick={() => setAwayTeamFilterDraft([...uniqueAwayTeams])} type="button">Select all</button>
-                                        <span>-</span>
-                                        <button className="underline" onClick={() => setAwayTeamFilterDraft([])} type="button">Clear</button>
-                                      </div>
-                                      <input
-                                        className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                        placeholder="Search..."
-                                        value={awayTeamSearch}
-                                        onChange={e => setAwayTeamSearch(e.target.value)}
-                                      />
-                                      <div className="max-h-40 overflow-y-auto mb-2">
-                                        {filteredAwayTeams.map(val => (
-                                          <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={awayTeamFilterDraft.includes(val)}
-                                              onChange={() => setAwayTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                            />
-                                            <span>{val}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                      <div className="flex justify-end gap-2 mt-2">
-                                        <button
-                                          className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                          onClick={e => { e.stopPropagation(); setAwayTeamFilterDraft(awayTeamFilter); close(); }}
-                                          type="button"
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button
-                                          className="px-3 py-1 rounded bg-green-600 text-white"
-                                          onClick={e => { 
-                                            e.stopPropagation(); 
-                                            if (awayTeamFilterDraft.length === uniqueAwayTeams.length) {
-                                                setAwayTeamFilter([]);
-                                            } else {
-                                                setAwayTeamFilter(awayTeamFilterDraft); 
-                                            }
-                                            close(); 
-                                          }}
-                                          type="button"
-                                        >
-                                          OK
-                                        </button>
-                                      </div>
-                                    </Popover.Panel>
-                                  )}
-                                </Portal>
-                              </>
-                            );
-                          }}
-                        </Popover>
+                        <button
+                          {...createFilterButtonProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
+                            if (selectedAwayTeams.length === uniqueAwayTeams.length) {
+                              awayTeamModal.handleSelectionChange([]);
+                            } else {
+                              awayTeamModal.handleSelectionChange(selectedAwayTeams);
+                            }
+                          }, {
+                            IconComponent: FunnelIconOutline,
+                            IconComponentSolid: FunnelIconSolid,
+                          })}
+                        />
                       </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -985,84 +746,18 @@ const WeeklyLocks = () => {
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
                             </div>
-                            {/* Home Team Filter Popover */}
-                            <Popover as="span" className="relative">
-                              {({ open, close }) => {
-                                homeTeamPopoverOpenRef.current = open;
-                                return (
-                                  <>
-                                    <Popover.Button
-                                      ref={homeTeamBtnRef}
-                                      className="ml-1 p-1 rounded hover:bg-gray-200"
-                                      onClick={e => {
-                                        setHomeTeamFilterDraft(homeTeamFilter.length ? homeTeamFilter : [...uniqueHomeTeams]);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setHomeTeamPopoverPosition({
-                                          top: rect.bottom + window.scrollY + 4,
-                                          left: rect.left + window.scrollX,
-                                        });
-                                      }}
-                                    >
-                                      {isHomeTeamFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                    </Popover.Button>
-                                    <Portal>
-                                      {open && (
-                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: homeTeamPopoverPosition.top, left: homeTeamPopoverPosition.left }}>
-                                          <div className="font-semibold mb-2">Filter Home Team</div>
-                                          <div className="flex items-center mb-2 gap-2 text-xs">
-                                            <button className="underline" onClick={() => setHomeTeamFilterDraft([...uniqueHomeTeams])} type="button">Select all</button>
-                                            <span>-</span>
-                                            <button className="underline" onClick={() => setHomeTeamFilterDraft([])} type="button">Clear</button>
-                                          </div>
-                                          <input
-                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                            placeholder="Search..."
-                                            value={homeTeamSearch}
-                                            onChange={e => setHomeTeamSearch(e.target.value)}
-                                          />
-                                          <div className="max-h-40 overflow-y-auto mb-2">
-                                            {filteredHomeTeams.map(val => (
-                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={homeTeamFilterDraft.includes(val)}
-                                                  onChange={() => setHomeTeamFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                                />
-                                                <span>{val}</span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                          <div className="flex justify-end gap-2 mt-2">
-                                            <button
-                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                              onClick={e => { e.stopPropagation(); setHomeTeamFilterDraft(homeTeamFilter); close(); }}
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              className="px-3 py-1 rounded bg-green-600 text-white"
-                                              onClick={e => { 
-                                                e.stopPropagation(); 
-                                                if (homeTeamFilterDraft.length === uniqueHomeTeams.length) {
-                                                    setHomeTeamFilter([]);
-                                                } else {
-                                                    setHomeTeamFilter(homeTeamFilterDraft); 
-                                                }
-                                                close(); 
-                                              }}
-                                              type="button"
-                                            >
-                                              OK
-                                            </button>
-                                          </div>
-                                        </Popover.Panel>
-                                      )}
-                                    </Portal>
-                                  </>
-                                );
-                              }}
-                            </Popover>
+                            <button
+                              {...createFilterButtonProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
+                                if (selectedHomeTeams.length === uniqueHomeTeams.length) {
+                                  homeTeamModal.handleSelectionChange([]);
+                                } else {
+                                  homeTeamModal.handleSelectionChange(selectedHomeTeams);
+                                }
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
                         </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -1072,84 +767,18 @@ const WeeklyLocks = () => {
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
                             </div>
-                            {/* Lock Filter Popover */}
-                            <Popover as="span" className="relative">
-                              {({ open, close }) => {
-                                lockPopoverOpenRef.current = open;
-                                return (
-                                  <>
-                                    <Popover.Button
-                                      ref={lockBtnRef}
-                                      className="ml-1 p-1 rounded hover:bg-gray-200"
-                                      onClick={e => {
-                                        setLockFilterDraft(lockFilter.length ? lockFilter : [...uniqueLocks]);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setLockPopoverPosition({
-                                          top: rect.bottom + window.scrollY + 4,
-                                          left: rect.left + window.scrollX,
-                                        });
-                                      }}
-                                    >
-                                      {isLockFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                    </Popover.Button>
-                                    <Portal>
-                                      {open && (
-                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: lockPopoverPosition.top, left: lockPopoverPosition.left }}>
-                                          <div className="font-semibold mb-2">Filter Lock</div>
-                                          <div className="flex items-center mb-2 gap-2 text-xs">
-                                            <button className="underline" onClick={() => setLockFilterDraft([...uniqueLocks])} type="button">Select all</button>
-                                            <span>-</span>
-                                            <button className="underline" onClick={() => setLockFilterDraft([])} type="button">Clear</button>
-                                          </div>
-                                          <input
-                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                            placeholder="Search..."
-                                            value={lockSearch}
-                                            onChange={e => setLockSearch(e.target.value)}
-                                          />
-                                          <div className="max-h-40 overflow-y-auto mb-2">
-                                            {filteredLocks.map(val => (
-                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={lockFilterDraft.includes(val)}
-                                                  onChange={() => setLockFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                                />
-                                                <span>{val}</span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                          <div className="flex justify-end gap-2 mt-2">
-                                            <button
-                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                              onClick={e => { e.stopPropagation(); setLockFilterDraft(lockFilter); close(); }}
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              className="px-3 py-1 rounded bg-green-600 text-white"
-                                              onClick={e => { 
-                                                e.stopPropagation(); 
-                                                if (lockFilterDraft.length === uniqueLocks.length) {
-                                                    setLockFilter([]);
-                                                } else {
-                                                    setLockFilter(lockFilterDraft); 
-                                                }
-                                                close(); 
-                                              }}
-                                              type="button"
-                                            >
-                                              OK
-                                            </button>
-                                          </div>
-                                        </Popover.Panel>
-                                      )}
-                                    </Portal>
-                                  </>
-                                );
-                              }}
-                            </Popover>
+                            <button
+                              {...createFilterButtonProps(lockModal, uniqueLocks, (selectedLocks) => {
+                                if (selectedLocks.length === uniqueLocks.length) {
+                                  lockModal.handleSelectionChange([]);
+                                } else {
+                                  lockModal.handleSelectionChange(selectedLocks);
+                                }
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
                         </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -1159,84 +788,18 @@ const WeeklyLocks = () => {
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('date')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('date')} />
                             </div>
-                            {/* Date Filter Popover */}
-                            <Popover as="span" className="relative">
-                              {({ open, close }) => {
-                                datePopoverOpenRef.current = open;
-                                return (
-                                  <>
-                                    <Popover.Button
-                                      ref={dateBtnRef}
-                                      className="ml-1 p-1 rounded hover:bg-gray-200"
-                                      onClick={e => {
-                                        setDateFilterDraft(dateFilter.length ? dateFilter : [...uniqueDates]);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setDatePopoverPosition({
-                                          top: rect.bottom + window.scrollY + 4,
-                                          left: rect.left + window.scrollX,
-                                        });
-                                      }}
-                                    >
-                                      {isDateFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                    </Popover.Button>
-                                    <Portal>
-                                      {open && (
-                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: datePopoverPosition.top, left: datePopoverPosition.left }}>
-                                          <div className="font-semibold mb-2">Filter Date</div>
-                                          <div className="flex items-center mb-2 gap-2 text-xs">
-                                            <button className="underline" onClick={() => setDateFilterDraft([...uniqueDates])} type="button">Select all</button>
-                                            <span>-</span>
-                                            <button className="underline" onClick={() => setDateFilterDraft([])} type="button">Clear</button>
-                                          </div>
-                                          <input
-                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                            placeholder="Search..."
-                                            value={dateSearch}
-                                            onChange={e => setDateSearch(e.target.value)}
-                                          />
-                                          <div className="max-h-40 overflow-y-auto mb-2">
-                                            {filteredDates.map(val => (
-                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={dateFilterDraft.includes(val)}
-                                                  onChange={() => setDateFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                                />
-                                                <span>{val}</span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                          <div className="flex justify-end gap-2 mt-2">
-                                            <button
-                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                              onClick={e => { e.stopPropagation(); setDateFilterDraft(dateFilter); close(); }}
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              className="px-3 py-1 rounded bg-green-600 text-white"
-                                              onClick={e => { 
-                                                e.stopPropagation(); 
-                                                if (dateFilterDraft.length === uniqueDates.length) {
-                                                    setDateFilter([]);
-                                                } else {
-                                                    setDateFilter(dateFilterDraft); 
-                                                }
-                                                close(); 
-                                              }}
-                                              type="button"
-                                            >
-                                              OK
-                                            </button>
-                                          </div>
-                                        </Popover.Panel>
-                                      )}
-                                    </Portal>
-                                  </>
-                                );
-                              }}
-                            </Popover>
+                            <button
+                              {...createFilterButtonProps(dateModal, uniqueDates, (selectedDates) => {
+                                if (selectedDates.length === uniqueDates.length) {
+                                  dateModal.handleSelectionChange([]);
+                                } else {
+                                  dateModal.handleSelectionChange(selectedDates);
+                                }
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
                         </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">
@@ -1246,84 +809,18 @@ const WeeklyLocks = () => {
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('time')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('time')} />
                             </div>
-                            {/* Time Filter Popover */}
-                            <Popover as="span" className="relative">
-                              {({ open, close }) => {
-                                timePopoverOpenRef.current = open;
-                                return (
-                                  <>
-                                    <Popover.Button
-                                      ref={timeBtnRef}
-                                      className="ml-1 p-1 rounded hover:bg-gray-200"
-                                      onClick={e => {
-                                        setTimeFilterDraft(timeFilter.length ? timeFilter : [...uniqueTimes]);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setTimePopoverPosition({
-                                          top: rect.bottom + window.scrollY + 4,
-                                          left: rect.left + window.scrollX,
-                                        });
-                                      }}
-                                    >
-                                      {isTimeFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                    </Popover.Button>
-                                    <Portal>
-                                      {open && (
-                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: timePopoverPosition.top, left: timePopoverPosition.left }}>
-                                          <div className="font-semibold mb-2">Filter Time</div>
-                                          <div className="flex items-center mb-2 gap-2 text-xs">
-                                            <button className="underline" onClick={() => setTimeFilterDraft([...uniqueTimes])} type="button">Select all</button>
-                                            <span>-</span>
-                                            <button className="underline" onClick={() => setTimeFilterDraft([])} type="button">Clear</button>
-                                          </div>
-                                          <input
-                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                            placeholder="Search..."
-                                            value={timeSearch}
-                                            onChange={e => setTimeSearch(e.target.value)}
-                                          />
-                                          <div className="max-h-40 overflow-y-auto mb-2">
-                                            {filteredTimes.map(val => (
-                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={timeFilterDraft.includes(val)}
-                                                  onChange={() => setTimeFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                                />
-                                                <span>{val}</span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                          <div className="flex justify-end gap-2 mt-2">
-                                            <button
-                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                              onClick={e => { e.stopPropagation(); setTimeFilterDraft(timeFilter); close(); }}
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              className="px-3 py-1 rounded bg-green-600 text-white"
-                                              onClick={e => { 
-                                                e.stopPropagation(); 
-                                                if (timeFilterDraft.length === uniqueTimes.length) {
-                                                    setTimeFilter([]);
-                                                } else {
-                                                    setTimeFilter(timeFilterDraft); 
-                                                }
-                                                close(); 
-                                              }}
-                                              type="button"
-                                            >
-                                              OK
-                                            </button>
-                                          </div>
-                                        </Popover.Panel>
-                                      )}
-                                    </Portal>
-                                  </>
-                                );
-                              }}
-                            </Popover>
+                            <button
+                              {...createFilterButtonProps(timeModal, uniqueTimes, (selectedTimes) => {
+                                if (selectedTimes.length === uniqueTimes.length) {
+                                  timeModal.handleSelectionChange([]);
+                                } else {
+                                  timeModal.handleSelectionChange(selectedTimes);
+                                }
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
                         </div>
                     </th>
                     <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
@@ -1336,84 +833,18 @@ const WeeklyLocks = () => {
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
                             </div>
-                            {/* Result Filter Popover */}
-                            <Popover as="span" className="relative">
-                              {({ open, close }) => {
-                                resultPopoverOpenRef.current = open;
-                                return (
-                                  <>
-                                    <Popover.Button
-                                      ref={resultBtnRef}
-                                      className="ml-1 p-1 rounded hover:bg-gray-200"
-                                      onClick={e => {
-                                        setResultFilterDraft(resultFilter.length ? resultFilter : [...uniqueResults]);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setResultPopoverPosition({
-                                          top: rect.bottom + window.scrollY + 4,
-                                          left: rect.left + window.scrollX,
-                                        });
-                                      }}
-                                    >
-                                      {isResultFiltered ? <FunnelIconSolid className="h-4 w-4 text-blue-600" /> : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                                    </Popover.Button>
-                                    <Portal>
-                                      {open && (
-                                        <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: resultPopoverPosition.top, left: resultPopoverPosition.left }}>
-                                          <div className="font-semibold mb-2">Filter W/L/T</div>
-                                          <div className="flex items-center mb-2 gap-2 text-xs">
-                                            <button className="underline" onClick={() => setResultFilterDraft([...uniqueResults])} type="button">Select all</button>
-                                            <span>-</span>
-                                            <button className="underline" onClick={() => setResultFilterDraft([])} type="button">Clear</button>
-                                          </div>
-                                          <input
-                                            className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                            placeholder="Search..."
-                                            value={resultSearch}
-                                            onChange={e => setResultSearch(e.target.value)}
-                                          />
-                                          <div className="max-h-40 overflow-y-auto mb-2">
-                                            {filteredResults.map(val => (
-                                              <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={resultFilterDraft.includes(val)}
-                                                  onChange={() => setResultFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                                />
-                                                <span>{val}</span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                          <div className="flex justify-end gap-2 mt-2">
-                                            <button
-                                              className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                              onClick={e => { e.stopPropagation(); setResultFilterDraft(resultFilter); close(); }}
-                                              type="button"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              className="px-3 py-1 rounded bg-green-600 text-white"
-                                              onClick={e => { 
-                                                e.stopPropagation(); 
-                                                if (resultFilterDraft.length === uniqueResults.length) {
-                                                    setResultFilter([]);
-                                                } else {
-                                                    setResultFilter(resultFilterDraft); 
-                                                }
-                                                close(); 
-                                              }}
-                                              type="button"
-                                            >
-                                              OK
-                                            </button>
-                                          </div>
-                                        </Popover.Panel>
-                                      )}
-                                    </Portal>
-                                  </>
-                                );
-                              }}
-                            </Popover>
+                            <button
+                              {...createFilterButtonProps(resultModal, uniqueResults, (selectedResults) => {
+                                if (selectedResults.length === uniqueResults.length) {
+                                  resultModal.handleSelectionChange([]);
+                                } else {
+                                  resultModal.handleSelectionChange(selectedResults);
+                                }
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
                         </div>
                     </th>
                   </tr>
@@ -1508,6 +939,111 @@ const WeeklyLocks = () => {
         <p>You need to have 3 locks submitted for the selected week to view all locks.</p>
       )}
               {showPopularPicks && <PopularLocksModal picks={allPicks} userMap={userMap} onClose={() => setShowPopularPicks(false)} />}
+      
+      {/* Filter Modals using the new improved positioning system */}
+      <FilterModal
+        {...createFilterModalProps(userModal, uniqueUsers, (selectedUsers) => {
+          if (selectedUsers.length === uniqueUsers.length) {
+            userModal.handleSelectionChange([]);
+          } else {
+            userModal.handleSelectionChange(selectedUsers);
+          }
+        }, {
+          title: 'Filter Users',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(leagueModal, uniqueLeagues, (selectedLeagues) => {
+          if (selectedLeagues.length === uniqueLeagues.length) {
+            leagueModal.handleSelectionChange([]);
+          } else {
+            leagueModal.handleSelectionChange(selectedLeagues);
+          }
+        }, {
+          title: 'Filter League',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(homeTeamModal, uniqueHomeTeams, (selectedHomeTeams) => {
+          if (selectedHomeTeams.length === uniqueHomeTeams.length) {
+            homeTeamModal.handleSelectionChange([]);
+          } else {
+            homeTeamModal.handleSelectionChange(selectedHomeTeams);
+          }
+        }, {
+          title: 'Filter Home Team',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(awayTeamModal, uniqueAwayTeams, (selectedAwayTeams) => {
+          if (selectedAwayTeams.length === uniqueAwayTeams.length) {
+            awayTeamModal.handleSelectionChange([]);
+          } else {
+            awayTeamModal.handleSelectionChange(selectedAwayTeams);
+          }
+        }, {
+          title: 'Filter Away Team',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(lockModal, uniqueLocks, (selectedLocks) => {
+          if (selectedLocks.length === uniqueLocks.length) {
+            lockModal.handleSelectionChange([]);
+          } else {
+            lockModal.handleSelectionChange(selectedLocks);
+          }
+        }, {
+          title: 'Filter Lock',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(dateModal, uniqueDates, (selectedDates) => {
+          if (selectedDates.length === uniqueDates.length) {
+            dateModal.handleSelectionChange([]);
+          } else {
+            dateModal.handleSelectionChange(selectedDates);
+          }
+        }, {
+          title: 'Filter Date',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(timeModal, uniqueTimes, (selectedTimes) => {
+          if (selectedTimes.length === uniqueTimes.length) {
+            timeModal.handleSelectionChange([]);
+          } else {
+            timeModal.handleSelectionChange(selectedTimes);
+          }
+        }, {
+          title: 'Filter Time',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(resultModal, uniqueResults, (selectedResults) => {
+          if (selectedResults.length === uniqueResults.length) {
+            resultModal.handleSelectionChange([]);
+          } else {
+            resultModal.handleSelectionChange(selectedResults);
+          }
+        }, {
+          title: 'Filter W/L/T',
+          placement: 'bottom-start',
+        })}
+      />
     </div>
   );
 };

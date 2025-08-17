@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, ChevronUpIcon, ChevronDownIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid } from '@heroicons/react/24/solid';
+import FilterModal from '../components/FilterModal';
+import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 
 const Standings = () => {
   const [standings, setStandings] = useState([]);
@@ -22,32 +24,21 @@ const Standings = () => {
 
   // Filtering state
   const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
-  const [userNameFilter, setUserNameFilter] = useState([]);
-  const [userNameFilterDraft, setUserNameFilterDraft] = useState([]);
-  const [userNameSearch, setUserNameSearch] = useState('');
-  const [rankFilter, setRankFilter] = useState([]);
-  const [rankFilterDraft, setRankFilterDraft] = useState([]);
-  const [rankSearch, setRankSearch] = useState('');
-  const [winPctFilter, setWinPctFilter] = useState([]);
-  const [winPctFilterDraft, setWinPctFilterDraft] = useState([]);
-  const [winPctSearch, setWinPctSearch] = useState('');
+  
+  // Initialize filter modals using the new hook system
+  const userNameModal = useFilterModal([], []);
+  const rankModal = useFilterModal([], []);
+  const winPctModal = useFilterModal([], []);
 
-  // Popover state
-  const [userNameFilterOpen, setUserNameFilterOpen] = useState(false);
-  const [rankFilterOpen, setRankFilterOpen] = useState(false);
-  const [winPctFilterOpen, setWinPctFilterOpen] = useState(false);
+  // Extract current filter values for compatibility with existing logic
+  const userNameFilter = userNameModal.selectedItems;
+  const rankFilter = rankModal.selectedItems;
+  const winPctFilter = winPctModal.selectedItems;
+
+  // Legend state (keeping this as is since it's not a filter)
   const [legendOpen, setLegendOpen] = useState(false);
-  const userNameBtnRef = useRef(null);
-  const rankBtnRef = useRef(null);
-  const winPctBtnRef = useRef(null);
   const legendBtnRef = useRef(null);
-  const [userNamePopoverPosition, setUserNamePopoverPosition] = useState({ top: 0, left: 0 });
-  const [rankPopoverPosition, setRankPopoverPosition] = useState({ top: 0, left: 0 });
-  const [winPctPopoverPosition, setWinPctPopoverPosition] = useState({ top: 0, left: 0 });
   const [legendPopoverPosition, setLegendPopoverPosition] = useState({ top: 0, left: 0 });
-  const userNamePopoverOpenRef = useRef(false);
-  const rankPopoverOpenRef = useRef(false);
-  const winPctPopoverOpenRef = useRef(false);
 
   const fetchThreeZeroStandings = async (year) => {
     try {
@@ -156,9 +147,10 @@ const Standings = () => {
   };
 
   const handleResetFilters = () => {
-    setUserNameFilter([]);
-    setRankFilter([]);
-    setWinPctFilter([]);
+    // Reset all modal system filters
+    userNameModal.handleSelectionChange([]);
+    rankModal.handleSelectionChange([]);
+    winPctModal.handleSelectionChange([]);
   };
 
   // Get current data based on view mode
@@ -231,15 +223,12 @@ const Standings = () => {
     ? getUniqueValues(currentStandings, 'winPct')
     : currentStandings.map(user => `${user.percentage || 0}%`);
 
-  // Filtered values for search
-  const filteredUserNames = uniqueUserNames.filter(val => String(val).toLowerCase().includes(userNameSearch.toLowerCase()));
-  const filteredRanks = uniqueRanks.filter(val => String(val).toLowerCase().includes(rankSearch.toLowerCase()));
-  const filteredWinPcts = uniqueWinPcts.filter(val => String(val).toLowerCase().includes(winPctSearch.toLowerCase()));
+
 
   // Determine if filters are active
-  const isUserNameFiltered = userNameFilter.length > 0 && userNameFilter.length < uniqueUserNames.length;
-  const isRankFiltered = rankFilter.length > 0 && rankFilter.length < uniqueRanks.length;
-  const isWinPctFiltered = winPctFilter.length > 0 && winPctFilter.length < uniqueWinPcts.length;
+  const isUserNameFiltered = userNameModal.isFiltered;
+  const isRankFiltered = rankModal.isFiltered;
+  const isWinPctFiltered = winPctModal.isFiltered;
 
   if (loading) return <div className="text-center p-8">Loading standings...</div>;
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
@@ -404,77 +393,18 @@ const Standings = () => {
                       onClick={e => { e.stopPropagation(); handleSort('rank'); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      rankPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={rankBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setRankFilterDraft(rankFilter.length ? rankFilter : [...uniqueRanks]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setRankPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isRankFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: rankPopoverPosition.top, left: rankPopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Rank</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setRankFilterDraft([...uniqueRanks])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setRankFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={rankSearch}
-                                  onChange={e => setRankSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredRanks.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={rankFilterDraft.includes(val)}
-                                        onChange={() => setRankFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setRankFilterDraft(rankFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setRankFilter(rankFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(rankModal, uniqueRanks, (selectedRanks) => {
+                      if (selectedRanks.length === uniqueRanks.length) {
+                        rankModal.handleSelectionChange([]);
+                      } else {
+                        rankModal.handleSelectionChange(selectedRanks);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-4 py-4 text-left border-r border-gray-200">
@@ -490,77 +420,18 @@ const Standings = () => {
                       onClick={e => { e.stopPropagation(); handleSort('name'); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      userNamePopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={userNameBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setUserNameFilterDraft(userNameFilter.length ? userNameFilter : [...uniqueUserNames]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setUserNamePopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isUserNameFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: userNamePopoverPosition.top, left: userNamePopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Name</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setUserNameFilterDraft([...uniqueUserNames])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setUserNameFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={userNameSearch}
-                                  onChange={e => setUserNameSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredUserNames.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={userNameFilterDraft.includes(val)}
-                                        onChange={() => setUserNameFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setUserNameFilterDraft(userNameFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setUserNameFilter(userNameFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(userNameModal, uniqueUserNames, (selectedUserNames) => {
+                      if (selectedUserNames.length === uniqueUserNames.length) {
+                        userNameModal.handleSelectionChange([]);
+                      } else {
+                        userNameModal.handleSelectionChange(selectedUserNames);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-4 py-4 text-left border-r border-gray-200">
@@ -585,77 +456,18 @@ const Standings = () => {
                       onClick={e => { e.stopPropagation(); handleSort('winPct'); }}
                     />
                   </div>
-                  <Popover as="span" className="relative">
-                    {({ open, close }) => {
-                      winPctPopoverOpenRef.current = open;
-                      return (
-                        <>
-                          <Popover.Button
-                            ref={winPctBtnRef}
-                            className="ml-1 p-1 rounded hover:bg-gray-200"
-                            onClick={e => {
-                              setWinPctFilterDraft(winPctFilter.length ? winPctFilter : [...uniqueWinPcts]);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setWinPctPopoverPosition({
-                                top: rect.bottom + window.scrollY + 4,
-                                left: rect.left + window.scrollX,
-                              });
-                            }}
-                          >
-                            {isWinPctFiltered
-                              ? <FunnelIconSolid className="h-4 w-4 text-blue-600" />
-                              : <FunnelIconOutline className="h-4 w-4 text-gray-500" />}
-                          </Popover.Button>
-                          <Portal>
-                            {open && (
-                              <Popover.Panel static className="z-50 w-64 bg-white border border-gray-300 rounded shadow-lg p-3" style={{ position: 'fixed', top: winPctPopoverPosition.top, left: winPctPopoverPosition.left }}>
-                                <div className="font-semibold mb-2">Filter Win %</div>
-                                <div className="flex items-center mb-2 gap-2 text-xs">
-                                  <button className="underline" onClick={() => setWinPctFilterDraft([...uniqueWinPcts])} type="button">Select all</button>
-                                  <span>-</span>
-                                  <button className="underline" onClick={() => setWinPctFilterDraft([])} type="button">Clear</button>
-                                </div>
-                                <input
-                                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
-                                  placeholder="Search..."
-                                  value={winPctSearch}
-                                  onChange={e => setWinPctSearch(e.target.value)}
-                                />
-                                <div className="max-h-40 overflow-y-auto mb-2">
-                                  {filteredWinPcts.map(val => (
-                                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={winPctFilterDraft.includes(val)}
-                                        onChange={() => setWinPctFilterDraft(draft => draft.includes(val) ? draft.filter(v => v !== val) : [...draft, val])}
-                                      />
-                                      <span>{val}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <button
-                                    className="px-3 py-1 rounded border border-gray-300 bg-gray-100"
-                                    onClick={e => { e.stopPropagation(); setWinPctFilterDraft(winPctFilter); close(); }}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="px-3 py-1 rounded bg-green-600 text-white"
-                                    onClick={e => { e.stopPropagation(); setWinPctFilter(winPctFilterDraft); close(); }}
-                                    type="button"
-                                  >
-                                    OK
-                                  </button>
-                                </div>
-                              </Popover.Panel>
-                            )}
-                          </Portal>
-                        </>
-                      );
-                    }}
-                  </Popover>
+                  <button
+                    {...createFilterButtonProps(winPctModal, uniqueWinPcts, (selectedWinPcts) => {
+                      if (selectedWinPcts.length === uniqueWinPcts.length) {
+                        winPctModal.handleSelectionChange([]);
+                      } else {
+                        winPctModal.handleSelectionChange(selectedWinPcts);
+                      }
+                    }, {
+                      IconComponent: FunnelIconOutline,
+                      IconComponentSolid: FunnelIconSolid,
+                    })}
+                  />
                 </div>
               </th>
               <th className="px-4 py-4 text-left border-r border-gray-200">
@@ -935,6 +747,46 @@ const Standings = () => {
         )}
       </>
       )}
+
+      {/* Filter Modals */}
+      <FilterModal
+        {...createFilterModalProps(rankModal, uniqueRanks, (selectedRanks) => {
+          if (selectedRanks.length === uniqueRanks.length) {
+            rankModal.handleSelectionChange([]);
+          } else {
+            rankModal.handleSelectionChange(selectedRanks);
+          }
+        }, {
+          title: 'Filter Rank',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(userNameModal, uniqueUserNames, (selectedUserNames) => {
+          if (selectedUserNames.length === uniqueUserNames.length) {
+            userNameModal.handleSelectionChange([]);
+          } else {
+            userNameModal.handleSelectionChange(selectedUserNames);
+          }
+        }, {
+          title: 'Filter Name',
+          placement: 'bottom-start',
+        })}
+      />
+
+      <FilterModal
+        {...createFilterModalProps(winPctModal, uniqueWinPcts, (selectedWinPcts) => {
+          if (selectedWinPcts.length === uniqueWinPcts.length) {
+            winPctModal.handleSelectionChange([]);
+          } else {
+            winPctModal.handleSelectionChange(selectedWinPcts);
+          }
+        }, {
+          title: 'Filter Win %',
+          placement: 'bottom-start',
+        })}
+      />
     </div>
   );
 };
