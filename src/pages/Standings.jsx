@@ -163,6 +163,8 @@ const Standings = () => {
     userNameModal.handleSelectionChange([]);
     rankModal.handleSelectionChange([]);
     winPctModal.handleSelectionChange([]);
+    // Reset sort configuration to default
+    setSortConfig({ key: '', direction: 'asc' });
   };
 
   // Get current data based on view mode

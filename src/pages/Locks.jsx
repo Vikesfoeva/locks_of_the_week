@@ -435,6 +435,8 @@ const Locks = () => {
     dateModal.handleSelectionChange([]);
     timeModal.handleSelectionChange([]);
     setHideStartedGames(true);
+    // Reset sort configuration to default
+    setSortConfig({ key: 'commenceTime', direction: 'asc' });
   };
 
   const handleFilterChange = (e, key) => {

@@ -239,6 +239,8 @@ const WeeklyLocks = () => {
     resultModal.handleSelectionChange([]);
     dateModal.handleSelectionChange([]);
     timeModal.handleSelectionChange([]);
+    // Reset sort configuration to default
+    setSortConfig({ key: null, direction: 'ascending' });
   };
 
   const getUniqueValues = (picks, key, subKey = null) => {
