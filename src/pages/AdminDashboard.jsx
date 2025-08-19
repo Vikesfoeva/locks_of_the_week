@@ -302,7 +302,7 @@ export default function AdminDashboard() {
       }
 
       // Delete from whitelist collection
-      const whitelistResponse = await fetch(`${API_URL}/whitelist/${userToDelete.email}`, {
+      const whitelistResponse = await fetch(`${API_URL}/whitelist/${encodeURIComponent(userToDelete.email)}`, {
         method: 'DELETE'
       });
 

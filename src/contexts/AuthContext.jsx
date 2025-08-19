@@ -161,7 +161,7 @@ export function AuthProvider({ children }) {
             }
             
             // 2. If not in DB, check if they are whitelisted
-            const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${user.email}`);
+            const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${encodeURIComponent(user.email)}`);
             const whitelistCheckData = await whitelistCheckResponse.json();
 
             if (whitelistCheckResponse.ok && whitelistCheckData.allowed) {
@@ -287,7 +287,7 @@ export function AuthProvider({ children }) {
       console.log("[AuthContext] Google sign-in successful. Checking whitelist for user:", user.email);
 
       // 1. Check if the user is whitelisted
-      const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${user.email}`);
+      const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${encodeURIComponent(user.email)}`);
       const whitelistCheckData = await whitelistCheckResponse.json();
       
       if (!whitelistCheckResponse.ok || !whitelistCheckData.allowed) {
