@@ -614,7 +614,7 @@ app.post('/api/picks', async (req, res) => {
       
       // Send to Google Apps Script
       const axios = require('axios');
-      await axios.post('https://script.google.com/macros/s/AKfycbyadWILArkJxn3zHzwwUjO0uTVDBSSNcLU9P6cu7griL9gEfpZj6rZ01fAic0g_7Y4z3g/exec', {
+      await axios.post('https://script.google.com/macros/s/AKfycbysSi8plFuAnlDdO2rg3o2vdIuDg5AhKgNJFT1ZKi_hkKBFyeh2CGZEGSHy_Ny3r0Ti3g/exec', {
         picks: detailedPicks,
         username: username,
         email: email,
