@@ -48,7 +48,7 @@ const WeeklyLocks = () => {
   // Helper function to format status display
   const formatStatus = (status) => {
     if (!status) return '--';
-    if (status === 'final') return 'Final';
+    if (status === 'final') return 'F';
     if (status === 'unstarted') return 'Unstarted';
     if (status === 'in-progress') return 'In Progress';
     return status; // Return as-is for any other status values
@@ -143,7 +143,7 @@ const WeeklyLocks = () => {
         'League': game?.league || '--',
         'Away': game?.away_team_abbrev || '--',
         'Home': game?.home_team_abbrev || '--',
-        'Lock': pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--',
+        'Lock': pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--',
         'Date': formatGameDate(game?.commence_time),
         'Time': formatGameTime(game?.commence_time),
         'Line/O/U': formatLineValue(pick.line, pick.pickType),
@@ -247,7 +247,7 @@ const WeeklyLocks = () => {
       if (key === 'user') {
         value = userMap[pick.userId] || pick.userId;
       } else if (key === 'lock') {
-        value = pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        value = pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
       } else if (key === 'result') {
         // Special handling for result field - include '--' for games without results
         value = pick.result || '--';
@@ -265,7 +265,7 @@ const WeeklyLocks = () => {
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
@@ -275,7 +275,7 @@ const WeeklyLocks = () => {
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
@@ -285,7 +285,7 @@ const WeeklyLocks = () => {
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
@@ -295,7 +295,7 @@ const WeeklyLocks = () => {
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
@@ -316,7 +316,7 @@ const WeeklyLocks = () => {
     (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
     (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
-    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
   ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter]);
@@ -382,7 +382,7 @@ const WeeklyLocks = () => {
     }
     if (lockFilter.length > 0) {
       filtered = filtered.filter(pick => {
-        const lockValue = pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        const lockValue = pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
         return lockFilter.includes(lockValue);
       });
     }
@@ -405,8 +405,8 @@ const WeeklyLocks = () => {
           aValue = userMap[a.userId] || a.userId;
           bValue = userMap[b.userId] || b.userId;
         } else if (sortConfig.key === 'lock') {
-            aValue = a.pickType === 'spread' ? `${a.pickSide} Line` : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
-            bValue = b.pickType === 'spread' ? `${b.pickSide} Line` : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+            aValue = a.pickType === 'spread' ? a.pickSide : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+            bValue = b.pickType === 'spread' ? b.pickSide : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
         } else if (sortConfig.key === 'dateTime') {
             aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
             bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
@@ -826,7 +826,7 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
@@ -882,7 +882,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? `${pick.pickSide} Line` : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
+                             <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
