@@ -406,7 +406,7 @@ const Standings = () => {
                         <div className="grid grid-cols-1 gap-3 text-sm">
                           <div className="flex items-center gap-3">
                             <div className="w-4 h-4 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                            <span className="text-gray-700">Top 3 Finishers</span>
+                            <span className="text-gray-700">Top 5 Finishers</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="w-4 h-4 bg-purple-400 rounded-full flex-shrink-0"></div>
@@ -582,7 +582,7 @@ const Standings = () => {
               const winPct = getWinPct(user);
               const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
               const totalLocks = user.wins + user.losses + user.ties;
-              const isTopThree = user.rank <= 3;
+              const isTopFive = user.rank <= 5;
               const isWinner = user.payout > 0;
               const isLastPlace = user.rank === standings.length;
               const isTied = tiedUsers[user.rank] && tiedUsers[user.rank].length > 1;
@@ -590,7 +590,7 @@ const Standings = () => {
               
               // Determine row styling based on performance
               let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
-              if (isTopThree) {
+              if (isTopFive) {
                 rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
               } else if (isLastPlace) {
                 rowClassName += ' bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-l-red-400';
@@ -606,16 +606,20 @@ const Standings = () => {
                 <tr key={user._id} className={rowClassName}>
                   <td className="px-4 py-4 border-r border-gray-200">
                     <div className="flex items-center">
-                      {isTopThree && (
+                      {isTopFive && (
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
-                          user.rank === 1 ? 'bg-yellow-500' : user.rank === 2 ? 'bg-gray-400' : 'bg-amber-600'
+                          user.rank === 1 ? 'bg-yellow-500' : 
+                          user.rank === 2 ? 'bg-gray-400' : 
+                          user.rank === 3 ? 'bg-amber-600' :
+                          user.rank === 4 ? 'bg-blue-500' :
+                          'bg-green-500'
                         }`}>
                           {user.rank}
                         </div>
                       )}
                       <div className="flex flex-col">
-                        <span className={`font-bold text-lg ${isTopThree ? 'text-gray-800' : 'text-gray-600'}`}>
-                          {!isTopThree && user.rank}
+                        <span className={`font-bold text-lg ${isTopFive ? 'text-gray-800' : 'text-gray-600'}`}>
+                          {!isTopFive && user.rank}
                         </span>
                         {isTied && (
                           <span className="text-xs text-purple-600 font-medium">
@@ -626,7 +630,7 @@ const Standings = () => {
                     </div>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
-                    <span className={`font-medium ${isTopThree ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
+                    <span className={`font-medium ${isTopFive ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
                       {user.name}
                     </span>
                   </td>
@@ -740,12 +744,12 @@ const Standings = () => {
               <tbody className="divide-y divide-gray-100">
                 {sortedStandings.map((user, idx) => {
                   const rank = idx + 1;
-                  const isTopThree = rank <= 3;
+                  const isTopFive = rank <= 5;
                   const hasEarnings = user.payout > 0;
                   
                   // Determine row styling
                   let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
-                  if (isTopThree && user.threeZeroWeeks > 0) {
+                  if (isTopFive && user.threeZeroWeeks > 0) {
                     rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
                   } else if (idx % 2 === 0) {
                     rowClassName += ' bg-white';
@@ -757,20 +761,24 @@ const Standings = () => {
                     <tr key={user._id} className={rowClassName}>
                       <td className="px-4 py-4 border-r border-gray-200">
                         <div className="flex items-center">
-                          {isTopThree && user.threeZeroWeeks > 0 && (
+                          {isTopFive && user.threeZeroWeeks > 0 && (
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
-                              rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : 'bg-amber-600'
+                              rank === 1 ? 'bg-yellow-500' : 
+                              rank === 2 ? 'bg-gray-400' : 
+                              rank === 3 ? 'bg-amber-600' :
+                              rank === 4 ? 'bg-blue-500' :
+                              'bg-green-500'
                             }`}>
                               {rank}
                             </div>
                           )}
-                          <span className={`font-bold text-lg ${isTopThree && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
-                            {(!isTopThree || user.threeZeroWeeks === 0) && rank}
+                          <span className={`font-bold text-lg ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
+                            {(!isTopFive || user.threeZeroWeeks === 0) && rank}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-4 border-r border-gray-200">
-                        <span className={`font-medium ${isTopThree && user.threeZeroWeeks > 0 ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
+                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
                           {user.name}
                         </span>
                       </td>
