@@ -4,6 +4,26 @@ const helmet = require('helmet');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 
+// Utility function to ensure Venmo handle starts with @
+function formatVenmoHandle(venmoHandle) {
+  if (!venmoHandle || typeof venmoHandle !== 'string') {
+    return '';
+  }
+  
+  const trimmed = venmoHandle.trim();
+  if (!trimmed) {
+    return '';
+  }
+  
+  // If it already starts with @, return as is
+  if (trimmed.startsWith('@')) {
+    return trimmed;
+  }
+  
+  // Otherwise, add @ prefix
+  return `@${trimmed}`;
+}
+
 dotenv.config();
 console.log("Server file loaded")
 // Validate environment variables
@@ -227,6 +247,11 @@ app.put('/api/users/:id', async (req, res) => {
       updates.cellPhone = cleanPhone;
     }
     
+    // Format Venmo handle to ensure it starts with @ if being updated
+    if (updates.venmoHandle !== undefined) {
+      updates.venmoHandle = formatVenmoHandle(updates.venmoHandle);
+    }
+    
     // Add updatedAt timestamp
     updates.updatedAt = new Date();
     
@@ -408,7 +433,7 @@ app.post('/api/users', async (req, res) => {
       firstName: firstName || '',
       lastName: lastName || '',
       role: role || 'user',
-      venmoHandle: venmoHandle ? venmoHandle.trim() : '',
+      venmoHandle: formatVenmoHandle(venmoHandle || ''),
       cellPhone: cleanPhone,
       duesPaid: duesPaid || false,
       dateDuesPaid: dateDuesPaid || '',

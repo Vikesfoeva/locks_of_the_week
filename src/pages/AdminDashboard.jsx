@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { formatPhoneNumber, getCleanPhoneNumber } from '../utils/phoneFormatter';
+import { formatVenmoHandle } from '../utils/venmoFormatter';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();
@@ -417,6 +418,11 @@ export default function AdminDashboard() {
       // Clean phone number if it's being updated
       if (updates.cellPhone) {
         updates.cellPhone = getCleanPhoneNumber(updates.cellPhone);
+      }
+      
+      // Format Venmo handle if it's being updated
+      if (updates.venmoHandle !== undefined) {
+        updates.venmoHandle = formatVenmoHandle(updates.venmoHandle);
       }
       
       const response = await fetch(`${API_URL}/users/${editingUser}`, {

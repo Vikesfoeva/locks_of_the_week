@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth'
 import { initializeApp } from 'firebase/app'
 import { API_URL } from '../config'
+import { formatVenmoHandle } from '../utils/venmoFormatter'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -364,7 +365,7 @@ export function AuthProvider({ children }) {
       const updates = {};
       if (typeof firstName === 'string') updates.firstName = firstName;
       if (typeof lastName === 'string') updates.lastName = lastName;
-      if (typeof venmo === 'string') updates.venmoHandle = venmo;
+      if (typeof venmo === 'string') updates.venmoHandle = formatVenmoHandle(venmo);
       if (typeof cellPhone === 'string') updates.cellPhone = cellPhone;
 
       const putResp = await fetch(`${API_URL}/users/${userId}`, {
