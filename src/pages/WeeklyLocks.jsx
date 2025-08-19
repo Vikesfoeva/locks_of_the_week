@@ -840,17 +840,17 @@ const WeeklyLocks = () => {
               </table>
             </div>
           ) : (
-            <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] px-8 overflow-x-auto">
-             <table className="w-full bg-white border border-gray-300 rounded shadow text-xs sm:text-sm md:text-base">
+            <div className="overflow-x-auto border border-gray-300 rounded shadow relative" style={{ scrollbarWidth: 'thin' }}>
+             <table className="w-full bg-white text-xs sm:text-sm md:text-base" style={{ minWidth: 'max-content' }}>
                <thead>
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
-                   <th className="px-2 py-2 border-r border-gray-300">User</th>
+                   <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-100 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">User</th>
                    {[1,2,3].map(i => (
                      <th key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
                    ))}
                  </tr>
                  <tr className="bg-gray-50 text-left border-b border-gray-300">
-                   <th className="px-2 py-2 border-r border-gray-300"></th>
+                   <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></th>
                    {[1,2,3].map(i => (
                      <React.Fragment key={i}>
                        <th className="px-2 py-2 border-r border-gray-300">League</th>
@@ -871,9 +871,10 @@ const WeeklyLocks = () => {
                  {users.map((user, idx) => {
                    const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
                    const picks = getSortedPicksForUser(user.firebaseUid);
+                   const rowBgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
                    return (
-                     <tr key={user.firebaseUid} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                       <td className="px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap">{userName || user.email}</td>
+                     <tr key={user.firebaseUid} className={rowBgClass}>
+                       <td className={`px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap sticky left-0 ${rowBgClass} z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>{userName || user.email}</td>
                        {[0,1,2].map(i => {
                          const pick = picks[i];
                          const game = pick ? pick.gameDetails : undefined;
