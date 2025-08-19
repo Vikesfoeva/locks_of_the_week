@@ -842,7 +842,28 @@ app.get('/api/standings', async (req, res) => {
     const calculateRanks = (statsDict, key) => {
       const sorted = Object.values(statsDict).sort((a, b) => rankingFn(a[key], b[key]));
       const ranks = {};
-      sorted.forEach((s, i) => { ranks[s._id] = i + 1; });
+      let currentRank = 1;
+      
+      for (let i = 0; i < sorted.length; i++) {
+        const currentUser = sorted[i];
+        
+        if (i > 0) {
+          const prevUser = sorted[i - 1];
+          // Check if current user has different stats than previous user
+          const currentStats = currentUser[key];
+          const prevStats = prevUser[key];
+          
+          if (currentStats.wins !== prevStats.wins || 
+              currentStats.ties !== prevStats.ties || 
+              currentStats.losses !== prevStats.losses) {
+            currentRank = i + 1; // Move to next available rank
+          }
+          // If stats are the same, keep the same rank (tie)
+        }
+        
+        ranks[currentUser._id] = currentRank;
+      }
+      
       return ranks;
     };
 
@@ -890,9 +911,9 @@ app.get('/api/standings', async (req, res) => {
     const totalUsers = combinedStandings.filter(user => user.rank !== '-').length;
     const leader = combinedStandings.find(user => user.rank === 1);
     
+    // First, calculate games back for all users
     combinedStandings.forEach((user, index) => {
       if (user.rank === '-') {
-        user.payout = 0;
         user.gamesBack = '-';
         return;
       }
@@ -912,22 +933,95 @@ app.get('/api/standings', async (req, res) => {
       } else {
         user.gamesBack = '-'; // No leader or invalid data
       }
+    });
+
+    // Calculate payouts with tie handling
+    const rankGroups = {};
+    combinedStandings.forEach(user => {
+      if (user.rank !== '-') {
+        if (!rankGroups[user.rank]) {
+          rankGroups[user.rank] = [];
+        }
+        rankGroups[user.rank].push(user);
+      }
+    });
+
+    // Determine which ranks get prizes and split them accordingly
+    Object.keys(rankGroups).forEach(rankStr => {
+      const rank = parseInt(rankStr);
+      const usersAtRank = rankGroups[rank];
+      let totalPrize = 0;
       
-      // Calculate payouts
-      const rank = user.rank;
+      // Determine what prizes this rank group should split
       if (rank === 1) {
-        user.payout = payouts.first || 0;
+        totalPrize += payouts.first || 0;
+        // If tied for first, also split second place prize if there are enough tied users
+        if (usersAtRank.length > 1) {
+          totalPrize += payouts.second || 0;
+          // If 3+ tied for first, also include third place
+          if (usersAtRank.length > 2) {
+            totalPrize += payouts.third || 0;
+            // If 4+ tied for first, also include fourth place
+            if (usersAtRank.length > 3) {
+              totalPrize += payouts.fourth || 0;
+              // If 5+ tied for first, also include fifth place
+              if (usersAtRank.length > 4) {
+                totalPrize += payouts.fifth || 0;
+              }
+            }
+          }
+        }
       } else if (rank === 2) {
-        user.payout = payouts.second || 0;
+        totalPrize += payouts.second || 0;
+        // If tied for second, also split third place prize
+        if (usersAtRank.length > 1) {
+          totalPrize += payouts.third || 0;
+          // If 3+ tied for second, also include fourth place
+          if (usersAtRank.length > 2) {
+            totalPrize += payouts.fourth || 0;
+            // If 4+ tied for second, also include fifth place
+            if (usersAtRank.length > 3) {
+              totalPrize += payouts.fifth || 0;
+            }
+          }
+        }
       } else if (rank === 3) {
-        user.payout = payouts.third || 0;
+        totalPrize += payouts.third || 0;
+        // If tied for third, also split fourth place prize
+        if (usersAtRank.length > 1) {
+          totalPrize += payouts.fourth || 0;
+          // If 3+ tied for third, also include fifth place
+          if (usersAtRank.length > 2) {
+            totalPrize += payouts.fifth || 0;
+          }
+        }
       } else if (rank === 4) {
-        user.payout = payouts.fourth || 0;
+        totalPrize += payouts.fourth || 0;
+        // If tied for fourth, also split fifth place prize
+        if (usersAtRank.length > 1) {
+          totalPrize += payouts.fifth || 0;
+        }
       } else if (rank === 5) {
-        user.payout = payouts.fifth || 0;
-      } else if (rank === totalUsers) {
-        user.payout = payouts.last || 0;
-      } else {
+        totalPrize += payouts.fifth || 0;
+      }
+      
+      // Special handling for last place when there are ties
+      // Check if this rank group includes the last place
+      const maxRank = Math.max(...combinedStandings.filter(u => u.rank !== '-').map(u => u.rank));
+      if (rank === maxRank) {
+        totalPrize += payouts.last || 0;
+      }
+      
+      // Split the total prize among all users at this rank
+      const prizePerUser = usersAtRank.length > 0 ? totalPrize / usersAtRank.length : 0;
+      usersAtRank.forEach(user => {
+        user.payout = parseFloat(prizePerUser.toFixed(2));
+      });
+    });
+
+    // Set payout to 0 for users with no rank
+    combinedStandings.forEach(user => {
+      if (user.rank === '-') {
         user.payout = 0;
       }
     });

@@ -180,6 +180,31 @@ const Standings = () => {
       })
     : threeZeroStandings;
 
+  // Helper function to detect if users are tied
+  const getTiedUsers = (standings) => {
+    const tieGroups = {};
+    standings.forEach(user => {
+      if (user.rank !== '-') {
+        if (!tieGroups[user.rank]) {
+          tieGroups[user.rank] = [];
+        }
+        tieGroups[user.rank].push(user);
+      }
+    });
+    
+    // Return only groups with more than 1 user (actual ties)
+    const actualTies = {};
+    Object.keys(tieGroups).forEach(rank => {
+      if (tieGroups[rank].length > 1) {
+        actualTies[rank] = tieGroups[rank];
+      }
+    });
+    
+    return actualTies;
+  };
+
+  const tiedUsers = getTiedUsers(viewMode === 'regular' ? enhancedStandings : currentStandings);
+
   // Create filtered datasets for each filter to show only available options
   const baseStandings = viewMode === 'regular' ? enhancedStandings : currentStandings;
   
@@ -384,6 +409,10 @@ const Standings = () => {
                             <span className="text-gray-700">Top 3 Finishers</span>
                           </div>
                           <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 bg-purple-400 rounded-full flex-shrink-0"></div>
+                            <span className="text-gray-700">Tied Users (prize split)</span>
+                          </div>
+                          <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                             <span className="text-gray-700">Season Prize Winner</span>
                           </div>
@@ -402,6 +431,10 @@ const Standings = () => {
                           <div className="flex items-center gap-3">
                             <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs flex-shrink-0">-1</span>
                             <span className="text-gray-700">Rank Declined</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-purple-600 font-medium flex-shrink-0">T3</span>
+                            <span className="text-gray-700">Tied with 3 users</span>
                           </div>
                         </div>
                       </Popover.Panel>
@@ -552,6 +585,8 @@ const Standings = () => {
               const isTopThree = user.rank <= 3;
               const isWinner = user.payout > 0;
               const isLastPlace = user.rank === standings.length;
+              const isTied = tiedUsers[user.rank] && tiedUsers[user.rank].length > 1;
+              const tiedCount = isTied ? tiedUsers[user.rank].length : 0;
               
               // Determine row styling based on performance
               let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
@@ -559,6 +594,8 @@ const Standings = () => {
                 rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
               } else if (isLastPlace) {
                 rowClassName += ' bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-l-red-400';
+              } else if (isTied) {
+                rowClassName += ' bg-gradient-to-r from-purple-50 to-indigo-50 border-l-4 border-l-purple-400';
               } else if (idx % 2 === 0) {
                 rowClassName += ' bg-white';
               } else {
@@ -576,9 +613,16 @@ const Standings = () => {
                           {user.rank}
                         </div>
                       )}
-                      <span className={`font-bold text-lg ${isTopThree ? 'text-gray-800' : 'text-gray-600'}`}>
-                        {!isTopThree && user.rank}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className={`font-bold text-lg ${isTopThree ? 'text-gray-800' : 'text-gray-600'}`}>
+                          {!isTopThree && user.rank}
+                        </span>
+                        {isTied && (
+                          <span className="text-xs text-purple-600 font-medium">
+                            T{tiedCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-4 border-r border-gray-200">
@@ -638,9 +682,16 @@ const Standings = () => {
                     {isWinner ? (
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
-                          ${user.payout.toFixed(2)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
+                            ${user.payout.toFixed(2)}
+                          </span>
+                          {isTied && (
+                            <span className="text-xs text-purple-600 font-medium mt-1">
+                              Split {tiedCount} ways
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-gray-400 font-medium">-</span>
