@@ -49,7 +49,7 @@ const WeeklyLocks = () => {
   const formatStatus = (status) => {
     if (!status) return '--';
     if (status === 'final') return 'F';
-    if (status === 'unstarted') return 'Unstarted';
+    if (status === 'unstarted') return 'U';
     if (status === 'in-progress') return 'In Progress';
     return status; // Return as-is for any other status values
   };
