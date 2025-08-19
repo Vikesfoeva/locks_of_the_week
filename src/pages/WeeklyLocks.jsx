@@ -144,12 +144,12 @@ const WeeklyLocks = () => {
         'Away': game?.away_team_abbrev || '--',
         'Home': game?.home_team_abbrev || '--',
         'Lock': pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--',
-        'Date': formatGameDate(game?.commence_time),
-        'Time': formatGameTime(game?.commence_time),
         'Line/O/U': formatLineValue(pick.line, pick.pickType),
         'Score': formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev),
         'Status': formatStatus(pick.status),
-        'W/L/T': formatResult(pick.result)
+        'W/L/T': formatResult(pick.result),
+        'Date': formatGameDate(game?.commence_time),
+        'Time': formatGameTime(game?.commence_time)
       };
     });
 
@@ -164,12 +164,12 @@ const WeeklyLocks = () => {
       { wch: 8 },  // Away
       { wch: 8 },  // Home
       { wch: 12 }, // Lock
-      { wch: 12 }, // Date
-      { wch: 10 }, // Time
       { wch: 10 }, // Line/O/U
       { wch: 12 }, // Score
       { wch: 10 }, // Status
-      { wch: 8 }   // W/L/T
+      { wch: 8 },  // W/L/T
+      { wch: 12 }, // Date
+      { wch: 10 }  // Time
     ];
     worksheet['!cols'] = columnWidths;
 
@@ -760,6 +760,26 @@ const WeeklyLocks = () => {
                             />
                         </div>
                     </th>
+                    <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Score</th>
+                    <th className="px-2 py-2 border-r border-gray-300">Status</th>
+                    <th className="px-2 py-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                            <span>W/L/T</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
+                            </div>
+                            <button
+                              {...createFilterButtonProps(resultModal, uniqueResults, (selectedResults) => {
+                                resultModal.handleSelectionChange(selectedResults);
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                              })}
+                            />
+                        </div>
+                    </th>
                     <th className="px-2 py-2 border-r border-gray-300">
                         <div className="flex items-center gap-1">
                             <span>Date</span>
@@ -777,7 +797,7 @@ const WeeklyLocks = () => {
                             />
                         </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-2 py-2">
                         <div className="flex items-center gap-1">
                             <span>Time</span>
                             <div className="flex flex-col ml-1">
@@ -787,26 +807,6 @@ const WeeklyLocks = () => {
                             <button
                               {...createFilterButtonProps(timeModal, uniqueTimes, (selectedTimes) => {
                                 timeModal.handleSelectionChange(selectedTimes);
-                              }, {
-                                IconComponent: FunnelIconOutline,
-                                IconComponentSolid: FunnelIconSolid,
-                              })}
-                            />
-                        </div>
-                    </th>
-                    <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Score</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Status</th>
-                    <th className="px-2 py-2">
-                        <div className="flex items-center gap-1">
-                            <span>W/L/T</span>
-                            <div className="flex flex-col ml-1">
-                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
-                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
-                            </div>
-                            <button
-                              {...createFilterButtonProps(resultModal, uniqueResults, (selectedResults) => {
-                                resultModal.handleSelectionChange(selectedResults);
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
@@ -827,12 +827,12 @@ const WeeklyLocks = () => {
                         <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
                         <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                         <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
-                        <td className="px-2 py-2">{formatResult(pick.result)}</td>
+                        <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
+                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
+                        <td className="px-2 py-2">{formatGameTime(game?.commence_time)}</td>
                       </tr>
                     );
                   })}
@@ -857,12 +857,12 @@ const WeeklyLocks = () => {
                        <th className="px-2 py-2 border-r border-gray-300">Away</th>
                        <th className="px-2 py-2 border-r border-gray-300">Home</th>
                        <th className="px-2 py-2 border-r border-gray-300">Lock</th>
-                       <th className="px-2 py-2 border-r border-gray-300">Date</th>
-                       <th className="px-2 py-2 border-r border-gray-300">Time</th>
                        <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
                        <th className="px-2 py-2 border-r border-gray-300">Score</th>
                        <th className="px-2 py-2 border-r border-gray-300">Status</th>
                        <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Date</th>
+                       <th className="px-2 py-2 border-r border-gray-300">Time</th>
                      </React.Fragment>
                    ))}
                  </tr>
@@ -884,12 +884,12 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
-                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
-                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
+                             <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                            </React.Fragment>
                          ) : (
                            <td key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center text-gray-400">--</td>
