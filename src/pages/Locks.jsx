@@ -31,7 +31,7 @@ const Locks = () => {
     homeTeamFull: '',
     date: '',
   });
-  const [sortConfig, setSortConfig] = useState({ key: 'commenceTime', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [hideStartedGames, setHideStartedGames] = useState(true);
   // Initialize filter modals using the new hook system
   const leagueModal = useFilterModal([], []);
@@ -446,8 +446,8 @@ const Locks = () => {
     dateModal.resetFilter();
     timeModal.resetFilter();
     setHideStartedGames(true);
-    // Reset sort configuration to default
-    setSortConfig({ key: 'commenceTime', direction: 'asc' });
+    // Reset sort configuration to default (null key triggers default league-based sorting)
+    setSortConfig({ key: null, direction: 'asc' });
   };
 
   const handleFilterChange = (e, key) => {
@@ -625,12 +625,38 @@ const Locks = () => {
 
   const sortedGames = [...filteredGames].sort((a, b) => {
     const { key, direction } = sortConfig;
-    if (!key) return 0;
+    
+    // Apply default sorting: CFB first, then NFL, then NFLP, grouped by date and time
+    if (!key) {
+      const aLeague = a.league || '';
+      const bLeague = b.league || '';
+      const aTime = a.commenceTime ? new Date(a.commenceTime) : new Date(0);
+      const bTime = b.commenceTime ? new Date(b.commenceTime) : new Date(0);
+      
+      // First sort by league: CFB first, then NFL, then NFLP
+      const aLeagueOrder = aLeague === 'CFB' ? 0 : aLeague === 'NFL' ? 1 : aLeague === 'NFL Preseason' ? 2 : 3;
+      const bLeagueOrder = bLeague === 'CFB' ? 0 : bLeague === 'NFL' ? 1 : bLeague === 'NFL Preseason' ? 2 : 3;
+      
+      if (aLeagueOrder !== bLeagueOrder) {
+        return aLeagueOrder - bLeagueOrder;
+      }
+      
+      // Then sort by date and time within each league
+      return aTime - bTime;
+    }
+    
+    // Apply user-selected sorting
     let aValue = a[key];
     let bValue = b[key];
     if (key === 'commenceTime' || key === 'date' || key === 'time') {
-      aValue = new Date(aValue);
-      bValue = new Date(bValue);
+      // For time sorting, use the original commenceTime field, not the formatted time string
+      if (key === 'time') {
+        aValue = a.commenceTime ? new Date(a.commenceTime) : new Date(0);
+        bValue = b.commenceTime ? new Date(b.commenceTime) : new Date(0);
+      } else {
+        aValue = new Date(aValue);
+        bValue = new Date(bValue);
+      }
     } else {
       aValue = aValue ? aValue.toString().toLowerCase() : '';
       bValue = bValue ? bValue.toString().toLowerCase() : '';
