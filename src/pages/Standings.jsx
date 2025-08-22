@@ -368,17 +368,32 @@ const Standings = () => {
                 className="border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200"
                 disabled={availableWeeks.length === 0}
               >
-                {availableWeeks.map((week, index) => {
-                  const parts = week.split('_');
-                  // parts[1] is year, parts[2] is month, parts[3] is day
-                  const date = new Date(parts[1], parts[2] - 1, parts[3]);
-                  const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
-                  return (
-                    <option key={week} value={week}>
-                      Week {index + 1} - {formattedDate}
-                    </option>
-                  );
-                }).reverse()}
+                {(() => {
+                  const reversedWeeks = availableWeeks.slice().reverse();
+                  return reversedWeeks.map((week, reversedIndex) => {
+                    const parts = week.split('_');
+                    // parts[1] is year, parts[2] is month, parts[3] is day
+                    const date = new Date(parts[1], parts[2] - 1, parts[3]);
+                    const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+                    const originalIndex = availableWeeks.length - 1 - reversedIndex;
+                    const isCurrentWeek = reversedIndex === 0; // First item after reverse is most recent
+                    
+                    return [
+                      // Add separator after current week
+                      reversedIndex === 1 && <option key="separator" disabled style={{ borderTop: '1px solid #d1d5db', color: '#6b7280', fontStyle: 'italic' }}>— Previous Weeks —</option>,
+                      <option 
+                        key={week} 
+                        value={week}
+                        style={{
+                          color: isCurrentWeek ? '#111827' : '#6b7280',
+                          fontWeight: isCurrentWeek ? '600' : '400'
+                        }}
+                      >
+                        Week {originalIndex + 1} - {formattedDate}
+                      </option>
+                    ].filter(Boolean);
+                  }).flat();
+                })()}
               </select>
             </div>
           )}

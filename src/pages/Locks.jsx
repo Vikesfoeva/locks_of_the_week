@@ -683,17 +683,29 @@ const Locks = () => {
             }}
             disabled={loading} // Disable while loading new collection data
           >
-            {collections.map(collectionName => (
-              <option key={collectionName} value={collectionName}>
-                {/* Format display name, e.g., "Week of June 1, 2025" */}
-                {(() => {
-                  const date = parseCollectionNameToDate(collectionName);
-                  return date 
-                    ? `Week of ${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}, ${date.getFullYear()}` 
-                    : collectionName;
-                })()}
-              </option>
-            ))}
+            {collections.map((collectionName, index) => {
+              const isCurrentWeek = index === 0; // First item is most recent (current week)
+              const date = parseCollectionNameToDate(collectionName);
+              const weekNumber = collections.length - index; // Calculate week number (latest week gets highest number)
+              const displayName = date 
+                ? `Week ${weekNumber} - ${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}` 
+                : `Week ${weekNumber} - ${collectionName}`;
+              
+              return [
+                // Add separator after current week
+                index === 1 && <option key="separator" disabled style={{ borderTop: '1px solid #d1d5db', color: '#6b7280', fontStyle: 'italic' }}>— Previous Weeks —</option>,
+                <option 
+                  key={collectionName} 
+                  value={collectionName}
+                  style={{
+                    color: isCurrentWeek ? '#111827' : '#6b7280',
+                    fontWeight: isCurrentWeek ? '600' : '400'
+                  }}
+                >
+                  {displayName}
+                </option>
+              ].filter(Boolean);
+            }).flat()}
           </select>
         </div>
       )}
