@@ -612,13 +612,51 @@ app.post('/api/picks', async (req, res) => {
         };
       });
       
+      // Format week name for locksWebhook (same format as standings page)
+      const formatWeekForLocksWebhook = (collectionName, year) => {
+        const parts = collectionName.split('_');
+        if (parts.length === 4 && parts[0] === 'odds') {
+          const year = parseInt(parts[1], 10);
+          const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS Date
+          const day = parseInt(parts[3], 10);
+          const date = new Date(year, month, day);
+          const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+          
+          // Get week number by finding position in sorted available weeks
+          const yearDbName = `cy_${year}`;
+          const yearDb = client.db(yearDbName);
+          return yearDb.listCollections().toArray().then(collections => {
+            const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+            const availableWeeks = collections
+              .map(col => col.name)
+              .filter(name => oddsPattern.test(name))
+              .sort((a, b) => {
+                const dateA = parseCollectionNameToDate(a);
+                const dateB = parseCollectionNameToDate(b);
+                if (!dateA || !dateB) return a.localeCompare(b);
+                return dateA - dateB;
+              });
+            
+            const weekIndex = availableWeeks.indexOf(collectionName);
+            const weekNumber = weekIndex >= 0 ? weekIndex + 1 : '?';
+            
+            return `Week ${weekNumber} - ${formattedDate}`;
+          });
+        }
+        return collectionName; // Fallback to original collection name
+      };
+
       // Send to Google Apps Script
+      const currentLocksWeek = await formatWeekForLocksWebhook(collectionName, year);
+      console.log(currentLocksWeek)
       const axios = require('axios');
-      await axios.post('https://script.google.com/macros/s/AKfycbysSi8plFuAnlDdO2rg3o2vdIuDg5AhKgNJFT1ZKi_hkKBFyeh2CGZEGSHy_Ny3r0Ti3g/exec', {
+      await axios.post('https://script.google.com/macros/s/AKfycbwDaNEfHv41AKQyPqAZyETVQgFeZB41VXeM617LCjPP3Hu24ugyKi8mqW_BqaJ_R77A/exec'
+        , {
         picks: detailedPicks,
         username: username,
         email: email,
         collectionName: collectionName,
+        currentLocksWeek: currentLocksWeek,
         userMessage: userMessage || '',
         submissionTime: new Date().toISOString()
       });
