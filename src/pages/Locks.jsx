@@ -333,11 +333,7 @@ const Locks = () => {
   };
 
   const handleMessageSubmit = () => {
-    if (!userMessage.trim()) {
-      setError('Please enter a message before submitting.');
-      return;
-    }
-    
+    // Message is now optional - no validation needed
     setShowMessageInput(false);
     setShowConfirmModal(true);
   };
@@ -364,7 +360,7 @@ const Locks = () => {
         collectionName: selectedCollection,
         year: activeYear,
         picks: picksPayload,
-        userMessage: formatMessageForBackend(userMessage.trim())
+        userMessage: userMessage.trim() ? formatMessageForBackend(userMessage.trim()) : ''
       });
 
       setSuccess(`Successfully submitted ${picksPayload.length} lock(s) for ${selectedCollection}!`);
@@ -1165,7 +1161,7 @@ const Locks = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Add a Message</h3>
             <p className="text-gray-600 mb-4">
-              Please enter a message to accompany your locks submission:
+              Please enter a message to accompany your locks submission (optional):
             </p>
             <textarea
               value={userMessage}
@@ -1192,8 +1188,7 @@ const Locks = () => {
               </button>
               <button
                 onClick={handleMessageSubmit}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                disabled={!userMessage.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Continue
               </button>
