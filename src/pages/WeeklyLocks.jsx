@@ -126,6 +126,15 @@ const WeeklyLocks = () => {
     return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
   };
 
+  // Helper function to get cell background color based on result for traditional view
+  const getCellBackgroundColor = (result) => {
+    if (!result) return '';
+    if (result === 'WIN') return 'bg-green-100';
+    if (result === 'LOSS') return 'bg-red-100';
+    if (result === 'TIE') return 'bg-orange-100';
+    return '';
+  };
+
   // Excel export function
   const exportToExcel = () => {
     if (!filteredAndSortedPicks || filteredAndSortedPicks.length === 0) {
@@ -902,7 +911,7 @@ const WeeklyLocks = () => {
                              <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                              <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
-                             <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
+                             <td className={`px-2 py-2 border-r border-gray-300 ${getCellBackgroundColor(pick.result)}`}>{formatResult(pick.result)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
                              <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTime(game?.commence_time)}</td>
                            </React.Fragment>
