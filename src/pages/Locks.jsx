@@ -71,6 +71,9 @@ const Locks = () => {
   const [activeYearLoading, setActiveYearLoading] = useState(true);
   const [activeYearError, setActiveYearError] = useState(null);
 
+  // Mobile sort/filter modal state
+  const [showMobileSortFilter, setShowMobileSortFilter] = useState(false);
+
   // Helper function to parse collection name to a Date object for sorting
   const parseCollectionNameToDate = (collectionName) => {
     if (!collectionName || typeof collectionName !== 'string') return null;
@@ -114,6 +117,14 @@ const Locks = () => {
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  // Helper function to abbreviate league names for mobile
+  const formatLeagueForMobile = (league) => {
+    if (!league) return '';
+    // Replace NFL Preseason with NFLP for mobile
+    if (league === 'NFL Preseason') return 'NFLP';
+    return league;
   };
 
 
@@ -426,14 +437,14 @@ const Locks = () => {
   };
 
   const handleResetFilters = () => {
-    // Reset all modal system filters
-    leagueModal.handleSelectionChange([]);
-    awayTeamModal.handleSelectionChange([]);
-    awayTeamFullModal.handleSelectionChange([]);
-    homeTeamModal.handleSelectionChange([]);
-    homeTeamFullModal.handleSelectionChange([]);
-    dateModal.handleSelectionChange([]);
-    timeModal.handleSelectionChange([]);
+    // Reset all modal system filters using the new resetFilter method
+    leagueModal.resetFilter();
+    awayTeamModal.resetFilter();
+    awayTeamFullModal.resetFilter();
+    homeTeamModal.resetFilter();
+    homeTeamFullModal.resetFilter();
+    dateModal.resetFilter();
+    timeModal.resetFilter();
     setHideStartedGames(true);
     // Reset sort configuration to default
     setSortConfig({ key: 'commenceTime', direction: 'asc' });
@@ -647,19 +658,20 @@ const Locks = () => {
   if (activeYearError) return <div className="text-red-500">{activeYearError}</div>;
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4 text-center md:text-left">Lock Lines</h1>
+    <div className="md:p-4">
+      <div className="px-2 md:px-0">
+        <h1 className="text-xl md:text-2xl font-bold mb-1 md:mb-4 text-center md:text-left">Lock Lines</h1>
 
-      {/* Collection Selector Dropdown */}
-      {collections.length > 0 && (
-        <div className="mb-4">
+        {/* Collection Selector Dropdown */}
+        {collections.length > 0 && (
+          <div className="mb-1 md:mb-4">
           <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
             Select Week:
           </label>
           <select
             id="collection-select"
             name="collection-select"
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+            className="mt-1 block w-full pl-2 md:pl-3 pr-8 md:pr-10 py-1 md:py-2 text-sm md:text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
             value={selectedCollection}
             onChange={(e) => {
               setSelectedCollection(e.target.value);
@@ -686,9 +698,9 @@ const Locks = () => {
         </div>
       )}
 
-      <div className="mb-2 text-gray-600">Select up to 3 outcomes across all games for the selected week.</div>
+      <div className="mb-1 md:mb-2 text-gray-600 text-sm md:text-base">Select up to 3 outcomes across all games for the selected week.</div>
       {/* Update pick count display to reflect current collection's picks */}
-      <div className="mb-4 text-blue-700 font-semibold text-center md:text-left">
+      <div className="mb-2 md:mb-4 text-blue-700 font-semibold text-center md:text-left text-sm md:text-base">
                     Locks for {selectedCollection ? (
           (() => {
             const date = parseCollectionNameToDate(selectedCollection);
@@ -699,32 +711,33 @@ const Locks = () => {
         ) : 'current week'}: {selectedPicks.length}/3
       </div>
       {success && <div className="text-green-600 mb-2">{success}</div>}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
-        <div className="flex items-center gap-2 mb-2 md:mb-0 justify-center md:justify-start">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 md:mb-4 gap-1 md:gap-2">
+        <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1 md:mb-0 justify-center md:justify-start">
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="bg-blue-600 text-white px-2 py-1 md:px-4 md:py-2 rounded disabled:opacity-50 text-sm md:text-base"
             onClick={handleSubmit}
             disabled={selectedPicks.length === 0 || submitting}
           >
             Submit Locks
           </button>
           <button
-            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100"
+            className="border border-gray-400 text-gray-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-gray-100 text-sm md:text-base"
             onClick={handleResetFilters}
             type="button"
           >
             Reset Filters
           </button>
           <button
-            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100 flex items-center"
+            className="border border-gray-400 text-gray-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-gray-100 flex items-center text-sm md:text-base"
             onClick={handlePrint}
             type="button"
           >
-            <PrinterIcon className="h-5 w-5 mr-2" />
-            Print Games
+            <PrinterIcon className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Print Games</span>
+            <span className="sm:hidden">Print</span>
           </button>
           <button
-            className={`px-4 py-2 rounded flex items-center gap-2 ${
+            className={`px-2 py-1 md:px-4 md:py-2 rounded flex items-center gap-1 md:gap-2 text-sm md:text-base ${
               hideStartedGames 
                 ? 'bg-blue-600 text-white hover:bg-blue-700' 
                 : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
@@ -733,17 +746,39 @@ const Locks = () => {
             type="button"
             title={hideStartedGames ? "Currently hiding games that have already started" : "Currently showing all games including those that have started"}
           >
-            {hideStartedGames ? '✓' : '○'} Hide Started Games
+            {hideStartedGames ? '✓' : '○'} <span className="hidden sm:inline">Hide Started Games</span><span className="sm:hidden">Hide Started</span>
             {hideStartedGames && startedGamesCount > 0 && (
-              <span className="ml-1 text-xs bg-white text-blue-600 px-1.5 py-0.5 rounded-full">
+              <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 md:px-1.5 rounded-full">
                 {startedGamesCount}
               </span>
             )}
           </button>
+          {/* Mobile Sort & Filter Button - Only visible on mobile */}
+          <button
+            className={`md:hidden px-2 py-1 rounded flex items-center gap-1 text-sm ${
+              (isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== 'commenceTime')
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+            }`}
+            onClick={() => setShowMobileSortFilter(true)}
+            type="button"
+          >
+            {(isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== 'commenceTime') ? (
+              <FunnelIconSolid className="h-4 w-4" />
+            ) : (
+              <FunnelIconOutline className="h-4 w-4" />
+            )}
+            Sort & Filter
+            {(isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isDateFiltered || isTimeFiltered) && (
+              <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
+                Active
+              </span>
+            )}
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
-                          <span className="font-semibold text-gray-700">Your Locks:</span>
-                {selectedPicks.length === 0 && <span className="text-gray-400">None selected</span>}
+        <div className="flex flex-wrap items-center gap-1 md:gap-2 justify-center md:justify-start">
+                          <span className="font-semibold text-gray-700 text-sm md:text-base">Your Locks:</span>
+                {selectedPicks.length === 0 && <span className="text-gray-400 text-sm md:text-base">None selected</span>}
           {selectedPicks.map((pick, idx) => {
             let label = '';
             if (pick.pickType === 'spread') {
@@ -762,19 +797,19 @@ const Locks = () => {
             return (
               <span
                 key={pick.key}
-                className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium mr-1 mb-1 ${pick.status === 'submitted' ? 'bg-gray-300 text-gray-600' : 'bg-blue-100 text-blue-800'}`}
+                className={`inline-flex items-center px-1 py-0.5 md:px-2 md:py-1 rounded-full text-xs md:text-sm font-medium mr-0.5 md:mr-1 mb-0.5 md:mb-1 ${pick.status === 'submitted' ? 'bg-gray-300 text-gray-600' : 'bg-blue-100 text-blue-800'}`}
               >
                 {label}
                 {pick.status === 'submitted' ? (
-                  <LockClosedIcon className="h-4 w-4 ml-1 text-gray-500" title="Submitted/Locked" />
+                  <LockClosedIcon className="h-3 w-3 md:h-4 md:w-4 ml-0.5 md:ml-1 text-gray-500" title="Submitted/Locked" />
                 ) : (
                   <button
-                    className="ml-1 text-blue-600 hover:text-red-600 focus:outline-none"
+                    className="ml-0.5 md:ml-1 text-blue-600 hover:text-red-600 focus:outline-none"
                     onClick={() => handlePickChange(pick.gameId, pick.pickType, pick.pickSide, pick.line, pick.price)}
                     title="Remove pick"
                     type="button"
                   >
-                    <XMarkIcon className="h-4 w-4" />
+                    <XMarkIcon className="h-3 w-3 md:h-4 md:w-4" />
                   </button>
                 )}
               </span>
@@ -782,15 +817,17 @@ const Locks = () => {
           })}
         </div>
       </div>
+      </div>
       {/* Wrapper for full-width table */}
-      <div className="w-[90vw] mx-auto px-4 md:px-8 overflow-x-auto">
-        <table className="min-w-full bg-white border border-gray-300 rounded shadow">
+      <div className="w-full md:w-[90vw] md:mx-auto px-0 md:px-8 overflow-x-auto">
+        <table className="min-w-full bg-white border border-gray-300 rounded shadow text-sm md:text-base">
           <thead>
             <tr className="bg-gray-100 text-left border-b border-gray-300">
-              <th className="px-2 py-2 border-r border-gray-300">
+              <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                 <div className="flex items-center gap-1">
                   <span>Sport</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'league', direction: 'asc' }); }}
@@ -806,14 +843,16 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-2 py-2 border-r border-gray-300">
+              <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                 <div className="flex items-center gap-1">
                   <span>Away</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'awayTeam' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'awayTeam', direction: 'asc' }); }}
@@ -829,6 +868,7 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
@@ -852,14 +892,16 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-2 py-2 border-r border-gray-300">
+              <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                 <div className="flex items-center gap-1">
                   <span>Home</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'homeTeam' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'homeTeam', direction: 'asc' }); }}
@@ -875,6 +917,7 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
@@ -898,14 +941,17 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-2 py-2">
+              <th className="px-1 py-1 md:px-2 md:py-2">
                 <div className="flex items-center gap-1">
-                  <span>Date</span>
-                  <div className="flex flex-col ml-1">
+                  <span className="md:hidden">Time</span>
+                  <span className="hidden md:inline">Date</span>
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'date' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); setSortConfig({ key: 'date', direction: 'asc' }); }}
@@ -921,13 +967,15 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-2 py-2">
+              <th className="px-1 py-1 md:px-2 md:py-2 hidden md:table-cell">
                 <div className="flex items-center gap-1">
                   <span>Time</span>
+                  {/* Hide sort/filter controls on mobile */}
                   <div className="flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'time' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
@@ -944,12 +992,13 @@ const Locks = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-2 py-2 border-r border-gray-300">Spread</th>
-              <th className="px-2 py-2">Total</th>
+              <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">Spread</th>
+              <th className="px-1 py-1 md:px-2 md:py-2">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -972,71 +1021,92 @@ const Locks = () => {
                     `${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b border-gray-300`
                   }
                 >
-                  <td className="px-2 py-2 border-r border-gray-300 font-semibold">{game.league}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.awayTeam}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDateOnly(game.commenceTime)}</td>
-                  <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameTimeOnly(game.commenceTime)}</td>
-                  <td className="px-2 py-2 border-r border-gray-300">
-                    <div className="flex flex-col gap-1">
-                      <label>
-                        <input
-                          type="checkbox"
-                          disabled={
-                            isGameLocked(game) || 
-                            (awaySpreadPick?.status === 'submitted') ||
-                            (selectedPicks.length >= 3 && !awaySpreadPick)
-                          }
-                          checked={!!awaySpreadPick}
-                          onChange={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
-                        />{' '}
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-semibold">
+                    <span className="md:hidden">{formatLeagueForMobile(game.league)}</span>
+                    <span className="hidden md:inline">{game.league}</span>
+                  </td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">{game.awayTeam}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
+                    <div className="md:hidden text-xs leading-tight">
+                      <div>{formatGameDateOnly(game.commenceTime)}</div>
+                      <div>{formatGameTimeOnly(game.commenceTime)}</div>
+                    </div>
+                    <span className="hidden md:inline whitespace-nowrap">{formatGameDateOnly(game.commenceTime)}</span>
+                  </td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameTimeOnly(game.commenceTime)}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
+                    <div className="flex flex-col gap-0.5 md:gap-1">
+                      <button
+                        type="button"
+                        disabled={
+                          isGameLocked(game) || 
+                          (awaySpreadPick?.status === 'submitted') ||
+                          (selectedPicks.length >= 3 && !awaySpreadPick)
+                        }
+                        onClick={() => handlePickChange(game._id, 'spread', game.awayTeam, game.awaySpread, null)}
+                        className={`text-xs md:text-sm px-1 py-0.5 md:px-2 md:py-1 rounded border transition-colors ${
+                          awaySpreadPick 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
                         {game.awayTeam} {game.awaySpread > 0 ? '+' : ''}{game.awaySpread}
-                      </label>
-                      <label>
-                        <input
-                          type="checkbox"
-                          disabled={
-                            isGameLocked(game) || 
-                            (homeSpreadPick?.status === 'submitted') ||
-                            (selectedPicks.length >= 3 && !homeSpreadPick)
-                          }
-                          checked={!!homeSpreadPick}
-                          onChange={() => handlePickChange(game._id, 'spread', game.homeTeam, game.homeSpread, null)}
-                        />{' '}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          isGameLocked(game) || 
+                          (homeSpreadPick?.status === 'submitted') ||
+                          (selectedPicks.length >= 3 && !homeSpreadPick)
+                        }
+                        onClick={() => handlePickChange(game._id, 'spread', game.homeTeam, game.homeSpread, null)}
+                        className={`text-xs md:text-sm px-1 py-0.5 md:px-2 md:py-1 rounded border transition-colors ${
+                          homeSpreadPick 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
                         {game.homeTeam} {game.homeSpread > 0 ? '+' : ''}{game.homeSpread}
-                      </label>
+                      </button>
                     </div>
                   </td>
-                  <td className="px-2 py-2">
-                    <div className="flex flex-col gap-1">
-                      <label>
-                        <input
-                          type="checkbox"
-                          disabled={
-                            isGameLocked(game) || 
-                            (overTotalPick?.status === 'submitted') ||
-                            (selectedPicks.length >= 3 && !overTotalPick)
-                          }
-                          checked={!!overTotalPick}
-                          onChange={() => handlePickChange(game._id, 'total', 'OVER', game.total, null)}
-                        />{' '}
+                  <td className="px-1 py-1 md:px-2 md:py-2">
+                    <div className="flex flex-col gap-0.5 md:gap-1">
+                      <button
+                        type="button"
+                        disabled={
+                          isGameLocked(game) || 
+                          (overTotalPick?.status === 'submitted') ||
+                          (selectedPicks.length >= 3 && !overTotalPick)
+                        }
+                        onClick={() => handlePickChange(game._id, 'total', 'OVER', game.total, null)}
+                        className={`text-xs md:text-sm px-1 py-0.5 md:px-2 md:py-1 rounded border transition-colors ${
+                          overTotalPick 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
                         O {game.total}
-                      </label>
-                      <label>
-                        <input
-                          type="checkbox"
-                          disabled={
-                            isGameLocked(game) || 
-                            (underTotalPick?.status === 'submitted') ||
-                            (selectedPicks.length >= 3 && !underTotalPick)
-                          }
-                          checked={!!underTotalPick}
-                          onChange={() => handlePickChange(game._id, 'total', 'UNDER', game.total, null)}
-                        />{' '}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          isGameLocked(game) || 
+                          (underTotalPick?.status === 'submitted') ||
+                          (selectedPicks.length >= 3 && !underTotalPick)
+                        }
+                        onClick={() => handlePickChange(game._id, 'total', 'UNDER', game.total, null)}
+                        className={`text-xs md:text-sm px-1 py-0.5 md:px-2 md:py-1 rounded border transition-colors ${
+                          underTotalPick 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
                         U {game.total}
-                      </label>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -1167,6 +1237,174 @@ const Locks = () => {
           placement: 'bottom-start',
         })}
       />
+
+      {/* Mobile Sort & Filter Modal */}
+      {showMobileSortFilter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 md:hidden">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Sort & Filter</h3>
+              <button
+                onClick={() => setShowMobileSortFilter(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            {/* Sort Section */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-3">Sort By</h4>
+              <div className="space-y-2">
+                {[
+                  { key: 'league', label: 'Sport' },
+                  { key: 'awayTeam', label: 'Away Team' },
+                  { key: 'homeTeam', label: 'Home Team' },
+                  { key: 'commenceTime', label: 'Time' }
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm">{label}</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setSortConfig({ key, direction: 'asc' })}
+                        className={`px-2 py-1 text-xs rounded ${
+                          sortConfig.key === key && sortConfig.direction === 'asc'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        <ChevronUpIcon className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => setSortConfig({ key, direction: 'desc' })}
+                        className={`px-2 py-1 text-xs rounded ${
+                          sortConfig.key === key && sortConfig.direction === 'desc'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        <ChevronDownIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-3">Filters</h4>
+              <div className="space-y-4">
+                {/* Sport Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sport</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={leagueFilter.length === 1 ? leagueFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      leagueModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Sports</option>
+                    {uniqueLeagues.map(league => (
+                      <option key={league} value={league}>{league}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Away Team Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Away Team</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={awayTeamFilter.length === 1 ? awayTeamFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      awayTeamModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Away Teams</option>
+                    {uniqueAwayTeams.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Home Team Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Home Team</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={homeTeamFilter.length === 1 ? homeTeamFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      homeTeamModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Home Teams</option>
+                    {uniqueHomeTeams.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={dateFilter.length === 1 ? dateFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      dateModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Dates</option>
+                    {uniqueDates.map(date => (
+                      <option key={date} value={date}>{date}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Time Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={timeFilter.length === 1 ? timeFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      timeModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Times</option>
+                    {uniqueTimes.map(time => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-3">
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Reset All
+              </button>
+              <button
+                onClick={() => setShowMobileSortFilter(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

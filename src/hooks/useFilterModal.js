@@ -15,13 +15,16 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
 
   // Open modal and initialize state
   const openModal = useCallback((items = initialItems, selected = initialSelected) => {
-    // Use appliedItems if available, otherwise use the passed selected items
-    const itemsToShow = appliedItems.length > 0 ? appliedItems : (selected.length > 0 ? selected : [...items]);
-    setSelectedItems(itemsToShow);
-    setSearchValue('');
-    setIsOpen(true);
+    // Always show all available items in the modal
     setCurrentItems(items);
     setOriginalItems(items); // Store the original items for this filter
+    
+    // Set selected items to currently applied filters, or fallback to passed selected items
+    const itemsToSelect = appliedItems.length > 0 ? appliedItems : (selected.length > 0 ? selected : []);
+    setSelectedItems(itemsToSelect);
+    
+    setSearchValue('');
+    setIsOpen(true);
   }, [initialItems, initialSelected, appliedItems]);
 
   // Close modal
@@ -52,6 +55,14 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
     closeModal();
   }, [selectedItems, originalItems, closeModal]);
 
+  // Reset all filter state
+  const resetFilter = useCallback(() => {
+    setSelectedItems([]);
+    setAppliedItems([]);
+    setSearchValue('');
+    setIsOpen(false);
+  }, []);
+
   return {
     // State
     isOpen,
@@ -67,6 +78,7 @@ export function useFilterModal(initialItems = [], initialSelected = []) {
     handleSelectionChange,
     handleSearchChange,
     applyFilters,
+    resetFilter,
     
     // Computed
     isFiltered: appliedItems.length > 0 && appliedItems.length < originalItems.length,

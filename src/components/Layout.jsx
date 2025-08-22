@@ -170,7 +170,7 @@ export default function Layout() {
         )}
       </Disclosure>
 
-      <main className="py-10">
+      <main className="py-2 md:py-10">
         <div className="sm:px-6 lg:px-8">
           {error && (
             <div className="mb-4 rounded-md bg-red-50 p-4">
