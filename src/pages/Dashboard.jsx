@@ -287,7 +287,13 @@ export default function Dashboard() {
 
         {/* Projected Season Winners */}
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900">Current Leaders</h3>
+          <div className="flex items-center space-x-2 mb-2">
+            <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900">Season Leaders</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">Current standings for the entire season</p>
           {dashboardData.loading ? (
             <div className="mt-2 text-sm text-gray-600">Loading...</div>
           ) : dashboardData.error ? (
@@ -296,31 +302,41 @@ export default function Dashboard() {
             <div className="mt-2 text-sm text-gray-600">No projected winners yet</div>
           ) : (
             <div className="mt-2 space-y-2">
-              {dashboardData.projectedWinners.slice(0, 5).map((winner, index) => (
-                <div key={winner._id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      #{winner.rank} {winner.name}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      ({winner.wins}-{winner.losses}-{winner.ties})
-                    </span>
+              {(() => {
+                // Find users in top 5 ranks, including ties
+                const topUsers = [];
+                const uniqueRanks = new Set();
+                
+                for (const winner of dashboardData.projectedWinners) {
+                  if (winner.rank <= 5) {
+                    topUsers.push(winner);
+                    uniqueRanks.add(winner.rank);
+                  }
+                  // Stop if we have 5 unique ranks
+                  if (uniqueRanks.size >= 5) break;
+                }
+                
+                return topUsers.map((winner, index) => (
+                  <div key={winner._id} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        #{winner.rank} {winner.name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        ({winner.wins}-{winner.losses}-{winner.ties})
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xs text-gray-500">
+                        WB: {winner.gamesBack || '-'}
+                      </span>
+                      <span className="text-sm font-semibold text-green-600">
+                        ${winner.payout}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-xs text-gray-500">
-                      WN: {winner.gamesBack || '-'}
-                    </span>
-                    <span className="text-sm font-semibold text-green-600">
-                      ${winner.payout}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {dashboardData.projectedWinners.length > 5 && (
-                <div className="text-xs text-gray-500 text-center pt-1">
-                  +{dashboardData.projectedWinners.length - 5} more
-                </div>
-              )}
+                ));
+              })()}
             </div>
           )}
         </div>
