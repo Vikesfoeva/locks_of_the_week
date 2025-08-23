@@ -705,30 +705,24 @@ const Standings = () => {
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
                     {user.threeZeroPayout > 0 ? (
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                        <span className="font-bold text-blue-700 text-xs md:text-base bg-blue-100 px-1 md:px-2 py-1 rounded-full">
-                          ${user.threeZeroPayout.toFixed(2)}
-                        </span>
-                      </div>
+                      <span className="font-bold text-blue-700 text-xs md:text-base bg-blue-100 px-1 md:px-2 py-1 rounded-full">
+                        ${user.threeZeroPayout.toFixed(2)}
+                      </span>
                     ) : (
                       <span className="text-gray-400 font-medium">-</span>
                     )}
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     {isWinner ? (
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
-                            ${user.payout.toFixed(2)}
+                      <div className="flex flex-col">
+                        <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
+                          ${user.payout.toFixed(2)}
+                        </span>
+                        {isTied && (
+                          <span className="text-xs text-purple-600 font-medium mt-1">
+                            Split {tiedCount} ways
                           </span>
-                          {isTied && (
-                            <span className="text-xs text-purple-600 font-medium mt-1">
-                              Split {tiedCount} ways
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-gray-400 font-medium">-</span>
@@ -831,12 +825,9 @@ const Standings = () => {
                       </td>
                       <td className="px-1 py-2 md:px-4 md:py-4">
                         {hasEarnings ? (
-                          <div className="flex items-center">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                            <span className="font-bold text-green-700 text-lg bg-green-100 px-3 py-1 rounded-full">
-                              ${user.payout?.toFixed(2) || '0.00'}
-                            </span>
-                          </div>
+                          <span className="font-bold text-green-700 text-lg bg-green-100 px-3 py-1 rounded-full">
+                            ${user.payout?.toFixed(2) || '0.00'}
+                          </span>
                         ) : (
                           <span className="text-gray-400 font-medium">-</span>
                         )}
