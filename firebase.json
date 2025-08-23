@@ -22,7 +22,7 @@
         "source": "/api/**",
         "run": {
           "serviceId": "locks-backend",
-          "region": "us-central1"
+          "region": "us-east1"
         }
       },
       {

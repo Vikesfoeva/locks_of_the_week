@@ -14,7 +14,7 @@ cd backend
 gcloud run deploy locks-backend \
   --source . \
   --platform managed \
-  --region us-central1 \
+  --region us-east1 \
   --allow-unauthenticated \
   --port 5001
 

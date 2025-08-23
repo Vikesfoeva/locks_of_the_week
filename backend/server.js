@@ -900,7 +900,7 @@ app.get('/api/standings', async (req, res) => {
     });
 
     // 6. Rank calculation
-    const rankingFn = (a, b) => b.wins - a.wins || b.ties - a.ties || a.losses - b.losses;
+    const rankingFn = (a, b) => b.wins - a.wins || a.losses - b.losses || a.ties - b.ties;
     
     const calculateRanks = (statsDict, key) => {
       const sorted = Object.values(statsDict).sort((a, b) => rankingFn(a[key], b[key]));
