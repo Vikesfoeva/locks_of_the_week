@@ -5,9 +5,50 @@ import { API_URL } from '../config'
 
 export default function Dashboard() {
   const { currentUser } = useAuth()
+
+  // Helper functions for formatting pick data
+  const formatScore = (awayScore, homeScore, awayTeam, homeTeam) => {
+    if (typeof awayScore === 'number' && typeof homeScore === 'number') {
+      return `${awayTeam} ${awayScore} - ${homeScore} ${homeTeam}`;
+    }
+    return '--';
+  };
+
+  const formatStatus = (status) => {
+    if (!status) return '--';
+    if (status === 'scheduled') return 'Scheduled';
+    if (status === 'final') return 'Final';
+    if (status === 'in-progress') return 'In Progress';
+    return status;
+  };
+
+  const formatResult = (result) => {
+    if (!result || result === 'Pending') return '--';
+    return result;
+  };
+
+  const formatPickDisplay = (pick) => {
+    if (pick.pickType === 'spread') {
+      return pick.pickSide;
+    } else if (pick.pickType === 'total') {
+      return pick.pickSide === 'OVER' ? 'Over' : 'Under';
+    }
+    return '--';
+  };
+
+  const formatLineValue = (line, pickType) => {
+    if (typeof line === 'number') {
+      if (pickType === 'spread') {
+        return line > 0 ? `+${line}` : `${line}`;
+      } else if (pickType === 'total') {
+        return `${line}`;
+      }
+    }
+    return '--';
+  };
   const [dashboardData, setDashboardData] = useState({
     projectedWinners: [],
-    currentWeekPickCount: 0,
+    currentWeekPicks: [],
     currentWeekTotal: 3,
     currentWeek: null,
     loading: true,
@@ -52,13 +93,13 @@ export default function Dashboard() {
 
         const currentWeek = currentYearCollections[0] || null
 
-        let currentWeekPickCount = 0
+        let currentWeekPicks = []
         if (currentWeek) {
-          // Get user's picks for the current week
+          // Get user's picks for the current week with game details
           const picksRes = await axios.get(
             `${API_URL}/picks?userId=${currentUser.uid}&collectionName=${currentWeek}&year=${activeYear}`
           )
-          currentWeekPickCount = (picksRes.data || []).length
+          currentWeekPicks = Array.isArray(picksRes.data) ? picksRes.data : []
         }
 
         // Get standings to find projected winners
@@ -72,7 +113,7 @@ export default function Dashboard() {
 
         setDashboardData({
           projectedWinners,
-          currentWeekPickCount,
+          currentWeekPicks,
           currentWeekTotal: 3,
           currentWeek,
           loading: false,
@@ -173,25 +214,72 @@ export default function Dashboard() {
             <div className="mt-2 text-sm text-red-600">Error loading data</div>
           ) : (
             <div className="mt-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">Picks made:</span>
                 <span className={`text-lg font-semibold ${
-                  dashboardData.currentWeekPickCount === dashboardData.currentWeekTotal 
+                  dashboardData.currentWeekPicks.length === dashboardData.currentWeekTotal 
                     ? 'text-green-600' 
                     : 'text-orange-600'
                 }`}>
-                  {dashboardData.currentWeekPickCount}/{dashboardData.currentWeekTotal}
+                  {dashboardData.currentWeekPicks.length}/{dashboardData.currentWeekTotal}
                 </span>
               </div>
-              {dashboardData.currentWeekPickCount < dashboardData.currentWeekTotal && (
-                <p className="mt-2 text-sm text-orange-600">
-                  You need to make {dashboardData.currentWeekTotal - dashboardData.currentWeekPickCount} more pick{dashboardData.currentWeekTotal - dashboardData.currentWeekPickCount !== 1 ? 's' : ''} this week!
+              
+              {dashboardData.currentWeekPicks.length === 0 ? (
+                <p className="text-sm text-orange-600">
+                  You haven't made any picks this week yet. <a href="/locks" className="underline">Pick your locks!</a>
                 </p>
-              )}
-              {dashboardData.currentWeekPickCount === dashboardData.currentWeekTotal && (
-                <p className="mt-2 text-sm text-green-600">
-                  All picks submitted for this week! 🎉
-                </p>
+              ) : (
+                <div className="space-y-2">
+                  {dashboardData.currentWeekPicks.map((pick, index) => {
+                    const game = pick.gameDetails;
+                    return (
+                      <div key={pick._id || index} className="bg-gray-50 rounded-md p-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">
+                              {game?.away_team_abbrev || '--'} @ {game?.home_team_abbrev || '--'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {game?.league || '--'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="font-medium text-blue-600">
+                            {formatPickDisplay(pick)} {formatLineValue(pick.line, pick.pickType)}
+                          </span>
+                          <div className="text-xs">
+                            <span className={`font-medium ${
+                              pick.result === 'W' ? 'text-green-600' : 
+                              pick.result === 'L' ? 'text-red-600' : 
+                              'text-gray-500'
+                            }`}>
+                              {formatResult(pick.result)}
+                            </span>
+                            {pick.result && pick.result !== 'Pending' && (
+                              <span className="text-gray-400 ml-1">• {formatStatus(pick.status)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {dashboardData.currentWeekPicks.length < dashboardData.currentWeekTotal && (
+                    <p className="mt-3 text-sm text-orange-600">
+                      You need to make {dashboardData.currentWeekTotal - dashboardData.currentWeekPicks.length} more pick{dashboardData.currentWeekTotal - dashboardData.currentWeekPicks.length !== 1 ? 's' : ''} this week!
+                    </p>
+                  )}
+                  {dashboardData.currentWeekPicks.length === dashboardData.currentWeekTotal && (
+                    <p className="mt-3 text-sm text-green-600">
+                      All picks submitted for this week! 🎉
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
