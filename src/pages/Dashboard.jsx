@@ -263,29 +263,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Detailed Score Update Schedule - Bottom */}
+      {/* Score Update Schedule */}
       <div className="card">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-900 mb-2">Score Update Schedule</h3>
-            <div className="space-y-2 text-xs text-gray-600">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Score Update Schedule</h3>
+            <div className="space-y-3 text-sm text-gray-600">
               <div>
-                <span className="font-medium text-gray-700">Weekdays (Monday-Friday):</span>
-                <p className="ml-2">Score updates run once daily at 11:59 PM ET</p>
+                <span className="font-semibold text-gray-800">Weekdays (Monday-Friday):</span>
+                <p className="ml-3 mt-1">3 updates daily at 9:00 PM, 11:00 PM, and 2:00 AM (next day)</p>
               </div>
               <div>
-                <span className="font-medium text-gray-700">Weekends:</span>
-                <p className="ml-2">Saturday: Updates every 30 minutes from 12:00 PM to 11:30 PM ET (24 updates total)</p>
-                <p className="ml-2">Sunday: Updates every 30 minutes from 1:00 PM to 11:30 PM ET (22 updates total)</p>
+                <span className="font-semibold text-gray-800">Weekends (Saturday-Sunday):</span>
+                <p className="ml-3 mt-1">Hourly updates from 1:00 PM to 2:00 AM (next day) - 14 updates total</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-blue-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-xs text-blue-700">
+                    <span className="font-medium">Timezone:</span> America/New_York (Eastern Time)
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div className="text-xs text-gray-500 ml-4 flex-shrink-0">
-            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="text-xs text-gray-500 ml-4 flex-shrink-0 text-center">
+            <svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="block">Daily & 30-min</span>
-            <span className="block">updates</span>
+            <div className="space-y-1">
+              <span className="block font-medium">3x Weekdays</span>
+              <span className="block font-medium">14x Weekends</span>
+            </div>
           </div>
         </div>
       </div>
