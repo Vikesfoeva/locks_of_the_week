@@ -733,7 +733,7 @@ const WeeklyLocks = () => {
       {activeYearError && <div className="text-red-500">{activeYearError}</div>}
       {userPicks.length === 3 && allPicks.length > 0 ? (
         <>
-          <h2 className="text-xl font-semibold mb-2">All Locks for This Week</h2>
+          {/* <h2 className="text-xl font-semibold mb-2">All Locks for This Week</h2> */}
           {viewMode === 'table' ? (
             <div className="w-full md:w-[90vw] md:mx-auto px-0 md:px-8 overflow-x-auto">
               <table className="min-w-full bg-white border border-gray-300 rounded shadow text-sm md:text-base">
