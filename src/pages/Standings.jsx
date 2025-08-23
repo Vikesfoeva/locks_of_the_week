@@ -40,6 +40,8 @@ const Standings = () => {
   const legendBtnRef = useRef(null);
   const [legendPopoverPosition, setLegendPopoverPosition] = useState({ top: 0, left: 0 });
 
+
+
   const fetchThreeZeroStandings = async (year) => {
     try {
       const response = await fetch(`/api/three-zero-standings?year=${year}`);
@@ -159,12 +161,14 @@ const Standings = () => {
   };
 
   const handleResetFilters = () => {
-    // Reset all modal system filters
-    userNameModal.handleSelectionChange([]);
-    rankModal.handleSelectionChange([]);
-    winPctModal.handleSelectionChange([]);
+    // Reset all modal system filters using resetFilter to clear both selectedItems and appliedItems
+    userNameModal.resetFilter();
+    rankModal.resetFilter();
+    winPctModal.resetFilter();
     // Reset sort configuration to default
     setSortConfig({ key: '', direction: 'asc' });
+    // Reset view mode to default (regular standings)
+    setViewMode('regular');
   };
 
   // Get current data based on view mode
@@ -306,66 +310,70 @@ const Standings = () => {
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <div className="max-w-7xl mx-auto px-2 py-2 md:p-4">
       {/* Title and Description */}
-      <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+      <div className="text-center mb-4 md:mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1 md:mb-2">
           {viewMode === 'regular' ? 'Overall Standings' : '3-0 Week Standings'} - {activeYear}
         </h1>
-        <p className="text-gray-600">
+        {/* <p className="text-sm md:text-base text-gray-600">
           {viewMode === 'regular' 
             ? 'Complete season performance rankings'
-            : `Perfect week achievements (${threeZeroData.totalThreeZeroWeeks} total 3-0 weeks)`
+            : `Total 3-0 Weeks`
           }
-        </p>
+        </p> */}
       </div>
 
       {/* Controls Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+      <div className="flex flex-row items-center justify-between mb-4 md:mb-6 gap-2 md:gap-4">
         {/* Left side - View Mode Toggle */}
-        <div className="flex items-center gap-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 md:gap-3 flex-shrink-1">
+          <div className="flex bg-gray-100 rounded-lg p-0.5 md:p-1">
             <button
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+              className={`px-2 py-1 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-colors duration-200 ${
                 viewMode === 'regular'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
               onClick={() => setViewMode('regular')}
             >
-              Regular Standings
+              <span className="md:hidden">Regular</span>
+              <span className="hidden md:inline">Regular Standings</span>
             </button>
             <button
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+              className={`px-2 py-1 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-colors duration-200 ${
                 viewMode === 'threeZero'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
               onClick={() => setViewMode('threeZero')}
             >
-              3-0 Weeks
+              <span className="md:hidden">3-0</span>
+              <span className="hidden md:inline">3-0 Weeks</span>
             </button>
           </div>
           
           <button
-            className="border border-gray-300 text-gray-700 bg-white px-4 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 font-medium"
+            className="hidden md:block border border-gray-300 text-gray-700 bg-white px-4 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 text-sm font-medium"
             onClick={handleResetFilters}
             type="button"
           >
             Reset Filters
           </button>
+          
+
         </div>
 
         {/* Right side - Week Selector and Legend */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
           {viewMode === 'regular' && (
-            <div className="flex items-center gap-2">
-              <label htmlFor="week-select" className="font-medium text-gray-700">View as of week:</label>
+            <div className="flex items-center gap-1">
+              <label htmlFor="week-select" className="text-xs md:text-sm font-medium text-gray-700 whitespace-nowrap">Week:</label>
               <select
                 id="week-select"
                 value={selectedWeek || ''}
                 onChange={e => setSelectedWeek(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200"
+                className="border border-gray-300 rounded-lg px-2 py-1 md:px-3 md:py-2 text-xs md:text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200 min-w-0"
                 disabled={availableWeeks.length === 0}
               >
                 {(() => {
@@ -398,13 +406,13 @@ const Standings = () => {
             </div>
           )}
           
-          <Popover as="span" className="relative">
+          <Popover as="span" className="relative hidden md:inline-block">
             {({ open, close }) => {
               return (
                 <>
                   <Popover.Button
                     ref={legendBtnRef}
-                    className="flex items-center gap-2 border border-gray-300 text-gray-700 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 font-medium"
+                    className="flex items-center gap-2 border border-gray-300 text-gray-700 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 text-sm font-medium"
                     onClick={e => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setLegendPopoverPosition({
@@ -471,14 +479,15 @@ const Standings = () => {
       <>
         {viewMode === 'regular' ? (
           // Regular standings table
-          <div className="overflow-x-auto shadow-lg rounded-xl border border-gray-200">
-          <table className="min-w-full bg-white">
+          <div className="shadow-lg rounded-xl border border-gray-200">
+          <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto">
             <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
               <tr>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-12 md:w-auto">
                 <div className="flex items-center gap-1">
-                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Rank</span>
-                  <div className="flex flex-col ml-1">
+                  <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Rank</span>
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'rank' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); handleSort('rank'); }}
@@ -494,14 +503,16 @@ const Standings = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-24 md:w-auto">
                 <div className="flex items-center gap-1">
-                  <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Name</span>
-                  <div className="flex flex-col ml-1">
+                  <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Name</span>
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); handleSort('name'); }}
@@ -517,23 +528,25 @@ const Standings = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
-                <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">W-L-T</span>
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-16 md:w-auto">
+                <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">W-L-T</span>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
-                <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Week</span>
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-14 md:w-auto">
+                <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Week</span>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                 <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Total</span>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Win %</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'winPct' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); handleSort('winPct'); }}
@@ -549,17 +562,19 @@ const Standings = () => {
                     }, {
                       IconComponent: FunnelIconOutline,
                       IconComponentSolid: FunnelIconSolid,
+                      className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                     })}
                   />
                 </div>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                 <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">WB</span>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Weeks</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroWeeks' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); handleSort('threeZeroWeeks'); }}
@@ -571,10 +586,11 @@ const Standings = () => {
                   </div>
                 </div>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Payout</span>
-                  <div className="flex flex-col ml-1">
+                  {/* Hide sort/filter controls on mobile */}
+                  <div className="hidden md:flex flex-col ml-1">
                     <ChevronUpIcon
                       className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeZeroPayout' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
                       onClick={e => { e.stopPropagation(); handleSort('threeZeroPayout'); }}
@@ -586,10 +602,10 @@ const Standings = () => {
                   </div>
                 </div>
               </th>
-              <th className="px-4 py-4 text-left border-r border-gray-200">
-                <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Projected Payout</span>
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200">
+                <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Projected Payout</span>
               </th>
-              <th className="px-4 py-4 text-left">
+              <th className="px-2 py-2 md:px-4 md:py-4 text-left hidden md:table-cell">
                 <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Rank Δ</span>
               </th>
             </tr>
@@ -621,7 +637,7 @@ const Standings = () => {
               
               return (
                 <tr key={user._id} className={rowClassName}>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <div className="flex items-center">
                       {isTopFive && (
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
@@ -635,7 +651,7 @@ const Standings = () => {
                         </div>
                       )}
                       <div className="flex flex-col">
-                        <span className={`font-bold text-lg ${isTopFive ? 'text-gray-800' : 'text-gray-600'}`}>
+                        <span className={`font-bold text-sm md:text-lg ${isTopFive ? 'text-gray-800' : 'text-gray-600'}`}>
                           {!isTopFive && user.rank}
                         </span>
                         {isTied && (
@@ -646,28 +662,28 @@ const Standings = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <span className={`font-medium ${isTopFive ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
                       {user.name}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded whitespace-nowrap">
                       {`${user.wins}-${user.losses}-${user.ties}`}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <span className="font-mono text-xs text-gray-600 whitespace-nowrap">
                       {weekRecord}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
                     <span className="font-semibold text-sm text-gray-700">
                       {totalLocks}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
-                    <span className={`font-bold text-lg ${
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
+                    <span className={`font-bold text-sm md:text-lg ${
                       parseFloat(winPct.replace('%', '')) >= 60 ? 'text-green-600' :
                       parseFloat(winPct.replace('%', '')) >= 50 ? 'text-blue-600' :
                       'text-red-500'
@@ -675,23 +691,23 @@ const Standings = () => {
                       {winPct}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
                     <span className="text-gray-600 font-medium text-sm">
                       {user.gamesBack === '0.0' ? '-' : user.gamesBack}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
-                    <span className={`font-bold text-base ${
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
+                    <span className={`font-bold text-sm md:text-base ${
                       user.threeZeroWeeks > 0 ? 'text-blue-600' : 'text-gray-400'
                     }`}>
                       {user.threeZeroWeeks || 0}
                     </span>
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
                     {user.threeZeroPayout > 0 ? (
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                        <span className="font-bold text-blue-700 text-base bg-blue-100 px-2 py-1 rounded-full">
+                        <span className="font-bold text-blue-700 text-xs md:text-base bg-blue-100 px-1 md:px-2 py-1 rounded-full">
                           ${user.threeZeroPayout.toFixed(2)}
                         </span>
                       </div>
@@ -699,7 +715,7 @@ const Standings = () => {
                       <span className="text-gray-400 font-medium">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-4 border-r border-gray-200">
+                  <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     {isWinner ? (
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
@@ -718,7 +734,7 @@ const Standings = () => {
                       <span className="text-gray-400 font-medium">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-1 py-2 md:px-4 md:py-4 hidden md:table-cell">
                     <span className={`font-bold text-xs px-2 py-1 rounded-full ${
                       user.rankChange.startsWith('+')
                         ? 'text-green-700 bg-green-100'
@@ -737,24 +753,24 @@ const Standings = () => {
           </div>
         ) : (
           // 3-0 Week standings table
-          <div className="overflow-x-auto shadow-lg rounded-xl border border-gray-200">
-            <table className="min-w-full bg-white">
+          <div className="shadow-lg rounded-xl border border-gray-200">
+            <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto">
               <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
                 <tr>
-                  <th className="px-4 py-4 text-left border-r border-gray-200">
-                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Rank</span>
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-12 md:w-auto">
+                    <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Rank</span>
                   </th>
-                  <th className="px-4 py-4 text-left border-r border-gray-200">
-                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Name</span>
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-24 md:w-auto">
+                    <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Name</span>
                   </th>
-                  <th className="px-4 py-4 text-left border-r border-gray-200">
-                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">3-0 Weeks</span>
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-16 md:w-auto">
+                    <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">3-0 Weeks</span>
                   </th>
-                  <th className="px-4 py-4 text-left border-r border-gray-200">
-                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Percentage</span>
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
+                    <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Percentage</span>
                   </th>
-                  <th className="px-4 py-4 text-left">
-                    <span className="font-bold text-gray-800 text-sm uppercase tracking-wide">Payout</span>
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left">
+                    <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Payout</span>
                   </th>
                 </tr>
               </thead>
@@ -776,7 +792,7 @@ const Standings = () => {
                   
                   return (
                     <tr key={user._id} className={rowClassName}>
-                      <td className="px-4 py-4 border-r border-gray-200">
+                      <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                         <div className="flex items-center">
                           {isTopFive && user.threeZeroWeeks > 0 && (
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
@@ -789,23 +805,23 @@ const Standings = () => {
                               {rank}
                             </div>
                           )}
-                          <span className={`font-bold text-lg ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
+                          <span className={`font-bold text-sm md:text-lg ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
                             {(!isTopFive || user.threeZeroWeeks === 0) && rank}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-200">
-                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
+                      <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
+                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-sm md:text-lg' : 'text-gray-700 text-sm md:text-base'}`}>
                           {user.name}
                         </span>
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-200">
-                        <span className="font-bold text-lg text-blue-600">
+                      <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
+                        <span className="font-bold text-sm md:text-lg text-blue-600">
                           {user.threeZeroWeeks || 0}
                         </span>
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-200">
-                        <span className={`font-bold text-lg ${
+                      <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200 hidden md:table-cell">
+                        <span className={`font-bold text-sm md:text-lg ${
                           user.percentage >= 20 ? 'text-green-600' :
                           user.percentage >= 10 ? 'text-blue-600' :
                           'text-gray-500'
@@ -813,7 +829,7 @@ const Standings = () => {
                           {user.percentage?.toFixed(1) || '0.0'}%
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-1 py-2 md:px-4 md:py-4">
                         {hasEarnings ? (
                           <div className="flex items-center">
                             <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
@@ -832,30 +848,11 @@ const Standings = () => {
             </table>
           </div>
         )}
-        
-        {/* Summary info for 3-0 weeks */}
-        {viewMode === 'threeZero' && (
-          <div className="mt-4 bg-blue-50 rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-blue-600">{threeZeroData.totalThreeZeroWeeks}</div>
-                <div className="text-sm text-gray-600">Total 3-0 Weeks</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-600">${threeZeroData.prizePool.toFixed(2)}</div>
-                <div className="text-sm text-gray-600">Total Prize Pool</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-purple-600">
-                  {threeZeroStandings.filter(user => user.threeZeroWeeks > 0).length}
-                </div>
-                <div className="text-sm text-gray-600">Users with 3-0 Weeks</div>
-              </div>
-            </div>
-          </div>
-        )}
+
       </>
       )}
+
+      
 
       {/* Filter Modals */}
       <FilterModal
