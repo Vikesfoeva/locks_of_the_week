@@ -1,6 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 const PopularLocksModal = ({ picks, userMap, onClose }) => {
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    // Save current body overflow style
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    
+    // Disable scrolling on mount
+    document.body.style.overflow = 'hidden';
+    
+    // Re-enable scrolling on unmount
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
   const getPopularPicks = () => {
     if (!picks || picks.length === 0) {
       return [];
@@ -59,9 +72,25 @@ const PopularLocksModal = ({ picks, userMap, onClose }) => {
   const popularPicks = getPopularPicks();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-2 sm:p-4">
-      <div className="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-xl w-full max-w-xs sm:max-w-sm md:max-w-lg max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] overflow-y-auto">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4 text-center sm:text-left">Top 5 Popular Locks</h2>
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-2 sm:p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-xl w-full max-w-xs sm:max-w-sm md:max-w-lg max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] overflow-y-auto relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          aria-label="Close modal"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4 text-center sm:text-left pr-8">Top 5 Popular Locks</h2>
         {popularPicks.length > 0 ? (
           <ul className="space-y-2 sm:space-y-3">
             {popularPicks.map((pick, index) => (
