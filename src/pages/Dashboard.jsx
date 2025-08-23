@@ -188,7 +188,7 @@ export default function Dashboard() {
         {/* Discord Link */}
         <div className="mt-4 flex items-center">
           <a
-            href="https://discord.com/channels/1083347386824396850/1146259510923628654"
+            href="https://discord.gg/2cbb6EcRw6"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors"
