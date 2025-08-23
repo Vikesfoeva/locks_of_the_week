@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import PopularLocksModal from '../components/PopularLocksModal';
 import FilterModal from '../components/FilterModal';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
@@ -117,6 +117,14 @@ const WeeklyLocks = () => {
     return result;
   };
 
+  // Helper function to abbreviate league names for mobile
+  const formatLeagueForMobile = (league) => {
+    if (!league) return '';
+    // Replace NFL Preseason with NFLP for mobile
+    if (league === 'NFL Preseason') return 'NFLP';
+    return league;
+  };
+
   // Helper function to get row background color based on result
   const getRowBackgroundColor = (result, index) => {
     if (!result) return index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
@@ -199,6 +207,9 @@ const WeeklyLocks = () => {
     // Save the file
     XLSX.writeFile(workbook, fileName);
   };
+
+  // Mobile sort/filter modal state
+  const [showMobileSortFilter, setShowMobileSortFilter] = useState(false);
 
   // Active year state
   const [activeYear, setActiveYear] = useState(null);
@@ -597,20 +608,21 @@ const WeeklyLocks = () => {
 
   // Table rendering
   return (
-    <div className="max-w-full mx-auto p-2 md:p-4 lg:p-6">
-      <h1 className="text-2xl font-bold mb-4">Weekly Locks</h1>
-      <div className="mb-4">
-        <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
-          Select Week:
-        </label>
-        <select
-          id="collection-select"
-          name="collection-select"
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          value={selectedCollection}
-          onChange={handleCollectionChange}
-          disabled={loading}
-        >
+    <div className="md:p-4">
+      <div className="px-2 md:px-0">
+        <h1 className="text-xl md:text-2xl font-bold mb-1 md:mb-4 text-center md:text-left">Weekly Locks</h1>
+        <div className="mb-1 md:mb-4">
+          <label htmlFor="collection-select" className="block text-sm font-medium text-gray-700 mr-2">
+            Select Week:
+          </label>
+          <select
+            id="collection-select"
+            name="collection-select"
+            className="mt-1 block w-full pl-2 md:pl-3 pr-8 md:pr-10 py-1 md:py-2 text-sm md:text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+            value={selectedCollection}
+            onChange={handleCollectionChange}
+            disabled={loading}
+          >
           {collections.map((collectionName, index) => {
             const isCurrentWeek = index === 0; // First item is most recent (current week)
             const date = parseCollectionNameToDate(collectionName);
@@ -636,56 +648,84 @@ const WeeklyLocks = () => {
           }).flat()}
         </select>
       </div>
-      {/* Toggle Button */}
-      <div className="mb-4 flex gap-2">
-        <button
-          className={`px-4 py-2 rounded ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => {
-            setViewMode('table');
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('weeklyPicksViewMode', 'table');
-            }
-          }}
-        >
-          Table View
-        </button>
-        <button
-          className={`px-4 py-2 rounded ${viewMode === 'leaderboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => {
-            setViewMode('leaderboard');
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('weeklyPicksViewMode', 'leaderboard');
-            }
-          }}
-        >
-          Traditional View
-        </button>
-        <button
-          className={`px-4 py-2 rounded ${showPopularPicks ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => setShowPopularPicks(!showPopularPicks)}
-        >
-          Show Popular Picks
-        </button>
-        {viewMode === 'table' && (
+        {/* Toggle Button */}
+        <div className="mb-2 md:mb-4 flex flex-wrap gap-1 md:gap-2 justify-center md:justify-start">
           <button
-            className="border border-gray-400 text-gray-700 bg-white px-4 py-2 rounded hover:bg-gray-100"
-            onClick={handleResetFilters}
-            type="button"
+            className={`px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            onClick={() => {
+              setViewMode('table');
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('weeklyPicksViewMode', 'table');
+              }
+            }}
           >
-            Reset Filters
+            Table View
           </button>
-        )}
-        {userPicks.length === 3 && allPicks.length > 0 && (
           <button
-            className="border border-green-600 text-green-700 bg-white px-4 py-2 rounded hover:bg-green-50 flex items-center gap-2"
-            onClick={exportToExcel}
-            type="button"
-            title="Export to Excel"
+            className={`px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base ${viewMode === 'leaderboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            onClick={() => {
+              setViewMode('leaderboard');
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('weeklyPicksViewMode', 'leaderboard');
+              }
+            }}
           >
-            <ArrowDownTrayIcon className="h-4 w-4" />
-            Export to Excel
+            Traditional View
           </button>
-        )}
+          <button
+            className={`px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base ${showPopularPicks ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            onClick={() => setShowPopularPicks(!showPopularPicks)}
+          >
+            <span className="hidden sm:inline">Show Popular Picks</span>
+            <span className="sm:hidden">Popular</span>
+          </button>
+          {viewMode === 'table' && (
+            <>
+              <button
+                className="border border-gray-400 text-gray-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-gray-100 text-sm md:text-base"
+                onClick={handleResetFilters}
+                type="button"
+              >
+                <span className="hidden sm:inline">Reset Filters</span>
+                <span className="sm:hidden">Reset</span>
+              </button>
+              {/* Mobile Sort & Filter Button - Only visible on mobile for table view */}
+              <button
+                className={`md:hidden px-2 py-1 rounded flex items-center gap-1 text-sm ${
+                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== null)
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+                }`}
+                onClick={() => setShowMobileSortFilter(true)}
+                type="button"
+              >
+                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== null) ? (
+                  <FunnelIconSolid className="h-4 w-4" />
+                ) : (
+                  <FunnelIconOutline className="h-4 w-4" />
+                )}
+                Sort & Filter
+                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered) && (
+                  <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
+                    Active
+                  </span>
+                )}
+              </button>
+            </>
+          )}
+          {userPicks.length === 3 && allPicks.length > 0 && (
+            <button
+              className="border border-green-600 text-green-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-green-50 flex items-center gap-1 md:gap-2 text-sm md:text-base"
+              onClick={exportToExcel}
+              type="button"
+              title="Export to Excel"
+            >
+              <ArrowDownTrayIcon className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Export to Excel</span>
+              <span className="sm:hidden">Export</span>
+            </button>
+          )}
+        </div>
       </div>
       {loading && <div>Loading...</div>}
       {error && <div className="text-red-500">{error}</div>}
@@ -695,14 +735,15 @@ const WeeklyLocks = () => {
         <>
           <h2 className="text-xl font-semibold mb-2">All Locks for This Week</h2>
           {viewMode === 'table' ? (
-            <div className="overflow-x-auto min-w-full">
-              <table className="w-full bg-white border border-gray-300 rounded shadow text-xs sm:text-sm md:text-base">
+            <div className="w-full md:w-[90vw] md:mx-auto px-0 md:px-8 overflow-x-auto">
+              <table className="min-w-full bg-white border border-gray-300 rounded shadow text-sm md:text-base">
                 <thead>
                   <tr className="bg-gray-100 text-left border-b border-gray-300">
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                       <div className="flex items-center gap-1">
                         <span>User</span>
-                        <div className="flex flex-col ml-1">
+                        {/* Hide sort/filter controls on mobile */}
+                        <div className="hidden md:flex flex-col ml-1">
                           <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
                           <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'user' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('user')} />
                         </div>
@@ -712,14 +753,17 @@ const WeeklyLocks = () => {
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
+                            className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                           })}
                         />
                       </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                       <div className="flex items-center gap-1">
-                        <span>League</span>
-                        <div className="flex flex-col ml-1">
+                        <span className="md:hidden">Sport</span>
+                        <span className="hidden md:inline">League</span>
+                        {/* Hide sort/filter controls on mobile */}
+                        <div className="hidden md:flex flex-col ml-1">
                           <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
                           <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'league' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('league')} />
                         </div>
@@ -729,14 +773,16 @@ const WeeklyLocks = () => {
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
+                            className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                           })}
                         />
                       </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                       <div className="flex items-center gap-1">
                         <span>Away</span>
-                        <div className="flex flex-col ml-1">
+                        {/* Hide sort/filter controls on mobile */}
+                        <div className="hidden md:flex flex-col ml-1">
                             <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
                             <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'away_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('away_team_abbrev')} />
                         </div>
@@ -746,14 +792,16 @@ const WeeklyLocks = () => {
                           }, {
                             IconComponent: FunnelIconOutline,
                             IconComponentSolid: FunnelIconSolid,
+                            className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                           })}
                         />
                       </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                         <div className="flex items-center gap-1">
                             <span>Home</span>
-                            <div className="flex flex-col ml-1">
+                            {/* Hide sort/filter controls on mobile */}
+                            <div className="hidden md:flex flex-col ml-1">
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'home_team_abbrev' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('home_team_abbrev')} />
                             </div>
@@ -763,14 +811,16 @@ const WeeklyLocks = () => {
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
+                                className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                               })}
                             />
                         </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                         <div className="flex items-center gap-1">
                             <span>Lock</span>
-                            <div className="flex flex-col ml-1">
+                            {/* Hide sort/filter controls on mobile */}
+                            <div className="hidden md:flex flex-col ml-1">
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'lock' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('lock')} />
                             </div>
@@ -780,17 +830,19 @@ const WeeklyLocks = () => {
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
+                                className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                               })}
                             />
                         </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Score</th>
-                    <th className="px-2 py-2 border-r border-gray-300">Status</th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Line/O/U</th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Score</th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Status</th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                         <div className="flex items-center gap-1">
                             <span>W/L/T</span>
-                            <div className="flex flex-col ml-1">
+                            {/* Hide sort/filter controls on mobile */}
+                            <div className="hidden md:flex flex-col ml-1">
                                 <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
                                 <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'result' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('result')} />
                             </div>
@@ -800,11 +852,12 @@ const WeeklyLocks = () => {
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
+                                className: "hidden md:block ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                               })}
                             />
                         </div>
                     </th>
-                    <th className="px-2 py-2 border-r border-gray-300">
+                    <th className="px-1 py-1 md:px-2 md:py-2 hidden md:table-cell">
                         <div className="flex items-center gap-1">
                             <span>Date</span>
                             <div className="flex flex-col ml-1">
@@ -817,11 +870,12 @@ const WeeklyLocks = () => {
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
+                                className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                               })}
                             />
                         </div>
                     </th>
-                    <th className="px-2 py-2">
+                    <th className="px-1 py-1 md:px-2 md:py-2 hidden md:table-cell">
                         <div className="flex items-center gap-1">
                             <span>Time</span>
                             <div className="flex flex-col ml-1">
@@ -834,6 +888,7 @@ const WeeklyLocks = () => {
                               }, {
                                 IconComponent: FunnelIconOutline,
                                 IconComponentSolid: FunnelIconSolid,
+                                className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
                               })}
                             />
                         </div>
@@ -846,17 +901,34 @@ const WeeklyLocks = () => {
                     const game = pick.gameDetails;
                     return (
                       <tr key={pick._id || idx} className={getRowBackgroundColor(pick.result, idx)}>
-                        <td className="px-2 py-2 border-r border-gray-300 font-semibold">{userName}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{game?.league || '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{formatLineValue(pick.line, pick.pickType)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{formatStatus(pick.status)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
-                        <td className="px-2 py-2 border-r border-gray-300 whitespace-nowrap">{formatGameDate(game?.commence_time)}</td>
-                        <td className="px-2 py-2">{formatGameTime(game?.commence_time)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-semibold">{userName}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
+                          <span className="md:hidden">{formatLeagueForMobile(game?.league) || '--'}</span>
+                          <span className="hidden md:inline">{game?.league || '--'}</span>
+                        </td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">{game?.away_team_abbrev || '--'}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">{game?.home_team_abbrev || '--'}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
+                          {/* Mobile view: Show pick with line value */}
+                          <span className="md:hidden">
+                            {pick.pickType === 'spread' 
+                              ? `${pick.pickSide} ${formatLineValue(pick.line, pick.pickType)}`
+                              : pick.pickType === 'total' 
+                                ? `${pick.pickSide === 'OVER' ? 'Over' : 'Under'} ${formatLineValue(pick.line, pick.pickType)}`
+                                : '--'
+                            }
+                          </span>
+                          {/* Desktop view: Show pick without line value (line is in separate column) */}
+                          <span className="hidden md:inline">
+                            {pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--'}
+                          </span>
+                        </td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{formatLineValue(pick.line, pick.pickType)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{formatStatus(pick.status)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameDate(game?.commence_time)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 whitespace-nowrap hidden md:table-cell">{formatGameTime(game?.commence_time)}</td>
                       </tr>
                     );
                   })}
@@ -1004,6 +1076,232 @@ const WeeklyLocks = () => {
           placement: 'bottom-start',
         })}
       />
+
+      {/* Mobile Sort & Filter Modal */}
+      {showMobileSortFilter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 md:hidden">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Sort & Filter</h3>
+              <button
+                onClick={() => setShowMobileSortFilter(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            {/* Sort Section */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-3">Sort By</h4>
+              <div className="space-y-2">
+                {[
+                  { key: 'user', label: 'User' },
+                  { key: 'league', label: 'League' },
+                  { key: 'away_team_abbrev', label: 'Away Team' },
+                  { key: 'home_team_abbrev', label: 'Home Team' },
+                  { key: 'lock', label: 'Lock' },
+                  { key: 'result', label: 'W/L/T' },
+                  { key: 'date', label: 'Date' },
+                  { key: 'time', label: 'Time' }
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm">{label}</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setSortConfig({ key, direction: 'ascending' })}
+                        className={`px-2 py-1 text-xs rounded ${
+                          sortConfig.key === key && sortConfig.direction === 'ascending'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        <ChevronUpIcon className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => setSortConfig({ key, direction: 'descending' })}
+                        className={`px-2 py-1 text-xs rounded ${
+                          sortConfig.key === key && sortConfig.direction === 'descending'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        <ChevronDownIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-3">Filters</h4>
+              <div className="space-y-4">
+                {/* User Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={userFilter.length === 1 ? userFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      userModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Users</option>
+                    {uniqueUsers.map(user => (
+                      <option key={user} value={user}>{user}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* League Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">League</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={leagueFilter.length === 1 ? leagueFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      leagueModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Leagues</option>
+                    {uniqueLeagues.map(league => (
+                      <option key={league} value={league}>{league}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Away Team Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Away Team</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={awayTeamFilter.length === 1 ? awayTeamFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      awayTeamModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Away Teams</option>
+                    {uniqueAwayTeams.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Home Team Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Home Team</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={homeTeamFilter.length === 1 ? homeTeamFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      homeTeamModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Home Teams</option>
+                    {uniqueHomeTeams.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Lock Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lock</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={lockFilter.length === 1 ? lockFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      lockModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Locks</option>
+                    {uniqueLocks.map(lock => (
+                      <option key={lock} value={lock}>{lock}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Result Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">W/L/T</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={resultFilter.length === 1 ? resultFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      resultModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Results</option>
+                    {uniqueResults.map(result => (
+                      <option key={result} value={result}>{result}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={dateFilter.length === 1 ? dateFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      dateModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Dates</option>
+                    {uniqueDates.map(date => (
+                      <option key={date} value={date}>{date}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Time Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={timeFilter.length === 1 ? timeFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      timeModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Times</option>
+                    {uniqueTimes.map(time => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-3">
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Reset All
+              </button>
+              <button
+                onClick={() => setShowMobileSortFilter(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
