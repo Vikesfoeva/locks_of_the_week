@@ -203,8 +203,8 @@ export default function Dashboard() {
 
       {/* Dashboard Stats */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Current Week Picks Status */}
-        <div className="card">
+        {/* Current Week Picks Status - Order 3 on mobile, default on desktop */}
+        <div className="card order-3 sm:order-none">
           <h3 className="text-lg font-medium text-gray-900">This Week's Picks</h3>
           {dashboardData.loading ? (
             <div className="mt-2 text-sm text-gray-600">Loading...</div>
@@ -283,8 +283,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Projected Season Winners */}
-        <div className="card">
+        {/* Projected Season Winners - Order 4 on mobile, default on desktop */}
+        <div className="card order-4 sm:order-none">
           <div className="flex items-center space-x-2 mb-2">
             <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
@@ -339,8 +339,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="card">
+        {/* Quick Actions - Order 2 on mobile, default on desktop */}
+        <div className="card order-2 sm:order-none">
           <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
           <div className="mt-4 space-y-3">
             <a

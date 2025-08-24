@@ -650,7 +650,7 @@ app.post('/api/picks', async (req, res) => {
       const currentLocksWeek = await formatWeekForLocksWebhook(collectionName, year);
       console.log(currentLocksWeek)
       const axios = require('axios');
-      await axios.post('https://script.google.com/macros/s/AKfycbwDaNEfHv41AKQyPqAZyETVQgFeZB41VXeM617LCjPP3Hu24ugyKi8mqW_BqaJ_R77A/exec'
+      await axios.post('https://script.google.com/macros/s/AKfycbxDXkwPsH5yPjpFCiIa3Cv5Xd3HTb_fj9A5s9DJQMKRfmQlMVLNGyGQkXtVOsZL-I_GQw/exec'
         , {
         picks: detailedPicks,
         username: username,

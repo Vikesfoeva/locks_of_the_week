@@ -222,7 +222,7 @@ const Locks = () => {
         let fetchedCollections = response.data;
 
         if (!Array.isArray(fetchedCollections) || fetchedCollections.length === 0) {
-          setError('No collections found or invalid format from server.');
+          setError('No picks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
@@ -238,7 +238,7 @@ const Locks = () => {
         filteredCollections = filteredCollections.filter(name => parseCollectionNameToDate(name) !== null);
 
         if (filteredCollections.length === 0) {
-          setError('No valid collections found for the current active year.');
+          setError('No picks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
@@ -261,7 +261,7 @@ const Locks = () => {
         setUserPicksByCollection(initialPicksByCollection);
         setError('');
       } catch (err) {
-        setError('Failed to load collections. Please try again later.');
+        setError('Unable to load picks at this time. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
         setCollections([]);
         setSelectedCollection('');
         setLoading(false);
