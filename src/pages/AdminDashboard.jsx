@@ -1144,7 +1144,7 @@ export default function AdminDashboard() {
                 onChange={(e) => handleAnnouncementChange('message', e.target.value)}
                 className="input w-full h-24 resize-none"
                 placeholder="Enter announcement message here..."
-                maxLength={500}
+                maxLength={2000}
               />
               <div className="text-xs text-gray-500 mt-1">
                 {announcement.message.length}/500 characters
