@@ -1147,7 +1147,7 @@ export default function AdminDashboard() {
                 maxLength={2000}
               />
               <div className="text-xs text-gray-500 mt-1">
-                {announcement.message.length}/500 characters
+                {announcement.message.length}/2000 characters
               </div>
             </div>
             <div className="flex items-center gap-4">
