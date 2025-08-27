@@ -566,7 +566,8 @@ app.post('/api/picks', async (req, res) => {
       ...pick,
       userId: userId,
       collectionName: collectionName,
-      submittedAt: now
+      submittedAt: now,
+      threeOEligible: calculateThreeOEligible(collectionName, now)
     }));
 
     await mainDb.collection(picksCollection).insertMany(picksToInsert);
@@ -608,7 +609,9 @@ app.post('/api/picks', async (req, res) => {
             awaySpread: game.away_spread,
             homeSpread: game.home_spread,
             total: game.total
-          } : null
+          } : null,
+          // Ensure threeOEligible is included in webhook payload
+          threeOEligible: pick.threeOEligible
         };
       });
       
@@ -799,6 +802,58 @@ const parseCollectionNameToDate = (collectionName) => {
     }
   }
   return null;
+};
+
+// Calculate threeOEligible status based on submission time vs Saturday deadline
+const calculateThreeOEligible = (collectionName, submissionTime) => {
+  try {
+    // Parse the Tuesday date from collection name
+    const tuesdayDate = parseCollectionNameToDate(collectionName);
+    if (!tuesdayDate) {
+      console.warn(`Could not parse collection name: ${collectionName}`);
+      return false; // Default to false if we can't parse the date
+    }
+
+    // Calculate Saturday of that week (Tuesday + 4 days)
+    const saturdayDate = new Date(tuesdayDate);
+    saturdayDate.setDate(tuesdayDate.getDate() + 4);
+
+    // Determine if this date falls in DST
+    const isDST = (date) => {
+      const year = date.getFullYear();
+      // DST typically runs from 2nd Sunday in March to 1st Sunday in November
+      const march = new Date(year, 2, 1);
+      const november = new Date(year, 10, 1);
+      
+      // Find second Sunday in March
+      const marchSecondSunday = new Date(year, 2, 8 + (7 - march.getDay()) % 7);
+      // Find first Sunday in November  
+      const novemberFirstSunday = new Date(year, 10, 1 + (7 - november.getDay()) % 7);
+      
+      return date >= marchSecondSunday && date < novemberFirstSunday;
+    };
+
+    // Create deadline directly in UTC
+    // Saturday 11:59:59.999 AM ET = Saturday 16:59:59.999 UTC (EST) or Saturday 15:59:59.999 UTC (EDT)
+    const etOffset = isDST(saturdayDate) ? 4 : 5; // EDT = UTC-4, EST = UTC-5
+    const deadlineUTC = new Date(Date.UTC(
+      saturdayDate.getFullYear(),
+      saturdayDate.getMonth(),
+      saturdayDate.getDate(),
+      11 + etOffset, // 11am ET + offset = UTC hours
+      59,
+      59,
+      999
+    ));
+
+    // Compare submission time against deadline
+    const submissionUTC = new Date(submissionTime);
+    
+    return submissionUTC <= deadlineUTC;
+  } catch (error) {
+    console.error('Error calculating threeOEligible:', error);
+    return false; // Default to false on error
+  }
 };
 
 // Get standings data
