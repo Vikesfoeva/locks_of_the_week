@@ -606,6 +606,19 @@ const WeeklyLocks = () => {
     });
   }
 
+  // Helper: calculate combined threeOEligible for a user's picks
+  function calculateCombinedThreeOEligible(userId) {
+    const picks = picksByUser[userId] || [];
+    if (picks.length !== 3) return false; // Must have exactly 3 picks
+    // All 3 picks must have threeOEligible === true for combined result to be true
+    return picks.every(pick => pick.threeOEligible === true);
+  }
+
+  // Helper: format threeOEligible display
+  const formatThreeOEligible = (isEligible) => {
+    return isEligible ? '✓' : '✗';
+  };
+
   // Table rendering
   return (
     <div className="md:p-4">
@@ -758,6 +771,9 @@ const WeeklyLocks = () => {
                         />
                       </div>
                     </th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">
+                        <span>3-0 Eligible</span>
+                    </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                       <div className="flex items-center gap-1">
                         <span className="md:hidden">Sport</span>
@@ -902,6 +918,31 @@ const WeeklyLocks = () => {
                     return (
                       <tr key={pick._id || idx} className={getRowBackgroundColor(pick.result, idx)}>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-semibold">{userName}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 text-center hidden md:table-cell">
+                          {(() => {
+                            // Show threeOEligible status for all rows
+                            const userPicks = picksByUser[pick.userId] || [];
+                            const isEligible = calculateCombinedThreeOEligible(pick.userId);
+                            
+                            // Show checkmark for eligible users (3 picks, all true)
+                            if (isEligible) {
+                              return (
+                                <span className="font-bold text-green-600">
+                                  {formatThreeOEligible(true)}
+                                </span>
+                              );
+                            }
+                            // Show X for ineligible users (< 3 picks OR any pick has threeOEligible = false)
+                            else if (userPicks.length > 0) {
+                              return (
+                                <span className="font-bold text-red-600">
+                                  {formatThreeOEligible(false)}
+                                </span>
+                              );
+                            }
+                            return '';
+                          })()}
+                        </td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                           <span className="md:hidden">{formatLeagueForMobile(game?.league) || '--'}</span>
                           <span className="hidden md:inline">{game?.league || '--'}</span>
@@ -928,7 +969,7 @@ const WeeklyLocks = () => {
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{formatStatus(pick.status)}</td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameDate(game?.commence_time)}</td>
-                        <td className="px-1 py-1 md:px-2 md:py-2 whitespace-nowrap hidden md:table-cell">{formatGameTime(game?.commence_time)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameTime(game?.commence_time)}</td>
                       </tr>
                     );
                   })}
@@ -941,12 +982,14 @@ const WeeklyLocks = () => {
                <thead>
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-100 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">User</th>
+                   <th className="px-2 py-2 border-r border-gray-300 text-center">3-0 Eligible</th>
                    {[1,2,3].map(i => (
                      <th key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
                    ))}
                  </tr>
                  <tr className="bg-gray-50 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></th>
+                   <th className="px-2 py-2 border-r border-gray-300"></th>
                    {[1,2,3].map(i => (
                      <React.Fragment key={i}>
                        <th className="px-2 py-2 border-r border-gray-300">League</th>
@@ -971,6 +1014,30 @@ const WeeklyLocks = () => {
                    return (
                      <tr key={user.firebaseUid} className={rowBgClass}>
                        <td className={`px-2 py-2 border-r border-gray-300 font-semibold whitespace-nowrap sticky left-0 ${rowBgClass} z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>{userName || user.email}</td>
+                       <td className="px-2 py-2 border-r border-gray-300 text-center">
+                         {(() => {
+                           // Show threeOEligible status for this user
+                           const userPicks = picksByUser[user.firebaseUid] || [];
+                           const isEligible = calculateCombinedThreeOEligible(user.firebaseUid);
+                           
+                           // Show checkmark for eligible users (3 picks, all true)
+                           if (isEligible) {
+                             return (
+                               <span className="font-bold text-green-600">
+                                 {formatThreeOEligible(true)}
+                               </span>
+                             );
+                           }
+                           // Show X for all ineligible users (0 picks, < 3 picks, OR any pick has threeOEligible = false)
+                           else {
+                             return (
+                               <span className="font-bold text-red-600">
+                                 {formatThreeOEligible(false)}
+                               </span>
+                             );
+                           }
+                         })()}
+                       </td>
                        {[0,1,2].map(i => {
                          const pick = picks[i];
                          const game = pick ? pick.gameDetails : undefined;
