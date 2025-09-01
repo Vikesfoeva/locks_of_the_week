@@ -209,7 +209,38 @@ const Standings = () => {
     return actualTies;
   };
 
-  const tiedUsers = getTiedUsers(viewMode === 'regular' ? enhancedStandings : currentStandings);
+  // Helper function to detect ties in 3-0 week standings based on threeZeroWeeks value
+  const getTiedUsersThreeZero = (standings) => {
+    const tieGroups = {};
+    const rankMap = {}; // Map to track what rank each threeZeroWeeks value should get
+    
+    // Group users by threeZeroWeeks value and assign ranks
+    standings.forEach((user, index) => {
+      const threeZeroWeeks = user.threeZeroWeeks || 0;
+      if (!tieGroups[threeZeroWeeks]) {
+        tieGroups[threeZeroWeeks] = [];
+        // Find the first occurrence of this threeZeroWeeks value to determine rank
+        const firstIndex = standings.findIndex(u => (u.threeZeroWeeks || 0) === threeZeroWeeks);
+        rankMap[threeZeroWeeks] = firstIndex + 1;
+      }
+      tieGroups[threeZeroWeeks].push({ ...user, effectiveRank: rankMap[threeZeroWeeks] });
+    });
+    
+    // Return only groups with more than 1 user (actual ties) mapped by effective rank
+    const actualTies = {};
+    Object.keys(tieGroups).forEach(threeZeroWeeks => {
+      if (tieGroups[threeZeroWeeks].length > 1) {
+        const effectiveRank = rankMap[threeZeroWeeks];
+        actualTies[effectiveRank] = tieGroups[threeZeroWeeks];
+      }
+    });
+    
+    return actualTies;
+  };
+
+  const tiedUsers = viewMode === 'regular' 
+    ? getTiedUsers(enhancedStandings) 
+    : getTiedUsersThreeZero(currentStandings);
 
   // Calculate league averages for the current standings
   const calculateAverages = (standings) => {
@@ -503,8 +534,8 @@ const Standings = () => {
                             <span className="text-gray-700">Rank Declined</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-purple-600 font-medium flex-shrink-0">T3</span>
-                            <span className="text-gray-700">Tied with 3 users</span>
+                            <span className="text-xs text-purple-600 font-medium flex-shrink-0">T-3</span>
+                            <span className="text-gray-700">Tied at rank 3</span>
                           </div>
                         </div>
                       </Popover.Panel>
@@ -717,12 +748,12 @@ const Standings = () => {
                           user.rank === 4 ? 'bg-blue-500' :
                           'bg-green-500'
                         }`}>
-                          {user.rank}
+                          {isTied ? `T-${user.rank}` : user.rank}
                         </div>
                       )}
                       <div className="flex flex-col">
                         <span className={`font-bold text-sm md:text-lg ${isTopFive ? 'text-gray-800' : 'text-gray-600'}`}>
-                          {!isTopFive && user.rank}
+                          {!isTopFive && (isTied ? `T-${user.rank}` : user.rank)}
                         </span>
                       </div>
                     </div>
@@ -867,6 +898,13 @@ const Standings = () => {
                     const isTopFive = rank <= 5;
                     const hasEarnings = user.payout > 0;
                     
+                    // Check if this user is tied based on threeZeroWeeks value
+                    // Find the effective rank (first occurrence rank) for tie detection
+                    const threeZeroWeeks = user.threeZeroWeeks || 0;
+                    const firstIndex = sortedStandings.findIndex(u => (u.threeZeroWeeks || 0) === threeZeroWeeks);
+                    const effectiveRank = firstIndex + 1;
+                    const isTied = tiedUsers[effectiveRank] && tiedUsers[effectiveRank].length > 1;
+                    
                     // Determine row styling
                     let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
                     if (isTopFive && user.threeZeroWeeks > 0) {
@@ -883,17 +921,17 @@ const Standings = () => {
                         <div className="flex items-center">
                           {isTopFive && user.threeZeroWeeks > 0 && (
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
-                              rank === 1 ? 'bg-yellow-500' : 
-                              rank === 2 ? 'bg-gray-400' : 
-                              rank === 3 ? 'bg-amber-600' :
-                              rank === 4 ? 'bg-blue-500' :
+                              effectiveRank === 1 ? 'bg-yellow-500' : 
+                              effectiveRank === 2 ? 'bg-gray-400' : 
+                              effectiveRank === 3 ? 'bg-amber-600' :
+                              effectiveRank === 4 ? 'bg-blue-500' :
                               'bg-green-500'
                             }`}>
-                              {rank}
+                              {isTied ? `T-${effectiveRank}` : effectiveRank}
                             </div>
                           )}
                           <span className={`font-bold text-sm md:text-lg ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
-                            {(!isTopFive || user.threeZeroWeeks === 0) && rank}
+                            {(!isTopFive || user.threeZeroWeeks === 0) && (isTied ? `T-${effectiveRank}` : effectiveRank)}
                           </span>
                         </div>
                       </td>
