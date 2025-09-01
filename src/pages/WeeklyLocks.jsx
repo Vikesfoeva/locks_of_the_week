@@ -614,6 +614,20 @@ const WeeklyLocks = () => {
     return picks.every(pick => pick.threeOEligible === true);
   }
 
+  // Helper: calculate weekly W-L-T record for a user
+  function calculateWeeklyRecord(userId) {
+    const picks = picksByUser[userId] || [];
+    let wins = 0, losses = 0, ties = 0;
+    
+    picks.forEach(pick => {
+      if (pick.result === 'WIN') wins++;
+      else if (pick.result === 'LOSS') losses++;
+      else if (pick.result === 'TIE') ties++;
+    });
+    
+    return `${wins}-${losses}-${ties}`;
+  }
+
   // Helper: format threeOEligible display
   const formatThreeOEligible = (isEligible) => {
     return isEligible ? '✓' : '✗';
@@ -983,12 +997,14 @@ const WeeklyLocks = () => {
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-100 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">User</th>
                    <th className="px-2 py-2 border-r border-gray-300 text-center">3-0 Eligible</th>
+                   <th className="px-2 py-2 border-r border-gray-300 text-center">Record</th>
                    {[1,2,3].map(i => (
                      <th key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
                    ))}
                  </tr>
                  <tr className="bg-gray-50 text-left border-b border-gray-300">
                    <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></th>
+                   <th className="px-2 py-2 border-r border-gray-300"></th>
                    <th className="px-2 py-2 border-r border-gray-300"></th>
                    {[1,2,3].map(i => (
                      <React.Fragment key={i}>
@@ -1037,6 +1053,9 @@ const WeeklyLocks = () => {
                              );
                            }
                          })()}
+                       </td>
+                       <td className="px-2 py-2 border-r border-gray-300 text-center font-semibold">
+                         {calculateWeeklyRecord(user.firebaseUid)}
                        </td>
                        {[0,1,2].map(i => {
                          const pick = picks[i];
