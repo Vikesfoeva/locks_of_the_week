@@ -1455,3 +1455,428 @@ app.get('/api/three-zero-standings', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch 3-0 standings', details: err.message });
   }
 });
+
+// Get awards data for a specific week
+app.get('/api/awards', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year, week: selectedGameWeek } = req.query;
+
+    // 1. Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    if (!selectedGameWeek) {
+      return res.status(400).json({ error: 'Week parameter is required' });
+    }
+
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+
+    // 2. Get all users
+    const users = await mainDb.collection('users').find({}).toArray();
+    const userMap = {};
+    users.forEach(user => {
+      if (user.firebaseUid) {
+        userMap[user.firebaseUid] = {
+          _id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          firebaseUid: user.firebaseUid
+        };
+      }
+    });
+
+    // 3. Fetch all picks for the selected week
+    const weekPicks = await picksCollection.find({ 
+      collectionName: selectedGameWeek 
+    }).toArray();
+
+    if (weekPicks.length === 0) {
+      return res.json({ awards: [], message: 'No picks found for this week' });
+    }
+
+    // 4. Get game details for this week
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
+    
+    // Build game map
+    const gameMap = {};
+    games.forEach(game => {
+      if (game._id) {
+        gameMap[game._id.toString()] = game;
+      }
+    });
+
+    // 5. Enrich picks with game details and calculate margins
+    const enrichedPicks = weekPicks.map(pick => {
+      const game = gameMap[pick.gameId];
+      const user = userMap[pick.userId];
+      
+      if (!game || !user) return null;
+
+      let margin = null;
+      let actualSpread = null;
+      let actualTotal = null;
+
+      // Calculate margin based on pick type and game result
+      if (game.homeScore !== null && game.awayScore !== null && game.status === 'final') {
+        const homeScore = parseFloat(game.homeScore) || 0;
+        const awayScore = parseFloat(game.awayScore) || 0;
+        const scoreDiff = homeScore - awayScore; // Positive if home wins
+
+        if (pick.pickType === 'spread') {
+          // For spread picks, calculate margin of victory/defeat relative to the spread
+          const pickedSpread = parseFloat(pick.line) || 0;
+          
+          // Determine which team was picked based on pickSide
+          const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
+          
+          // Calculate the margin relative to what was needed to cover the spread
+          if (pickedHome) {
+            // User picked home team (e.g., UTAH -6.5)
+            // They needed home team to win by MORE than the spread
+            // Margin = actual victory margin - spread requirement
+            // Example: UTAH wins 43-10 with -6.5 spread: (43-10) - 6.5 = 33 - 6.5 = 26.5
+            margin = scoreDiff - Math.abs(pickedSpread);
+          } else {
+            // User picked away team
+            if (pickedSpread < 0) {
+              // Away team is favorite (e.g., UTAH -6.5 @ UCLA or BAMA -13.5 @ FSU)
+              // They needed away team to win by MORE than the spread
+              if (scoreDiff < 0) {
+                // Away team won (scoreDiff is negative when away team wins)
+                // Margin = actual away victory margin - spread requirement
+                // Example: UTAH wins 43-10 with -6.5 spread: (43-10) - 6.5 = 33 - 6.5 = 26.5
+                margin = Math.abs(scoreDiff) - Math.abs(pickedSpread);
+              } else {
+                // Away team lost (scoreDiff is positive when home team wins)
+                // Margin = -(actual defeat margin + spread requirement)
+                // Example: BAMA loses 17-31 with -13.5 spread: -(14 + 13.5) = -27.5
+                margin = -(scoreDiff + Math.abs(pickedSpread));
+              }
+            } else {
+              // Away team is underdog (e.g., UCLA +6.5 @ UTAH)  
+              // They needed away team to lose by LESS than the spread (or win outright)
+              // Margin = spread cushion - actual defeat margin
+              // Example: UCLA loses 10-43 with +6.5 spread: 6.5 - (43-10) = 6.5 - 33 = -26.5
+              margin = Math.abs(pickedSpread) - scoreDiff;
+            }
+          }
+          actualSpread = pickedSpread;
+        } else if (pick.pickType === 'total') {
+          // For total picks, calculate how far the actual total was from the picked total
+          const totalScore = homeScore + awayScore;
+          const pickedTotal = parseFloat(pick.line) || 0;
+          const isOverPick = pick.pickSide === 'OVER';
+          
+          if (isOverPick) {
+            // Over pick: margin = actual total - picked total
+            // Example: Over 45.5, game total 52: 52 - 45.5 = 6.5 margin of victory
+            margin = totalScore - pickedTotal;
+          } else {
+            // Under pick: margin = picked total - actual total
+            // Example: Under 45.5, game total 38: 45.5 - 38 = 7.5 margin of victory
+            margin = pickedTotal - totalScore;
+          }
+          actualTotal = pickedTotal;
+        }
+      }
+
+      return {
+        ...pick,
+        user: user,
+        game: game,
+        margin: margin,
+        actualSpread: actualSpread,
+        actualTotal: actualTotal
+      };
+    }).filter(Boolean);
+
+    // 6. Calculate awards
+    const awards = calculateWeeklyAwards(enrichedPicks);
+
+    res.json({ awards, weekPicks: enrichedPicks.length });
+  } catch (err) {
+    console.error("Error fetching awards:", err);
+    res.status(500).json({ error: 'Failed to fetch awards', details: err.message });
+  }
+});
+
+// Helper function to calculate weekly awards
+function calculateWeeklyAwards(picks) {
+  const awards = {};
+  const awardNames = [
+    'Flop of the Week',
+    'Lone Wolf', 
+    'Lock of the Week',
+    'Close Call',
+    'Sore Loser',
+    'Biggest Loser',
+    'Boldest Favorite',
+    'Big Dawg',
+    'Big Kahuna',
+    'Tinkerbell'
+  ];
+
+  // Initialize awards structure
+  awardNames.forEach(award => {
+    awards[award] = [];
+  });
+
+  // Filter picks by result
+  const correctPicks = picks.filter(pick => pick.result && pick.result.toUpperCase() === 'WIN');
+  const incorrectPicks = picks.filter(pick => pick.result && pick.result.toUpperCase() === 'LOSS');
+  const spreadPicks = picks.filter(pick => pick.pickType === 'spread');
+  const totalPicks = picks.filter(pick => pick.pickType === 'total');
+
+  // 1. Flop of the Week - incorrect pick that resulted in most losses for group
+  // Count how many people made each incorrect pick
+  const incorrectPickCounts = {};
+  incorrectPicks.forEach(pick => {
+    const key = `${pick.gameId}_${pick.pickType}_${pick.pickSide}_${pick.line}`;
+    if (!incorrectPickCounts[key]) {
+      incorrectPickCounts[key] = { count: 0, pick: pick };
+    }
+    incorrectPickCounts[key].count++;
+  });
+  
+  let maxIncorrectCount = 0;
+  let flopPicks = [];
+  Object.values(incorrectPickCounts).forEach(({ count, pick }) => {
+    if (count > maxIncorrectCount) {
+      maxIncorrectCount = count;
+      flopPicks = [pick];
+    } else if (count === maxIncorrectCount) {
+      flopPicks.push(pick);
+    }
+  });
+  
+  awards['Flop of the Week'] = flopPicks.map(pick => ({
+    userId: pick.user.firebaseUid,
+    userName: pick.user.name,
+    details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+    score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+    count: maxIncorrectCount
+  }));
+
+  // 2. Lone Wolf - correct pick by one person countered by 2+ others on the SAME GAME
+  const gamePickAnalysis = {};
+  
+  // Group all picks by game and pick type (spread vs total)
+  picks.forEach(pick => {
+    const gameKey = `${pick.gameId}_${pick.pickType}`;
+    if (!gamePickAnalysis[gameKey]) {
+      gamePickAnalysis[gameKey] = { allPicks: [], game: pick.game };
+    }
+    gamePickAnalysis[gameKey].allPicks.push(pick);
+  });
+
+  console.log('DEBUG: Lone Wolf Analysis - Game Level');
+  console.log('Total games with picks:', Object.keys(gamePickAnalysis).length);
+  
+  Object.entries(gamePickAnalysis).forEach(([gameKey, { allPicks, game }]) => {
+    // Group picks by their specific choice (side + line)
+    const choiceGroups = {};
+    allPicks.forEach(pick => {
+      const choiceKey = `${pick.pickSide}_${pick.line}`;
+      if (!choiceGroups[choiceKey]) {
+        choiceGroups[choiceKey] = { picks: [], correct: 0, incorrect: 0 };
+      }
+      choiceGroups[choiceKey].picks.push(pick);
+      
+      if (pick.result && pick.result.toUpperCase() === 'WIN') {
+        choiceGroups[choiceKey].correct++;
+      } else if (pick.result && pick.result.toUpperCase() === 'LOSS') {
+        choiceGroups[choiceKey].incorrect++;
+      }
+    });
+    
+    console.log(`\nGame: ${game?.away_team_abbrev} @ ${game?.home_team_abbrev} (${gameKey.split('_')[1]})`);
+    Object.entries(choiceGroups).forEach(([choice, { picks, correct, incorrect }]) => {
+      console.log(`  ${choice}: ${correct} correct, ${incorrect} incorrect (${picks.length} total)`);
+    });
+    
+    // Look for Lone Wolf scenarios in this game
+    Object.entries(choiceGroups).forEach(([choice, { picks, correct, incorrect }]) => {
+      if (correct === 1) {
+        // Found someone who was correct alone, now check if 2+ others were wrong on opposing picks
+        const otherIncorrectCount = Object.entries(choiceGroups)
+          .filter(([otherChoice]) => otherChoice !== choice)
+          .reduce((sum, [, { incorrect: otherIncorrect }]) => sum + otherIncorrect, 0);
+        
+        if (otherIncorrectCount >= 2) {
+          console.log(`  *** LONE WOLF FOUND! ***`);
+          const loneWolfPick = picks.find(p => p.result && p.result.toUpperCase() === 'WIN');
+          console.log(`  Winner: ${loneWolfPick.user?.name}`);
+          console.log(`  Winning pick: ${choice}`);
+          console.log(`  Against ${otherIncorrectCount} others who picked differently`);
+          
+          awards['Lone Wolf'].push({
+            userId: loneWolfPick.user.firebaseUid,
+            userName: loneWolfPick.user.name,
+            details: `${loneWolfPick.game.away_team_abbrev} @ ${loneWolfPick.game.home_team_abbrev} - ${formatPickDetails(loneWolfPick)}`,
+            score: `${loneWolfPick.game.away_team_abbrev} ${loneWolfPick.game.awayScore}, ${loneWolfPick.game.home_team_abbrev} ${loneWolfPick.game.homeScore}`,
+            againstCount: otherIncorrectCount
+          });
+        }
+      }
+    });
+  });
+  
+  console.log('DEBUG: Lone Wolf winners found:', awards['Lone Wolf'].length);
+
+  // 3. Lock of the Week - correct pick furthest from being incorrect (largest margin)
+  const correctPicksWithMargin = correctPicks.filter(pick => pick.margin !== null);
+  if (correctPicksWithMargin.length > 0) {
+    const maxMargin = Math.max(...correctPicksWithMargin.map(pick => pick.margin));
+    const lockPicks = correctPicksWithMargin.filter(pick => pick.margin === maxMargin);
+    
+    awards['Lock of the Week'] = lockPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      margin: pick.margin
+    }));
+  }
+
+  // 4. Close Call - correct pick closest to being incorrect (smallest margin)
+  if (correctPicksWithMargin.length > 0) {
+    const minMargin = Math.min(...correctPicksWithMargin.map(pick => pick.margin));
+    const closeCallPicks = correctPicksWithMargin.filter(pick => pick.margin === minMargin);
+    
+    awards['Close Call'] = closeCallPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      margin: pick.margin
+    }));
+  }
+
+  // 5. Sore Loser - incorrect pick closest to being correct (smallest negative margin)
+  const incorrectPicksWithMargin = incorrectPicks.filter(pick => pick.margin !== null);
+  if (incorrectPicksWithMargin.length > 0) {
+    // For incorrect picks, we want the one with the smallest absolute margin (closest to 0)
+    const minAbsMargin = Math.min(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
+    const soreLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === minAbsMargin);
+    
+    awards['Sore Loser'] = soreLoserPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      margin: Math.abs(pick.margin)
+    }));
+  }
+
+  // 6. Biggest Loser - incorrect pick furthest from being correct (largest negative margin)
+  if (incorrectPicksWithMargin.length > 0) {
+    const maxAbsMargin = Math.max(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
+    const biggestLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === maxAbsMargin);
+    
+    awards['Biggest Loser'] = biggestLoserPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      margin: Math.abs(pick.margin)
+    }));
+  }
+
+  // 7. Boldest Favorite - correct spread pick with largest spread by favorite (most negative line)
+  const correctSpreadPicks = correctPicks.filter(pick => 
+    pick.pickType === 'spread' && pick.actualSpread !== null
+  );
+  if (correctSpreadPicks.length > 0) {
+    // Filter for picks where the line was negative (picked the favorite)
+    const favoritePicks = correctSpreadPicks.filter(pick => parseFloat(pick.line) < 0);
+    if (favoritePicks.length > 0) {
+      const largestFavoriteSpread = Math.min(...favoritePicks.map(pick => parseFloat(pick.line))); // Most negative line
+      const boldestFavoritePicks = favoritePicks.filter(pick => parseFloat(pick.line) === largestFavoriteSpread);
+      
+      awards['Boldest Favorite'] = boldestFavoritePicks.map(pick => ({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name,
+        details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+        score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+        spread: parseFloat(pick.line)
+      }));
+    }
+  }
+
+  // 8. Big Dawg - correct spread pick with largest spread by underdog (most positive line)
+  if (correctSpreadPicks.length > 0) {
+    // Filter for picks where the line was positive (picked the underdog)
+    const underdogPicks = correctSpreadPicks.filter(pick => parseFloat(pick.line) > 0);
+    if (underdogPicks.length > 0) {
+      const largestUnderdogSpread = Math.max(...underdogPicks.map(pick => parseFloat(pick.line))); // Most positive line
+      const bigDawgPicks = underdogPicks.filter(pick => parseFloat(pick.line) === largestUnderdogSpread);
+      
+      awards['Big Dawg'] = bigDawgPicks.map(pick => ({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name,
+        details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+        score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+        spread: parseFloat(pick.line)
+      }));
+    }
+  }
+
+  // 9. Big Kahuna - correct over pick with highest total
+  const correctOverPicks = correctPicks.filter(pick => 
+    pick.pickType === 'total' && 
+    pick.pickSide === 'OVER' && 
+    pick.actualTotal !== null
+  );
+  if (correctOverPicks.length > 0) {
+    const highestTotal = Math.max(...correctOverPicks.map(pick => pick.actualTotal));
+    const bigKahunaPicks = correctOverPicks.filter(pick => pick.actualTotal === highestTotal);
+    
+    awards['Big Kahuna'] = bigKahunaPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      total: pick.actualTotal
+    }));
+  }
+
+  // 10. Tinkerbell - correct under pick with smallest total
+  const correctUnderPicks = correctPicks.filter(pick => 
+    pick.pickType === 'total' && 
+    pick.pickSide === 'UNDER' && 
+    pick.actualTotal !== null
+  );
+  if (correctUnderPicks.length > 0) {
+    const lowestTotal = Math.min(...correctUnderPicks.map(pick => pick.actualTotal));
+    const tinkerbellPicks = correctUnderPicks.filter(pick => pick.actualTotal === lowestTotal);
+    
+    awards['Tinkerbell'] = tinkerbellPicks.map(pick => ({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name,
+      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
+      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+      total: pick.actualTotal
+    }));
+  }
+
+  return awards;
+}
+
+// Helper function to format pick details for display
+function formatPickDetails(pick) {
+  if (pick.pickType === 'spread') {
+    return `${pick.pickSide} ${pick.line > 0 ? '+' : ''}${pick.line}`;
+  } else if (pick.pickType === 'total') {
+    return `${pick.pickSide === 'OVER' ? 'Over' : 'Under'} ${pick.line}`;
+  } else {
+    // Fallback to selectedOutcomeName if it exists, or a generic format
+    return pick.selectedOutcomeName || `${pick.pickSide || 'Unknown'} ${pick.line || ''}`;
+  }
+}

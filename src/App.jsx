@@ -12,6 +12,7 @@ import Locks from './pages/Locks'
 import WeeklyLocks from './pages/WeeklyLocks'
 import UserSettings from './pages/UserSettings'
 import Standings from './pages/Standings'
+import Awards from './pages/Awards'
 
 function App() {
   return (
@@ -64,6 +65,13 @@ function App() {
             <PrivateRoute>
               <ProfileSetupGuard>
                 <Standings />
+              </ProfileSetupGuard>
+            </PrivateRoute>
+          } />
+          <Route path="/awards" element={
+            <PrivateRoute adminOnly>
+              <ProfileSetupGuard>
+                <Awards />
               </ProfileSetupGuard>
             </PrivateRoute>
           } />
