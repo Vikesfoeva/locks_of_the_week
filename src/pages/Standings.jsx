@@ -524,11 +524,11 @@ const Standings = () => {
       <>
         {viewMode === 'regular' ? (
           // Regular standings table
-          <div className="shadow-lg rounded-xl border border-gray-200">
-          <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto">
+          <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto min-w-full">
             <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
               <tr>
-              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-12 md:w-auto">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[15%] md:w-auto">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Rank</span>
                   {/* Hide sort/filter controls on mobile */}
@@ -553,7 +553,7 @@ const Standings = () => {
                   />
                 </div>
               </th>
-              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-24 md:w-auto">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[25%] md:w-auto">
                 <div className="flex items-center gap-1">
                   <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Name</span>
                   {/* Hide sort/filter controls on mobile */}
@@ -578,10 +578,10 @@ const Standings = () => {
                   />
                 </div>
               </th>
-              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-16 md:w-auto">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[20%] md:w-auto">
                 <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">W-L-T</span>
               </th>
-              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-14 md:w-auto">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[15%] md:w-auto">
                 <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Week</span>
               </th>
               <th className="px-2 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
@@ -647,7 +647,7 @@ const Standings = () => {
                   </div>
                 </div>
               </th>
-              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200">
+              <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[25%] md:w-auto">
                 <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Projected Payout</span>
               </th>
               <th className="px-2 py-2 md:px-4 md:py-4 text-left hidden md:table-cell">
@@ -728,7 +728,7 @@ const Standings = () => {
                     </div>
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
-                    <span className={`font-medium ${isTopFive ? 'text-gray-800 text-lg' : 'text-gray-700'}`}>
+                    <span className={`font-medium ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
                       {user.name}
                     </span>
                   </td>
@@ -811,23 +811,23 @@ const Standings = () => {
           </div>
         ) : (
           // 3-0 Week standings table
-          <div className="shadow-lg rounded-xl border border-gray-200">
-            <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto">
+          <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
+            <table className="w-full bg-white text-sm md:text-base table-fixed md:table-auto min-w-full">
               <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
                 <tr>
-                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-12 md:w-auto">
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[15%] md:w-auto">
                     <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Rank</span>
                   </th>
-                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-24 md:w-auto">
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[25%] md:w-auto">
                     <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Name</span>
                   </th>
-                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-16 md:w-auto">
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 w-[20%] md:w-auto">
                     <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">3-0 Weeks</span>
                   </th>
                   <th className="px-1 py-2 md:px-4 md:py-4 text-left border-r border-gray-200 hidden md:table-cell">
                     <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Percentage</span>
                   </th>
-                  <th className="px-1 py-2 md:px-4 md:py-4 text-left">
+                  <th className="px-1 py-2 md:px-4 md:py-4 text-left w-[40%] md:w-auto">
                     <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Payout</span>
                   </th>
                 </tr>
@@ -898,7 +898,7 @@ const Standings = () => {
                         </div>
                       </td>
                       <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
-                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-sm md:text-lg' : 'text-gray-700 text-sm md:text-base'}`}>
+                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
                           {user.name}
                         </span>
                       </td>
@@ -947,7 +947,7 @@ const Standings = () => {
               <div className="text-center">
                 <div className="text-xs md:text-sm text-gray-600">Record</div>
                 <div className="font-mono text-sm md:text-base font-bold text-gray-800 bg-white px-2 py-1 rounded border">
-                  {leagueAverages.avgWins}-{leagueAverages.avgLosses}-{leagueAverages.avgTies}
+                  {leagueAverages.avgWins} - {leagueAverages.avgLosses} - {leagueAverages.avgTies}
                 </div>
               </div>
               <div className="text-center">
