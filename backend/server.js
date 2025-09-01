@@ -1869,6 +1869,265 @@ function calculateWeeklyAwards(picks) {
   return awards;
 }
 
+// Get Snydermetrics data
+app.get('/api/snydermetrics', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year } = req.query;
+
+    // 1. Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+
+    // 2. Get available weeks from the specific year's database collections
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const collections = await yearDb.listCollections().toArray();
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    let availableGameWeeks = collections
+      .map(col => col.name)
+      .filter(name => oddsPattern.test(name));
+
+    if (availableGameWeeks.length === 0) {
+      return res.json({
+        cfb: { total: { O: 0, U: 0, 'Line (H)': 0, 'Line (A)': 0, Fav: 0, Dog: 0, 'Fav (H)': 0, 'Dog (H)': 0, 'Fav (A)': 0, 'Dog (A)': 0 } },
+        nfl: { total: { O: 0, U: 0, 'Line (H)': 0, 'Line (A)': 0, Fav: 0, Dog: 0, 'Fav (H)': 0, 'Dog (H)': 0, 'Fav (A)': 0, 'Dog (A)': 0 } },
+        totals: { total: { O: 0, U: 0, 'Line (H)': 0, 'Line (A)': 0, Fav: 0, Dog: 0, 'Fav (H)': 0, 'Dog (H)': 0, 'Fav (A)': 0, 'Dog (A)': 0 } }
+      });
+    }
+
+    availableGameWeeks.sort((a, b) => {
+      const dateA = parseCollectionNameToDate(a);
+      const dateB = parseCollectionNameToDate(b);
+      if (!dateA || !dateB) return a.localeCompare(b);
+      return dateA - dateB;
+    });
+
+    // 3. Fetch all picks for all weeks
+    const allPicks = await picksCollection.find({ 
+      collectionName: { $in: availableGameWeeks } 
+    }).toArray();
+
+    // 4. Fetch all games for enrichment
+    const allGames = {};
+    for (const week of availableGameWeeks) {
+      const games = await yearDb.collection(week).find({}).toArray();
+      games.forEach(game => {
+        if (game._id) {
+          allGames[game._id.toString()] = game;
+        }
+      });
+    }
+
+    // 5. Enrich picks with game details
+    const enrichedPicks = allPicks.map(pick => {
+      const game = pick.gameId ? allGames[pick.gameId] : null;
+      return {
+        ...pick,
+        gameDetails: game
+      };
+    }).filter(pick => pick.gameDetails); // Only include picks with valid game details
+
+    // 6. Calculate Snydermetrics
+    const calculateSnydermetrics = (picks) => {
+      const stats = {
+        O: { W: 0, L: 0, T: 0 },
+        U: { W: 0, L: 0, T: 0 },
+        'Line (H)': { W: 0, L: 0, T: 0 },
+        'Line (A)': { W: 0, L: 0, T: 0 },
+        Fav: { W: 0, L: 0, T: 0 },
+        Dog: { W: 0, L: 0, T: 0 },
+        'Fav (H)': { W: 0, L: 0, T: 0 },
+        'Dog (H)': { W: 0, L: 0, T: 0 },
+        'Fav (A)': { W: 0, L: 0, T: 0 },
+        'Dog (A)': { W: 0, L: 0, T: 0 }
+      };
+
+      picks.forEach(pick => {
+        const game = pick.gameDetails;
+        if (!game || !pick.result) return;
+
+        const result = pick.result.toUpperCase();
+        // Handle both single letter and full word formats
+        if (!['WIN', 'LOSS', 'TIE', 'W', 'L', 'T'].includes(result)) return;
+
+        const resultKey = (result === 'WIN' || result === 'W') ? 'W' : 
+                         (result === 'LOSS' || result === 'L') ? 'L' : 'T';
+
+        // Over/Under classification
+        if (pick.pickType === 'total') {
+          if (pick.pickSide === 'OVER') {
+            stats.O[resultKey]++;
+          } else if (pick.pickSide === 'UNDER') {
+            stats.U[resultKey]++;
+          }
+        }
+
+        // Line (Home/Away) classification - for spread picks only
+        if (pick.pickType === 'spread') {
+          const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
+          
+          if (pickedHome) {
+            stats['Line (H)'][resultKey]++;
+          } else {
+            stats['Line (A)'][resultKey]++;
+          }
+
+          // Favorite/Dog classification based on line sign
+          const line = parseFloat(pick.line) || 0;
+          const isFavorite = line < 0;
+          
+          if (isFavorite) {
+            stats.Fav[resultKey]++;
+            if (pickedHome) {
+              stats['Fav (H)'][resultKey]++;
+            } else {
+              stats['Fav (A)'][resultKey]++;
+            }
+          } else if (line > 0) {
+            stats.Dog[resultKey]++;
+            if (pickedHome) {
+              stats['Dog (H)'][resultKey]++;
+            } else {
+              stats['Dog (A)'][resultKey]++;
+            }
+          }
+        }
+      });
+
+      return stats;
+    };
+
+    // 7. Calculate stats by league
+    const cfbPicks = enrichedPicks.filter(pick => 
+      pick.gameDetails.league === 'CFB' || 
+      pick.gameDetails.league === 'NCAAF' ||
+      (pick.gameDetails.sportKey && pick.gameDetails.sportKey.includes('ncaaf'))
+    );
+    
+    const nflPicks = enrichedPicks.filter(pick => 
+      pick.gameDetails.league === 'NFL' ||
+      (pick.gameDetails.sportKey && pick.gameDetails.sportKey.includes('nfl'))
+    );
+
+    const cfbStats = calculateSnydermetrics(cfbPicks);
+    const nflStats = calculateSnydermetrics(nflPicks);
+    const totalStats = calculateSnydermetrics(enrichedPicks);
+
+    // 8. Format response with percentages
+    const formatStatsSection = (stats) => {
+      const result = {};
+      
+      Object.keys(stats).forEach(category => {
+        const { W, L, T } = stats[category];
+        const total = W + L + T;
+        const percentage = total > 0 ? (W / total) : 0;
+        
+        result[category] = {
+          W,
+          L,
+          T,
+          total,
+          percentage: parseFloat((percentage * 100).toFixed(1))
+        };
+      });
+
+      return result;
+    };
+
+    // 8. Calculate true totals for each league (avoiding double counting)
+    const calculateTrueTotals = (picks) => {
+      let totalW = 0, totalL = 0, totalT = 0;
+      picks.forEach(pick => {
+        if (!pick.result) return;
+        const result = pick.result.toUpperCase();
+        // Handle both single letter and full word formats
+        if (result === 'WIN' || result === 'W') totalW++;
+        else if (result === 'LOSS' || result === 'L') totalL++;
+        else if (result === 'TIE' || result === 'T') totalT++;
+      });
+      return { W: totalW, L: totalL, T: totalT };
+    };
+
+    const cfbTrueTotals = calculateTrueTotals(cfbPicks);
+    const nflTrueTotals = calculateTrueTotals(nflPicks);
+    const overallTrueTotals = calculateTrueTotals(enrichedPicks);
+
+    // 9. Format response as consolidated table
+    const consolidatedData = {};
+    const categories = ['O', 'U', 'Line (H)', 'Line (A)', 'Fav', 'Dog', 'Fav (H)', 'Dog (H)', 'Fav (A)', 'Dog (A)'];
+    
+    categories.forEach(category => {
+      const cfbData = cfbStats[category] || { W: 0, L: 0, T: 0 };
+      const nflData = nflStats[category] || { W: 0, L: 0, T: 0 };
+      const totalData = totalStats[category] || { W: 0, L: 0, T: 0 };
+      
+      consolidatedData[category] = {
+        cfb: {
+          W: cfbData.W,
+          L: cfbData.L,
+          T: cfbData.T,
+          total: cfbData.W + cfbData.L + cfbData.T,
+          percentage: (cfbData.W + cfbData.L + cfbData.T) > 0 ? parseFloat(((cfbData.W / (cfbData.W + cfbData.L + cfbData.T)) * 100).toFixed(1)) : 0
+        },
+        nfl: {
+          W: nflData.W,
+          L: nflData.L,
+          T: nflData.T,
+          total: nflData.W + nflData.L + nflData.T,
+          percentage: (nflData.W + nflData.L + nflData.T) > 0 ? parseFloat(((nflData.W / (nflData.W + nflData.L + nflData.T)) * 100).toFixed(1)) : 0
+        },
+        totals: {
+          W: totalData.W,
+          L: totalData.L,
+          T: totalData.T,
+          total: totalData.W + totalData.L + totalData.T,
+          percentage: (totalData.W + totalData.L + totalData.T) > 0 ? parseFloat(((totalData.W / (totalData.W + totalData.L + totalData.T)) * 100).toFixed(1)) : 0
+        }
+      };
+    });
+
+    res.json({
+      data: consolidatedData,
+      trueTotals: {
+        cfb: {
+          W: cfbTrueTotals.W,
+          L: cfbTrueTotals.L,
+          T: cfbTrueTotals.T,
+          total: cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T,
+          percentage: (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T) > 0 ? parseFloat(((cfbTrueTotals.W / (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T)) * 100).toFixed(1)) : 0
+        },
+        nfl: {
+          W: nflTrueTotals.W,
+          L: nflTrueTotals.L,
+          T: nflTrueTotals.T,
+          total: nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T,
+          percentage: (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T) > 0 ? parseFloat(((nflTrueTotals.W / (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T)) * 100).toFixed(1)) : 0
+        },
+        totals: {
+          W: overallTrueTotals.W,
+          L: overallTrueTotals.L,
+          T: overallTrueTotals.T,
+          total: overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T,
+          percentage: (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T) > 0 ? parseFloat(((overallTrueTotals.W / (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T)) * 100).toFixed(1)) : 0
+        }
+      },
+      availableWeeks: availableGameWeeks
+    });
+
+  } catch (err) {
+    console.error('Error fetching Snydermetrics:', err);
+    res.status(500).json({ error: 'Failed to fetch Snydermetrics', details: err.message });
+  }
+});
+
 // Helper function to format pick details for display
 function formatPickDetails(pick) {
   if (pick.pickType === 'spread') {

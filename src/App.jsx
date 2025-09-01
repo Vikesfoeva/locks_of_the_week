@@ -13,6 +13,7 @@ import WeeklyLocks from './pages/WeeklyLocks'
 import UserSettings from './pages/UserSettings'
 import Standings from './pages/Standings'
 import Awards from './pages/Awards'
+import Snydermetrics from './pages/Snydermetrics'
 
 function App() {
   return (
@@ -72,6 +73,13 @@ function App() {
             <PrivateRoute adminOnly>
               <ProfileSetupGuard>
                 <Awards />
+              </ProfileSetupGuard>
+            </PrivateRoute>
+          } />
+          <Route path="/snydermetrics" element={
+            <PrivateRoute adminOnly>
+              <ProfileSetupGuard>
+                <Snydermetrics />
               </ProfileSetupGuard>
             </PrivateRoute>
           } />

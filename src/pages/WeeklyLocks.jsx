@@ -506,7 +506,7 @@ const WeeklyLocks = () => {
         let fetchedCollections = response.data;
 
         if (!Array.isArray(fetchedCollections) || fetchedCollections.length === 0) {
-          setError('No picks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
+          setError('No locks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
@@ -522,7 +522,7 @@ const WeeklyLocks = () => {
         filteredCollections = filteredCollections.filter(name => parseCollectionNameToDate(name) !== null);
 
         if (filteredCollections.length === 0) {
-          setError('No picks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
+          setError('No locks are available yet. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
           setCollections([]);
           setSelectedCollection('');
           setLoading(false);
@@ -540,7 +540,7 @@ const WeeklyLocks = () => {
         setSelectedCollection(mostRecentCollection);
         setError('');
       } catch (err) {
-        setError('Unable to load picks at this time. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
+        setError('Unable to load locks at this time. New games are added every Tuesday at 8:00 AM ET. Please check back then!');
         setCollections([]);
         setSelectedCollection('');
         setLoading(false);
@@ -703,7 +703,7 @@ const WeeklyLocks = () => {
             className={`px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base ${showPopularPicks ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
             onClick={() => setShowPopularPicks(!showPopularPicks)}
           >
-            <span className="hidden sm:inline">Show Popular Picks</span>
+            <span className="hidden sm:inline">Show Popular Locks</span>
             <span className="sm:hidden">Popular</span>
           </button>
           {viewMode === 'table' && (

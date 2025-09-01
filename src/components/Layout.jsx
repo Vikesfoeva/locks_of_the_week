@@ -18,7 +18,7 @@ export default function Layout() {
   const [error, setError] = useState('')
 
   const adminNav = currentUser?.role === 'admin'
-    ? [{ name: 'Admin', href: '/admin' }, { name: 'Awards', href: '/awards' }]
+    ? [{ name: 'Admin', href: '/admin' }, { name: 'Awards', href: '/awards' }, { name: 'Snydermetrics', href: '/snydermetrics' }]
     : [];
 
   async function handleLogout() {
