@@ -211,6 +211,51 @@ const Standings = () => {
 
   const tiedUsers = getTiedUsers(viewMode === 'regular' ? enhancedStandings : currentStandings);
 
+  // Calculate league averages for the current standings
+  const calculateAverages = (standings) => {
+    if (standings.length === 0) return { avgWins: 0, avgLosses: 0, avgTies: 0, avgPercentage: 0 };
+    
+    const totals = standings.reduce((acc, user) => {
+      acc.wins += user.wins || 0;
+      acc.losses += user.losses || 0;
+      acc.ties += user.ties || 0;
+      return acc;
+    }, { wins: 0, losses: 0, ties: 0 });
+    
+    const avgWins = (totals.wins / standings.length).toFixed(1);
+    const avgLosses = (totals.losses / standings.length).toFixed(1);
+    const avgTies = (totals.ties / standings.length).toFixed(1);
+    
+    // Calculate average percentage
+    const totalGames = parseFloat(avgWins) + parseFloat(avgLosses) + parseFloat(avgTies);
+    const winPoints = parseFloat(avgWins) + 0.5 * parseFloat(avgTies);
+    const avgPercentage = totalGames > 0 ? ((winPoints / totalGames) * 100).toFixed(1) : '0.0';
+    
+    return { avgWins, avgLosses, avgTies, avgPercentage };
+  };
+
+  const leagueAverages = calculateAverages(viewMode === 'regular' ? enhancedStandings : currentStandings);
+
+  // Find the index where users transition from above average to below average
+  const findAverageSeparatorIndex = (standings) => {
+    if (standings.length === 0) return -1;
+    
+    const avgPercentage = parseFloat(leagueAverages.avgPercentage);
+    
+    for (let i = 0; i < standings.length; i++) {
+      const userPercentage = viewMode === 'regular' 
+        ? parseFloat(getWinPct(standings[i]).replace('%', ''))
+        : standings[i].percentage || 0;
+      
+      // Find the first user who is below average
+      if (userPercentage < avgPercentage) {
+        return i; // Insert separator before this user
+      }
+    }
+    
+    return -1; // All users are above average
+  };
+
   // Create filtered datasets for each filter to show only available options
   const baseStandings = viewMode === 'regular' ? enhancedStandings : currentStandings;
   
@@ -611,32 +656,57 @@ const Standings = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sortedStandings.map((user, idx) => {
-              const winPct = getWinPct(user);
-              const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
-              const totalLocks = user.wins + user.losses + user.ties;
-              const isTopFive = user.rank <= 5;
-              const isWinner = user.payout > 0;
-              const isLastPlace = user.rank === standings.length;
-              const isTied = tiedUsers[user.rank] && tiedUsers[user.rank].length > 1;
-              const tiedCount = isTied ? tiedUsers[user.rank].length : 0;
+            {(() => {
+              const separatorIndex = findAverageSeparatorIndex(sortedStandings);
+              const rows = [];
               
-              // Determine row styling based on performance
-              let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
-              if (isTopFive) {
-                rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
-              } else if (isLastPlace) {
-                rowClassName += ' bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-l-red-400';
-              } else if (isTied) {
-                rowClassName += ' bg-gradient-to-r from-purple-50 to-indigo-50 border-l-4 border-l-purple-400';
-              } else if (idx % 2 === 0) {
-                rowClassName += ' bg-white';
-              } else {
-                rowClassName += ' bg-gray-50';
-              }
-              
-              return (
-                <tr key={user._id} className={rowClassName}>
+              sortedStandings.forEach((user, idx) => {
+                // Insert separator before this user if they're the first below-average user
+                if (idx === separatorIndex && separatorIndex > 0) {
+                  rows.push(
+                    <tr key={`separator-${idx}`} className="bg-gradient-to-r from-blue-100 to-indigo-100 border-t-2 border-b-2 border-blue-300">
+                      <td colSpan="11" className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="flex-1 h-px bg-blue-300"></div>
+                          <span className="text-sm font-bold text-blue-700 px-3 py-1 bg-white rounded-full border-2 border-blue-300">
+                            League Average: {leagueAverages.avgPercentage}%
+                          </span>
+                          <div className="flex-1 h-px bg-blue-300"></div>
+                        </div>
+                        {/* <div className="text-xs text-blue-600 mt-1">
+                          Above Average ↑ • Below Average ↓
+                        </div> */}
+                      </td>
+                    </tr>
+                  );
+                }
+                
+                // Add the regular user row
+                const winPct = getWinPct(user);
+                const weekRecord = `${user.weekWins}-${user.weekLosses}-${user.weekTies}`;
+                const totalLocks = user.wins + user.losses + user.ties;
+                const isTopFive = user.rank <= 5;
+                const isWinner = user.payout > 0;
+                const isLastPlace = user.rank === standings.length;
+                const isTied = tiedUsers[user.rank] && tiedUsers[user.rank].length > 1;
+                const tiedCount = isTied ? tiedUsers[user.rank].length : 0;
+                
+                // Determine row styling based on performance
+                let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
+                if (isTopFive) {
+                  rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
+                } else if (isLastPlace) {
+                  rowClassName += ' bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-l-red-400';
+                } else if (isTied) {
+                  rowClassName += ' bg-gradient-to-r from-purple-50 to-indigo-50 border-l-4 border-l-purple-400';
+                } else if (idx % 2 === 0) {
+                  rowClassName += ' bg-white';
+                } else {
+                  rowClassName += ' bg-gray-50';
+                }
+                
+                const userRow = (
+                  <tr key={user._id} className={rowClassName}>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <div className="flex items-center">
                       {isTopFive && (
@@ -654,11 +724,6 @@ const Standings = () => {
                         <span className={`font-bold text-sm md:text-lg ${isTopFive ? 'text-gray-800' : 'text-gray-600'}`}>
                           {!isTopFive && user.rank}
                         </span>
-                        {isTied && (
-                          <span className="text-xs text-purple-600 font-medium">
-                            T{tiedCount}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -714,16 +779,9 @@ const Standings = () => {
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     {isWinner ? (
-                      <div className="flex flex-col">
-                        <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
-                          ${user.payout.toFixed(2)}
-                        </span>
-                        {isTied && (
-                          <span className="text-xs text-purple-600 font-medium mt-1">
-                            Split {tiedCount} ways
-                          </span>
-                        )}
-                      </div>
+                      <span className="font-bold text-green-700 text-base bg-green-100 px-2 py-1 rounded-full">
+                        ${user.payout.toFixed(2)}
+                      </span>
                     ) : (
                       <span className="text-gray-400 font-medium">-</span>
                     )}
@@ -740,8 +798,14 @@ const Standings = () => {
                     </span>
                   </td>
                 </tr>
-              );
-            })}
+                );
+                
+                rows.push(userRow);
+              });
+              
+              return rows;
+            })()}
+
           </tbody>
           </table>
           </div>
@@ -769,23 +833,52 @@ const Standings = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedStandings.map((user, idx) => {
-                  const rank = idx + 1;
-                  const isTopFive = rank <= 5;
-                  const hasEarnings = user.payout > 0;
+                {(() => {
+                  const separatorIndex = findAverageSeparatorIndex(sortedStandings);
+                  const rows = [];
                   
-                  // Determine row styling
-                  let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
-                  if (isTopFive && user.threeZeroWeeks > 0) {
-                    rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
-                  } else if (idx % 2 === 0) {
-                    rowClassName += ' bg-white';
-                  } else {
-                    rowClassName += ' bg-gray-50';
-                  }
-                  
-                  return (
-                    <tr key={user._id} className={rowClassName}>
+                  sortedStandings.forEach((user, idx) => {
+                    // Insert separator before this user if they're the first below-average user
+                    if (idx === separatorIndex && separatorIndex > 0) {
+                      const avgPercentage = currentStandings.length > 0 
+                        ? (currentStandings.reduce((sum, user) => sum + (user.percentage || 0), 0) / currentStandings.length).toFixed(1)
+                        : '0.0';
+                      
+                      rows.push(
+                        <tr key={`separator-${idx}`} className="bg-gradient-to-r from-blue-100 to-indigo-100 border-t-2 border-b-2 border-blue-300">
+                          <td colSpan="5" className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="flex-1 h-px bg-blue-300"></div>
+                              <span className="text-sm font-bold text-blue-700 px-3 py-1 bg-white rounded-full border-2 border-blue-300">
+                                League Average: {avgPercentage}%
+                              </span>
+                              <div className="flex-1 h-px bg-blue-300"></div>
+                            </div>
+                            <div className="text-xs text-blue-600 mt-1">
+                              Above Average ↑ • Below Average ↓
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
+                    // Add the regular user row
+                    const rank = idx + 1;
+                    const isTopFive = rank <= 5;
+                    const hasEarnings = user.payout > 0;
+                    
+                    // Determine row styling
+                    let rowClassName = 'hover:bg-blue-50 transition-colors duration-200';
+                    if (isTopFive && user.threeZeroWeeks > 0) {
+                      rowClassName += ' bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-l-yellow-400';
+                    } else if (idx % 2 === 0) {
+                      rowClassName += ' bg-white';
+                    } else {
+                      rowClassName += ' bg-gray-50';
+                    }
+                    
+                    const userRow = (
+                      <tr key={user._id} className={rowClassName}>
                       <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                         <div className="flex items-center">
                           {isTopFive && user.threeZeroWeeks > 0 && (
@@ -833,12 +926,78 @@ const Standings = () => {
                         )}
                       </td>
                     </tr>
-                  );
-                })}
+                    );
+                    
+                    rows.push(userRow);
+                  });
+                  
+                  return rows;
+                })()}
+
               </tbody>
             </table>
           </div>
         )}
+
+        {/* League Averages Section */}
+        <div className="mt-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
+          <h3 className="text-sm md:text-base font-bold text-gray-700 mb-2">League Averages</h3>
+          {viewMode === 'regular' ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-xs md:text-sm text-gray-600">Record</div>
+                <div className="font-mono text-sm md:text-base font-bold text-gray-800 bg-white px-2 py-1 rounded border">
+                  {leagueAverages.avgWins}-{leagueAverages.avgLosses}-{leagueAverages.avgTies}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs md:text-sm text-gray-600">Win %</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {leagueAverages.avgPercentage}%
+                </div>
+              </div>
+              <div className="text-center hidden md:block">
+                <div className="text-xs md:text-sm text-gray-600">Total Games</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {(parseFloat(leagueAverages.avgWins) + parseFloat(leagueAverages.avgLosses) + parseFloat(leagueAverages.avgTies)).toFixed(1)}
+                </div>
+              </div>
+              <div className="text-center hidden md:block">
+                <div className="text-xs md:text-sm text-gray-600">Players</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {enhancedStandings.length}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-xs md:text-sm text-gray-600">3-0 Weeks</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {currentStandings.length > 0 
+                    ? (currentStandings.reduce((sum, user) => sum + (user.threeZeroWeeks || 0), 0) / currentStandings.length).toFixed(1)
+                    : '0.0'
+                  }
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs md:text-sm text-gray-600">Success Rate</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {currentStandings.length > 0 
+                    ? (currentStandings.reduce((sum, user) => sum + (user.percentage || 0), 0) / currentStandings.length).toFixed(1)
+                    : '0.0'
+                  }%
+                </div>
+              </div>
+              <div className="text-center hidden md:block">
+                <div className="text-xs md:text-sm text-gray-600">Players</div>
+                <div className="text-sm md:text-base font-bold text-gray-800">
+                  {currentStandings.length}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
       </>
       )}
