@@ -139,7 +139,6 @@ const Locks = () => {
       try {
         // Fetch games for the selected collection
         const gamesRes = await axios.get(`${API_URL}/games?collectionName=${selectedCollection}`);
-        console.log(`Games API response for ${selectedCollection}:`, gamesRes.data);
         setGames(
           (Array.isArray(gamesRes.data) ? gamesRes.data : []).map(game => ({
             ...game,

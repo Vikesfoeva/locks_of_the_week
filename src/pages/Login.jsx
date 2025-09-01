@@ -17,7 +17,6 @@ export default function Login() {
     // Only redirect if auth is not loading and currentUser is set.
     // This prevents redirecting if initial auth state is still being determined.
     if (!authLoading && currentUser) {
-      console.log('[Login.jsx] currentUser exists and auth is not loading, navigating to /');
       navigate('/');
     }
   }, [currentUser, authLoading, navigate]);
@@ -42,7 +41,6 @@ export default function Login() {
     try {
       setLocLoading(true);
       await loginWithGooglePopup(); // This will trigger onAuthStateChanged, then currentUser update, then useEffect
-      console.log("[Login.jsx] Google sign-in popup flow completed.");
       // Navigation is now handled by the useEffect.
     } catch (err) {
       // loginWithGooglePopup in AuthContext already sets authError and logs.

@@ -26,8 +26,6 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 }
 
-console.log('[AuthContext] Initial firebaseConfig used for initializeApp:', firebaseConfig);
-
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const googleProvider = new GoogleAuthProvider()
@@ -110,7 +108,6 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         throw new Error(data.error || 'Could not create user in DB');
       }
-      console.log('User created in DB:', data.message);
     } catch (error) {
       console.error('Error creating user in DB:', error);
       throw error;
@@ -119,13 +116,10 @@ export function AuthProvider({ children }) {
 
   // Effect to handle auth state changes
   useEffect(() => {
-    console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('[AuthContext] onAuthStateChanged triggered. User:', user ? user.uid : 'null');
       
       // Prevent duplicate processing of the same user
       if (user && processingUserRef.current === user.uid) {
-        console.log('[AuthContext] Already processing user:', user.uid, '- skipping duplicate processing');
         return;
       }
       
@@ -148,24 +142,17 @@ export function AuthProvider({ children }) {
           
           if (response.ok) {
             const userData = await response.json();
-            console.log('[AuthContext] User data from backend:', userData);
             const mergedUser = { ...user, ...userData };
-            console.log('[AuthContext] Merged user data:', mergedUser);
             setCurrentUser(mergedUser);
           } else if (response.status === 404) {
             // Only log this as info if it's during signup, otherwise it might be a real issue
-            if (isSignupInProgressRef.current) {
-              console.log('User not found in DB (expected during signup), checking whitelist before creation.');
-            } else {
-              console.log('User not found in DB, checking whitelist before creation.');
-            }
+            // User not found in DB, checking whitelist before creation
             
             // 2. If not in DB, check if they are whitelisted
             const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${encodeURIComponent(user.email)}`);
             const whitelistCheckData = await whitelistCheckResponse.json();
 
             if (whitelistCheckResponse.ok && whitelistCheckData.allowed) {
-              console.log('User is whitelisted. Creating user in DB.');
               // 3. If whitelisted, create user
               await createUserInDb(user);
               
@@ -173,13 +160,10 @@ export function AuthProvider({ children }) {
               await new Promise(resolve => setTimeout(resolve, 500));
               
               const newUserResponse = await fetch(`${API_URL}/users?firebaseUid=${user.uid}`);
-              console.log('[AuthContext] Fetching new user data, response status:', newUserResponse.status);
               
               if (newUserResponse.ok) {
                 const newUserData = await newUserResponse.json();
-                console.log('[AuthContext] New user data after creation:', newUserData);
                 const mergedUser = { ...user, ...newUserData };
-                console.log('[AuthContext] Merged new user data:', mergedUser);
                 setCurrentUser(mergedUser);
               } else {
                 console.error('[AuthContext] Failed to fetch user data after creation. Status:', newUserResponse.status);
@@ -187,16 +171,12 @@ export function AuthProvider({ children }) {
                 console.error('[AuthContext] Error response:', errorData);
                 
                 // Fallback: try to fetch by email instead
-                console.log('[AuthContext] Trying fallback fetch by email...');
                 try {
                   const fallbackResponse = await fetch(`${API_URL}/users?email=${encodeURIComponent(user.email)}`);
-                  console.log('[AuthContext] Fallback response status:', fallbackResponse.status);
                   
                   if (fallbackResponse.ok) {
                     const fallbackUserData = await fallbackResponse.json();
-                    console.log('[AuthContext] Fallback user data:', fallbackUserData);
                     const mergedUser = { ...user, ...fallbackUserData };
-                    console.log('[AuthContext] Merged user data from fallback:', mergedUser);
                     setCurrentUser(mergedUser);
                   } else {
                     console.error('[AuthContext] Fallback fetch also failed. Status:', fallbackResponse.status);
@@ -211,7 +191,6 @@ export function AuthProvider({ children }) {
               }
             } else {
               // 4. If not whitelisted, sign out and set error
-              console.log('User is not whitelisted. Signing out.');
               setAuthError('Your email is not authorized to use this application.');
               await signOut(auth); // This will re-trigger onAuthStateChanged with user=null
               setCurrentUser(null);
@@ -230,7 +209,6 @@ export function AuthProvider({ children }) {
           processingUserRef.current = null; // Clear processing ref when complete
           isSignupInProgressRef.current = false; // Clear signup flag when complete
           setLoading(false);
-          console.log('[AuthContext] Auth state processed. Loading set to false.');
         }
       } else {
         // User is signed out.
@@ -238,12 +216,10 @@ export function AuthProvider({ children }) {
         isSignupInProgressRef.current = false; // Clear signup flag
         setCurrentUser(null);
         setLoading(false);
-        console.log('[AuthContext] Auth state processed (no user path). Loading set to false.');
       }
     });
 
     return () => {
-      console.log('[AuthContext] Cleaning up onAuthStateChanged listener.');
       unsubscribe();
     };
   }, []);
@@ -254,7 +230,6 @@ export function AuthProvider({ children }) {
     isSignupInProgressRef.current = true; // Mark signup as in progress
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log("[AuthContext] Firebase user created via email/pass:", userCredential.user.uid);
       // Don't call createUserInDb here - let onAuthStateChanged handle it
       // This prevents the race condition where onAuthStateChanged runs before createUserInDb completes
       return userCredential;
@@ -284,7 +259,6 @@ export function AuthProvider({ children }) {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      console.log("[AuthContext] Google sign-in successful. Checking whitelist for user:", user.email);
 
       // 1. Check if the user is whitelisted
       const whitelistCheckResponse = await fetch(`${API_URL}/whitelist/check?email=${encodeURIComponent(user.email)}`);
@@ -302,7 +276,6 @@ export function AuthProvider({ children }) {
       // 2. Check if user exists in your DB, if not, the onAuthStateChanged will handle creation
       // This logic can be simplified as onAuthStateChanged will run anyway.
       // We just need to ensure the user is logged in here. The effect will handle the DB check/creation.
-      console.log("[AuthContext] User is whitelisted. Auth state change will handle DB sync.");
 
       return result;
     } catch (error) {
@@ -319,12 +292,7 @@ export function AuthProvider({ children }) {
   async function resetPassword(email) {
     setAuthError('');
     try {
-      console.log("[AuthContext] Attempting to send password reset email to:", email);
-      console.log("[AuthContext] Firebase auth instance:", auth);
-      console.log("[AuthContext] Current user:", auth.currentUser);
-      
       await sendPasswordResetEmail(auth, email);
-      console.log("[AuthContext] Password reset email sent successfully to:", email);
     } catch (error) {
       console.error("[AuthContext] Error sending password reset email:", error);
       console.error("[AuthContext] Error code:", error.code);

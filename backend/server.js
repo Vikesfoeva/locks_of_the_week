@@ -25,7 +25,6 @@ function formatVenmoHandle(venmoHandle) {
 }
 
 dotenv.config();
-console.log("Server file loaded")
 // Validate environment variables
 if (!process.env.MONGO_URI) {
   console.error('MONGO_URI environment variable is not set');
@@ -100,7 +99,6 @@ process.on('unhandledRejection', (reason, promise) => {
 // Connect to MongoDB
 async function connectToDb() {
   if (isConnecting) {
-    console.log('Connection attempt already in progress');
     return db;
   }
 
@@ -110,7 +108,6 @@ async function connectToDb() {
       await db.command({ ping: 1 });
       return db;
     } catch (err) {
-      console.log('Database connection lost, attempting to reconnect...');
       db = null;
     }
   }
@@ -123,7 +120,6 @@ async function connectToDb() {
       if (!db) {
         await client.connect();
         db = client.db(dbName);
-        console.log('Connected to MongoDB successfully');
         isConnecting = false;
         return db;
       }
@@ -131,7 +127,6 @@ async function connectToDb() {
       retries++;
       console.error(`Failed to connect to MongoDB (attempt ${retries}/${MAX_RETRIES}):`, err);
       if (retries < MAX_RETRIES) {
-        console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       }
     }
@@ -147,9 +142,7 @@ connectToDb().then(() => {
   const port = process.env.PORT || 5001;
   app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);
-    // console.log(`CORS enabled for origin: ${corsOptions.origin}`);
   });
-  console.log("Listening for requests");
 }).catch(err => {
   console.error('Failed to start server:', err);
   process.exit(1);
@@ -160,7 +153,6 @@ app.get('/api/debug/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const users = await db.collection('users').find({}).toArray();
-    console.log('[Backend] Debug: All users in database:', users);
     res.json({ 
       message: 'Database connection successful',
       userCount: users.length,
@@ -177,7 +169,6 @@ app.get('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email, firebaseUid } = req.query;
-    console.log('[Backend] GET /api/users called with:', { email, firebaseUid });
     let query = {};
     if (email) {
       // Normalize email to lowercase for case-insensitive lookup
@@ -185,13 +176,10 @@ app.get('/api/users', async (req, res) => {
     } else if (firebaseUid) {
       query = { firebaseUid };
     }
-    console.log('[Backend] Final query:', query);
     
     // If a specific user is requested, find one. Otherwise, find all.
     if (email || firebaseUid) {
-      console.log('[Backend] Searching for user with query:', query);
       const user = await db.collection('users').findOne(query);
-      console.log('[Backend] User search result:', user);
       if (user) {
         // Convert ObjectId to string for frontend compatibility
         if (user._id) {
@@ -199,7 +187,6 @@ app.get('/api/users', async (req, res) => {
         }
         res.json(user);
       } else {
-        console.log('[Backend] User not found for query:', query);
         res.status(404).json({ error: 'User not found' });
       }
     } else {
@@ -210,7 +197,6 @@ app.get('/api/users', async (req, res) => {
           user._id = user._id.toString();
         }
       });
-      console.log('[Backend] All users in database:', users);
       res.json(users);
     }
   } catch (err) {
@@ -339,18 +325,14 @@ app.get('/api/whitelist', async (req, res) => {
 // Check if email is whitelisted
 app.get('/api/whitelist/check', async (req, res) => {
   try {
-    console.log('Received /api/whitelist/check request');
     const db = await connectToDb();
-    console.log('Connected to DB');
     const { email } = req.query;
     if (!email) {
-      console.log('No email provided');
       return res.status(400).json({ allowed: false, error: 'Email is required' });
     }
     // Normalize email to lowercase for case-insensitive comparison
     const normalizedEmail = email.toLowerCase();
     const exists = await db.collection('whitelist').findOne({ email: normalizedEmail });
-    console.log('Whitelist check result:', exists ? 'Found' : 'Not found');
     res.json({ allowed: !!exists });
   } catch (err) {
     console.error('Error checking whitelist:', err);
@@ -393,7 +375,6 @@ app.post('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email, firebaseUid, firstName, lastName, role, venmoHandle, cellPhone, duesPaid, dateDuesPaid, createdAt, updatedAt } = req.body;
-    console.log('[Backend] Creating user with data:', { email, firebaseUid, firstName, lastName });
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
@@ -441,8 +422,6 @@ app.post('/api/users', async (req, res) => {
       updatedAt: updatedAt ? new Date(updatedAt) : now,
     };
     const result = await db.collection('users').insertOne(userDoc);
-    console.log('[Backend] User created with ID:', result.insertedId);
-    console.log('[Backend] Created user document:', userDoc);
     res.status(201).json({ message: 'User created', userId: result.insertedId.toString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -651,7 +630,6 @@ app.post('/api/picks', async (req, res) => {
 
       // Send to Google Apps Script
       const currentLocksWeek = await formatWeekForLocksWebhook(collectionName, year);
-      console.log(currentLocksWeek)
       const axios = require('axios');
       await axios.post('https://script.google.com/macros/s/AKfycbxDXkwPsH5yPjpFCiIa3Cv5Xd3HTb_fj9A5s9DJQMKRfmQlMVLNGyGQkXtVOsZL-I_GQw/exec'
         , {
@@ -663,8 +641,6 @@ app.post('/api/picks', async (req, res) => {
         userMessage: userMessage || '',
         submissionTime: new Date().toISOString()
       });
-      
-      console.log('Successfully sent picks data to Google Apps Script');
     } catch (googleScriptError) {
       console.error('Failed to send data to Google Apps Script:', googleScriptError);
       // Don't fail the entire submission if Google Apps Script fails
@@ -1676,8 +1652,7 @@ function calculateWeeklyAwards(picks) {
     gamePickAnalysis[gameKey].allPicks.push(pick);
   });
 
-  console.log('DEBUG: Lone Wolf Analysis - Game Level');
-  console.log('Total games with picks:', Object.keys(gamePickAnalysis).length);
+
   
   Object.entries(gamePickAnalysis).forEach(([gameKey, { allPicks, game }]) => {
     // Group picks by their specific choice (side + line)
@@ -1696,10 +1671,7 @@ function calculateWeeklyAwards(picks) {
       }
     });
     
-    console.log(`\nGame: ${game?.away_team_abbrev} @ ${game?.home_team_abbrev} (${gameKey.split('_')[1]})`);
-    Object.entries(choiceGroups).forEach(([choice, { picks, correct, incorrect }]) => {
-      console.log(`  ${choice}: ${correct} correct, ${incorrect} incorrect (${picks.length} total)`);
-    });
+
     
     // Look for Lone Wolf scenarios in this game
     Object.entries(choiceGroups).forEach(([choice, { picks, correct, incorrect }]) => {
@@ -1710,11 +1682,7 @@ function calculateWeeklyAwards(picks) {
           .reduce((sum, [, { incorrect: otherIncorrect }]) => sum + otherIncorrect, 0);
         
         if (otherIncorrectCount >= 2) {
-          console.log(`  *** LONE WOLF FOUND! ***`);
           const loneWolfPick = picks.find(p => p.result && p.result.toUpperCase() === 'WIN');
-          console.log(`  Winner: ${loneWolfPick.user?.name}`);
-          console.log(`  Winning pick: ${choice}`);
-          console.log(`  Against ${otherIncorrectCount} others who picked differently`);
           
           awards['Lone Wolf'].push({
             userId: loneWolfPick.user.firebaseUid,
@@ -1728,7 +1696,7 @@ function calculateWeeklyAwards(picks) {
     });
   });
   
-  console.log('DEBUG: Lone Wolf winners found:', awards['Lone Wolf'].length);
+
 
   // 3. Lock of the Week - correct pick furthest from being incorrect (largest margin)
   const correctPicksWithMargin = correctPicks.filter(pick => pick.margin !== null);

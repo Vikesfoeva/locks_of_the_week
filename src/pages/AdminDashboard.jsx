@@ -566,7 +566,6 @@ export default function AdminDashboard() {
         body: JSON.stringify({ prizePool: threeZeroPrizePool })
       });
       if (!response.ok) throw new Error('Failed to save 3-0 week prize pool');
-      console.log('3-0 week prize pool saved successfully');
     } catch (err) {
       setThreeZeroPrizePoolError(err.message);
     } finally {

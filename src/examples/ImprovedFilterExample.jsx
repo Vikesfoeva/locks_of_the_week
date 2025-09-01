@@ -21,17 +21,14 @@ const ImprovedFilterExample = ({ games = [] }) => {
 
   // Filter application handlers
   const handleLeagueFilter = (selectedLeagues) => {
-    console.log('Applied league filter:', selectedLeagues);
     // Apply your filtering logic here
   };
 
   const handleAwayTeamFilter = (selectedTeams) => {
-    console.log('Applied away team filter:', selectedTeams);
     // Apply your filtering logic here
   };
 
   const handleHomeTeamFilter = (selectedTeams) => {
-    console.log('Applied home team filter:', selectedTeams);
     // Apply your filtering logic here
   };
 
