@@ -1406,7 +1406,11 @@ app.get('/api/three-zero-standings', async (req, res) => {
         if (weekPicks.length === 3) {
           // Check if all 3 picks are wins
           const allWins = weekPicks.every(pick => pick.result && pick.result.toUpperCase() === 'WIN');
-          if (allWins && userThreeZeroWeeks[userId]) {
+          // Check if all 3 picks are eligible for 3-0 consideration (threeOEligible must be true)
+          // Handle legacy data by defaulting to true if threeOEligible is undefined
+          const allEligible = weekPicks.every(pick => pick.threeOEligible !== false);
+          
+          if (allWins && allEligible && userThreeZeroWeeks[userId]) {
             userThreeZeroWeeks[userId].threeZeroWeeks++;
           }
         }
