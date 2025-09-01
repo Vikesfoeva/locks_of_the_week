@@ -46,11 +46,22 @@ export default function Dashboard() {
     }
     return '--';
   };
+
+  // Helper function to calculate win percentage
+  const calculateWinPct = (wins, losses, ties) => {
+    const totalGames = wins + losses + ties;
+    if (totalGames === 0) return '0.0';
+    const winPoints = wins + 0.5 * ties;
+    return ((winPoints / totalGames) * 100).toFixed(1);
+  };
+
   const [dashboardData, setDashboardData] = useState({
     projectedWinners: [],
     currentWeekPicks: [],
     currentWeekTotal: 3,
     currentWeek: null,
+    userStandings: null,
+    totalPlayers: 0,
     loading: true,
     error: null
   })
@@ -111,11 +122,21 @@ export default function Dashboard() {
           .filter(user => user.payout > 0)
           .sort((a, b) => b.payout - a.payout) // Sort by payout amount
 
+        // Find current user's standings data
+        // Need to match against the user's database _id, not Firebase UID
+        let userStandings = null
+        
+        if (currentUser._id) {
+          userStandings = standings.find(user => user._id === currentUser._id) || null
+        }
+
         setDashboardData({
           projectedWinners,
           currentWeekPicks,
           currentWeekTotal: 3,
           currentWeek,
+          userStandings,
+          totalPlayers: standings.length,
           loading: false,
           error: null
         })
@@ -202,9 +223,74 @@ export default function Dashboard() {
 
 
       {/* Dashboard Stats */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Current Week Picks Status - Order 3 on mobile, default on desktop */}
-        <div className="card order-3 sm:order-none">
+      <div className="grid grid-cols-1 gap-3 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Your Performance Card - Order 1 on mobile, default on desktop */}
+        <div className="card order-1 sm:order-none">
+          <div className="flex items-center space-x-2 mb-3">
+            <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900">Your Performance</h3>
+          </div>
+          
+          {dashboardData.loading ? (
+            <div className="text-sm text-gray-600">Loading...</div>
+          ) : dashboardData.error ? (
+            <div className="text-sm text-red-600">Error loading data</div>
+          ) : dashboardData.userStandings ? (
+            <div className="space-y-3">
+              {/* Current Position */}
+              <div className="bg-blue-50 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-blue-700">Current Rank</span>
+                  <span className="text-2xl font-bold text-blue-800">#{dashboardData.userStandings.rank}</span>
+                </div>
+                <div className="text-xs text-blue-600 mt-1">
+                  out of {dashboardData.totalPlayers} players
+                </div>
+              </div>
+
+              {/* Season Record */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Season Record</span>
+                  <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                    {dashboardData.userStandings.wins}-{dashboardData.userStandings.losses}-{dashboardData.userStandings.ties}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Win Percentage</span>
+                  <span className={`font-semibold ${
+                    parseFloat(calculateWinPct(dashboardData.userStandings.wins, dashboardData.userStandings.losses, dashboardData.userStandings.ties)) >= 60 ? 'text-green-600' :
+                    parseFloat(calculateWinPct(dashboardData.userStandings.wins, dashboardData.userStandings.losses, dashboardData.userStandings.ties)) >= 50 ? 'text-blue-600' :
+                    'text-red-500'
+                  }`}>
+                    {calculateWinPct(dashboardData.userStandings.wins, dashboardData.userStandings.losses, dashboardData.userStandings.ties)}%
+                  </span>
+                </div>
+                {dashboardData.userStandings.gamesBack && dashboardData.userStandings.gamesBack !== '0.0' && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Games Back</span>
+                    <span className="text-sm text-gray-700">{dashboardData.userStandings.gamesBack}</span>
+                  </div>
+                )}
+                {dashboardData.userStandings.payout > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Projected Payout</span>
+                    <span className="font-semibold text-green-600">${dashboardData.userStandings.payout.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : !currentUser._id ? (
+            <div className="text-sm text-gray-600">Loading user profile...</div>
+          ) : (
+            <div className="text-sm text-gray-600">No standings data available</div>
+          )}
+        </div>
+
+        {/* Current Week Picks Status - Order 2 on mobile, default on desktop */}
+        <div className="card order-2 sm:order-none">
           <h3 className="text-lg font-medium text-gray-900">This Week's Picks</h3>
           {dashboardData.loading ? (
             <div className="mt-2 text-sm text-gray-600">Loading...</div>
@@ -283,8 +369,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Projected Season Winners - Order 4 on mobile, default on desktop */}
-        <div className="card order-4 sm:order-none">
+        {/* Projected Season Winners - Order 3 on mobile, default on desktop */}
+        <div className="card order-3 sm:order-none">
           <div className="flex items-center space-x-2 mb-2">
             <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
@@ -339,8 +425,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Quick Actions - Order 2 on mobile, default on desktop */}
-        <div className="card order-2 sm:order-none">
+        {/* Quick Actions - Order 4 on mobile, default on desktop */}
+        <div className="card order-4 sm:order-none">
           <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
           <div className="mt-4 space-y-3">
             <a
