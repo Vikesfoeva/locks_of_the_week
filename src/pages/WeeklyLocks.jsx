@@ -217,7 +217,7 @@ const WeeklyLocks = () => {
   const [activeYearError, setActiveYearError] = useState(null);
 
   // Sorting and Filtering State
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  const [sortConfig, setSortConfig] = useState({ key: 'user', direction: 'ascending' });
   
   // Initialize filter modals using the new hook system
   const userModal = useFilterModal([], []);
@@ -259,8 +259,8 @@ const WeeklyLocks = () => {
     resultModal.handleSelectionChange([]);
     dateModal.handleSelectionChange([]);
     timeModal.handleSelectionChange([]);
-    // Reset sort configuration to default
-    setSortConfig({ key: null, direction: 'ascending' });
+    // Reset sort configuration to default (User alphabetically)
+    setSortConfig({ key: 'user', direction: 'ascending' });
   };
 
   const getUniqueValues = (picks, key, subKey = null) => {
@@ -424,8 +424,8 @@ const WeeklyLocks = () => {
         let bValue;
 
         if (sortConfig.key === 'user') {
-          aValue = userMap[a.userId] || a.userId;
-          bValue = userMap[b.userId] || b.userId;
+          aValue = (userMap[a.userId] || a.userId).toLowerCase();
+          bValue = (userMap[b.userId] || b.userId).toLowerCase();
         } else if (sortConfig.key === 'lock') {
             aValue = a.pickType === 'spread' ? a.pickSide : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
             bValue = b.pickType === 'spread' ? b.pickSide : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
@@ -719,14 +719,14 @@ const WeeklyLocks = () => {
               {/* Mobile Sort & Filter Button - Only visible on mobile for table view */}
               <button
                 className={`md:hidden px-2 py-1 rounded flex items-center gap-1 text-sm ${
-                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== null)
+                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending'))
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
                 }`}
                 onClick={() => setShowMobileSortFilter(true)}
                 type="button"
               >
-                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || sortConfig.key !== null) ? (
+                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending')) ? (
                   <FunnelIconSolid className="h-4 w-4" />
                 ) : (
                   <FunnelIconOutline className="h-4 w-4" />
@@ -1023,7 +1023,13 @@ const WeeklyLocks = () => {
                  </tr>
                </thead>
                <tbody>
-                 {users.map((user, idx) => {
+                 {users
+                   .sort((a, b) => {
+                     const nameA = (a.firstName || '') + (a.lastName ? ' ' + a.lastName : '') || a.email;
+                     const nameB = (b.firstName || '') + (b.lastName ? ' ' + b.lastName : '') || b.email;
+                     return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+                   })
+                   .map((user, idx) => {
                    const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
                    const picks = getSortedPicksForUser(user.firebaseUid);
                    const rowBgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
