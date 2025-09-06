@@ -23,7 +23,7 @@ const Standings = () => {
   });
 
   // Filtering state
-  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'rank', direction: 'asc' });
   
   // Initialize filter modals using the new hook system
   const userNameModal = useFilterModal([], []);
@@ -165,8 +165,8 @@ const Standings = () => {
     userNameModal.resetFilter();
     rankModal.resetFilter();
     winPctModal.resetFilter();
-    // Reset sort configuration to default
-    setSortConfig({ key: '', direction: 'asc' });
+    // Reset sort configuration to default (rank ascending)
+    setSortConfig({ key: 'rank', direction: 'asc' });
     // Reset view mode to default (regular standings)
     setViewMode('regular');
   };
@@ -267,6 +267,32 @@ const Standings = () => {
 
   const leagueAverages = calculateAverages(viewMode === 'regular' ? enhancedStandings : currentStandings);
 
+  // Calculate league totals for the current standings
+  const calculateTotals = (standings) => {
+    if (standings.length === 0) return { totalWins: 0, totalLosses: 0, totalTies: 0, totalPercentage: 0 };
+    
+    const totals = standings.reduce((acc, user) => {
+      acc.wins += user.wins || 0;
+      acc.losses += user.losses || 0;
+      acc.ties += user.ties || 0;
+      return acc;
+    }, { wins: 0, losses: 0, ties: 0 });
+    
+    // Calculate total percentage
+    const totalGames = totals.wins + totals.losses + totals.ties;
+    const winPoints = totals.wins + 0.5 * totals.ties;
+    const totalPercentage = totalGames > 0 ? ((winPoints / totalGames) * 100).toFixed(1) : '0.0';
+    
+    return { 
+      totalWins: totals.wins, 
+      totalLosses: totals.losses, 
+      totalTies: totals.ties, 
+      totalPercentage 
+    };
+  };
+
+  const leagueTotals = calculateTotals(viewMode === 'regular' ? enhancedStandings : currentStandings);
+
   // Find the index where users transition from above average to below average
   const findAverageSeparatorIndex = (standings) => {
     if (standings.length === 0) return -1;
@@ -335,7 +361,6 @@ const Standings = () => {
 
   const sortedStandings = [...filteredStandings].sort((a, b) => {
     const { key, direction } = sortConfig;
-    if (!key) return 0;
     
     let aValue, bValue;
     
@@ -361,8 +386,16 @@ const Standings = () => {
       bValue = b[key] ? b[key].toString().toLowerCase() : '';
     }
     
+    // Primary sort comparison
     if (aValue < bValue) return direction === 'asc' ? -1 : 1;
     if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+    
+    // Secondary sort: alphabetical by username when primary values are equal (ties)
+    const aName = (a.name || '').toString().toLowerCase();
+    const bName = (b.name || '').toString().toLowerCase();
+    if (aName < bName) return -1;
+    if (aName > bName) return 1;
+    
     return 0;
   });
 
@@ -977,63 +1010,118 @@ const Standings = () => {
           </div>
         )}
 
-        {/* League Averages Section */}
-        <div className="mt-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-          <h3 className="text-sm md:text-base font-bold text-gray-700 mb-2">League Averages</h3>
+        {/* League Statistics Section */}
+        <div className="mt-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
+          <h3 className="text-sm md:text-base font-bold text-gray-700 mb-2">League Statistics</h3>
           {viewMode === 'regular' ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-xs md:text-sm text-gray-600">Record</div>
-                <div className="font-mono text-sm md:text-base font-bold text-gray-800 bg-white px-2 py-1 rounded border">
-                  {leagueAverages.avgWins} - {leagueAverages.avgLosses} - {leagueAverages.avgTies}
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Averages Column */}
+                <div>
+                  <h4 className="text-xs md:text-sm font-semibold text-gray-600 mb-2 text-center">Averages</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600">Record</div>
+                      <div className="font-mono text-sm font-bold text-gray-800 bg-white px-2 py-1 rounded border">
+                        {leagueAverages.avgWins} - {leagueAverages.avgLosses} - {leagueAverages.avgTies}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600">Total Games</div>
+                      <div className="text-sm font-bold text-gray-800">
+                        {(parseFloat(leagueAverages.avgWins) + parseFloat(leagueAverages.avgLosses) + parseFloat(leagueAverages.avgTies)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Totals Column */}
+                <div>
+                  <h4 className="text-xs md:text-sm font-semibold text-blue-600 mb-2 text-center">Totals</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center">
+                      <div className="text-xs text-blue-600">Total Record</div>
+                      <div className="font-mono text-sm font-bold text-blue-800 bg-white px-2 py-1 rounded border border-blue-200">
+                        {leagueTotals.totalWins} - {leagueTotals.totalLosses} - {leagueTotals.totalTies}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-blue-600">Total Games</div>
+                      <div className="text-sm font-bold text-blue-800">
+                        {leagueTotals.totalWins + leagueTotals.totalLosses + leagueTotals.totalTies}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-xs md:text-sm text-gray-600">Win %</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {leagueAverages.avgPercentage}%
+              
+              {/* Shared Bottom Row */}
+              <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-gray-300">
+                <div className="text-center">
+                  <div className="text-xs md:text-sm text-gray-600">Win %</div>
+                  <div className="text-lg md:text-xl font-bold text-blue-700">
+                    {leagueTotals.totalPercentage}%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs md:text-sm text-gray-600">Players</div>
+                  <div className="text-lg md:text-xl font-bold text-gray-800">
+                    {enhancedStandings.length}
+                  </div>
                 </div>
               </div>
-              <div className="text-center hidden md:block">
-                <div className="text-xs md:text-sm text-gray-600">Total Games</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {(parseFloat(leagueAverages.avgWins) + parseFloat(leagueAverages.avgLosses) + parseFloat(leagueAverages.avgTies)).toFixed(1)}
-                </div>
-              </div>
-              <div className="text-center hidden md:block">
-                <div className="text-xs md:text-sm text-gray-600">Players</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {enhancedStandings.length}
-                </div>
-              </div>
-            </div>
+            </>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-xs md:text-sm text-gray-600">3-0 Weeks</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {currentStandings.length > 0 
-                    ? (currentStandings.reduce((sum, user) => sum + (user.threeZeroWeeks || 0), 0) / currentStandings.length).toFixed(1)
-                    : '0.0'
-                  }
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Averages Column */}
+                <div>
+                  <h4 className="text-xs md:text-sm font-semibold text-gray-600 mb-2 text-center">Averages</h4>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600">3-0 Weeks</div>
+                    <div className="text-sm font-bold text-gray-800">
+                      {currentStandings.length > 0 
+                        ? (currentStandings.reduce((sum, user) => sum + (user.threeZeroWeeks || 0), 0) / currentStandings.length).toFixed(1)
+                        : '0.0'
+                      }
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Totals Column */}
+                <div>
+                  <h4 className="text-xs md:text-sm font-semibold text-blue-600 mb-2 text-center">Totals</h4>
+                  <div className="text-center">
+                    <div className="text-xs text-blue-600">Total 3-0 Weeks</div>
+                    <div className="text-sm font-bold text-blue-800">
+                      {currentStandings.length > 0 
+                        ? currentStandings.reduce((sum, user) => sum + (user.threeZeroWeeks || 0), 0)
+                        : 0
+                      }
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-xs md:text-sm text-gray-600">Success Rate</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {currentStandings.length > 0 
-                    ? (currentStandings.reduce((sum, user) => sum + (user.percentage || 0), 0) / currentStandings.length).toFixed(1)
-                    : '0.0'
-                  }%
+              
+              {/* Shared Bottom Row */}
+              <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-gray-300">
+                <div className="text-center">
+                  <div className="text-xs md:text-sm text-gray-600">Total Payout</div>
+                  <div className="text-lg md:text-xl font-bold text-blue-700">
+                    ${currentStandings.length > 0 
+                      ? currentStandings.reduce((sum, user) => sum + (user.payout || 0), 0).toFixed(2)
+                      : '0.00'
+                    }
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs md:text-sm text-gray-600">Players</div>
+                  <div className="text-lg md:text-xl font-bold text-gray-800">
+                    {currentStandings.length}
+                  </div>
                 </div>
               </div>
-              <div className="text-center hidden md:block">
-                <div className="text-xs md:text-sm text-gray-600">Players</div>
-                <div className="text-sm md:text-base font-bold text-gray-800">
-                  {currentStandings.length}
-                </div>
-              </div>
-            </div>
+            </>
           )}
         </div>
 
