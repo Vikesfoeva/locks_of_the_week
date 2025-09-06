@@ -18,6 +18,14 @@ const Awards = () => {
   const [summaryError, setSummaryError] = useState(null);
   const isInitialMount = useRef(true);
 
+  // Manual award selection state
+  const [showManualAwardSelector, setShowManualAwardSelector] = useState(false);
+  const [winningPicks, setWinningPicks] = useState([]);
+  const [selectedPickId, setSelectedPickId] = useState('');
+  const [existingManualAward, setExistingManualAward] = useState(null);
+  const [manualAwardLoading, setManualAwardLoading] = useState(false);
+  const [manualAwardError, setManualAwardError] = useState(null);
+
   // Award definitions for reference
   const awardDefinitions = {
     'Flop of the Week': 'An incorrect pick that resulted in the most losses for the group',
@@ -30,7 +38,8 @@ const Awards = () => {
     'Boldest Favorite': 'A correct pick with the largest spread by a favorite',
     'Big Dawg': 'A correct pick with the largest spread by an underdog',
     'Big Kahuna': 'A correct pick with the highest over total',
-    'Tinkerbell': 'A correct pick with the smallest under total'
+    'Tinkerbell': 'A correct pick with the smallest under total',
+    'Unusual Lock': 'A correct pick with some originality and creativity'
   };
 
   useEffect(() => {
@@ -210,6 +219,88 @@ const Awards = () => {
     XLSX.writeFile(workbook, filename);
   };
 
+  // Manual award functions
+  const fetchWinningPicks = async () => {
+    if (!activeYear || !selectedWeek) return;
+    
+    setManualAwardLoading(true);
+    setManualAwardError(null);
+    try {
+      const response = await fetch(`/api/manual-awards/winning-picks?year=${activeYear}&week=${selectedWeek}`);
+      if (!response.ok) throw new Error('Failed to fetch winning picks');
+      
+      const data = await response.json();
+      setWinningPicks(data.picks || []);
+      setExistingManualAward(data.existingAward);
+      setSelectedPickId(data.existingAward?.pickId || '');
+    } catch (err) {
+      console.error('Error fetching winning picks:', err);
+      setManualAwardError(err.message);
+    } finally {
+      setManualAwardLoading(false);
+    }
+  };
+
+  const handleManualAwardToggle = () => {
+    if (!showManualAwardSelector) {
+      fetchWinningPicks();
+    }
+    setShowManualAwardSelector(!showManualAwardSelector);
+  };
+
+  const handleManualAwardSubmit = async () => {
+    if (!selectedPickId || !activeYear || !selectedWeek) return;
+    
+    setManualAwardLoading(true);
+    setManualAwardError(null);
+    try {
+      const response = await fetch('/api/manual-awards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: activeYear,
+          week: selectedWeek,
+          pickId: selectedPickId
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to set manual award');
+      
+      // Refresh awards data
+      await fetchAwards(activeYear, selectedWeek);
+      setShowManualAwardSelector(false);
+    } catch (err) {
+      console.error('Error setting manual award:', err);
+      setManualAwardError(err.message);
+    } finally {
+      setManualAwardLoading(false);
+    }
+  };
+
+  const handleManualAwardDelete = async () => {
+    if (!activeYear || !selectedWeek) return;
+    
+    setManualAwardLoading(true);
+    setManualAwardError(null);
+    try {
+      const response = await fetch(`/api/manual-awards?year=${activeYear}&week=${selectedWeek}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete manual award');
+      
+      // Refresh awards data
+      await fetchAwards(activeYear, selectedWeek);
+      setExistingManualAward(null);
+      setSelectedPickId('');
+    } catch (err) {
+      console.error('Error deleting manual award:', err);
+      setManualAwardError(err.message);
+    } finally {
+      setManualAwardLoading(false);
+    }
+  };
+
   if (loading) return <div className="text-center p-8">Loading awards...</div>;
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
@@ -251,6 +342,19 @@ const Awards = () => {
               <ArrowDownTrayIcon className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden md:inline">Export to Excel</span>
               <span className="md:hidden">Export</span>
+            </button>
+          )}
+          {weekComplete && !showSummary && (
+            <button
+              onClick={handleManualAwardToggle}
+              className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
+                showManualAwardSelector 
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                  : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+              }`}
+            >
+              <span className="hidden md:inline">{showManualAwardSelector ? 'Hide' : 'Select'} Unusual Lock</span>
+              <span className="md:hidden">{showManualAwardSelector ? 'Hide' : 'Select'}</span>
             </button>
           )}
         </div>
@@ -299,6 +403,82 @@ const Awards = () => {
         )}
       </div>
 
+      {/* Manual Award Selector */}
+      {showManualAwardSelector && !showSummary && (
+        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h3 className="text-lg font-bold text-purple-800 mb-3">Select Unusual Lock Winner</h3>
+          
+          {manualAwardError && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {manualAwardError}
+            </div>
+          )}
+          
+          {manualAwardLoading ? (
+            <div className="text-center p-4">Loading winning picks...</div>
+          ) : winningPicks.length === 0 ? (
+            <div className="text-center p-4 text-gray-500">No winning picks available for manual award selection.</div>
+          ) : (
+            <div className="space-y-3">
+              {existingManualAward && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-green-800">
+                      <strong>Current Selection:</strong> {existingManualAward.winnerName}
+                    </div>
+                    <button
+                      onClick={handleManualAwardDelete}
+                      disabled={manualAwardLoading}
+                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded transition-colors duration-200 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-purple-700">
+                  Select a winning pick for the Unusual Lock award:
+                </label>
+                <select
+                  value={selectedPickId}
+                  onChange={(e) => setSelectedPickId(e.target.value)}
+                  className="border border-purple-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-colors duration-200"
+                  disabled={manualAwardLoading}
+                >
+                  <option value="">Choose a winning pick...</option>
+                  {winningPicks
+                    .sort((a, b) => a.userName.localeCompare(b.userName))
+                    .map((pick) => (
+                      <option key={pick.pickId} value={pick.pickId}>
+                        {pick.userName} - {pick.gameDetails} - {pick.pickDetails}
+                        {pick.margin !== null && ` (Margin: ${pick.margin.toFixed(1)})`}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleManualAwardSubmit}
+                  disabled={!selectedPickId || manualAwardLoading}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {existingManualAward ? 'Update Selection' : 'Set Unusual Lock'}
+                </button>
+                <button
+                  onClick={() => setShowManualAwardSelector(false)}
+                  className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm font-medium rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Content Area */}
       {showSummary ? (
         /* Awards Summary Table */
@@ -312,18 +492,20 @@ const Awards = () => {
               <div className="text-gray-500 mb-3">No awards summary data available.</div>
             </div>
           ) : (
-            <div className="p-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Awards Summary - Total Wins by Player</h3>
+            <>
+              <div className="p-4 pb-0">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Awards Summary - Total Wins by Player</h3>
+              </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full table-auto">
+                <table className="table-auto border-collapse">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 w-auto">
                         Player
                       </th>
                       {/* Awards as columns */}
                       {Object.keys(awardsSummary).map(awardName => (
-                        <th key={awardName} className="px-3 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 min-w-[100px]">
+                        <th key={awardName} className="px-3 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 whitespace-nowrap w-auto">
                           <div className="flex items-center justify-center gap-1">
                             <span className="text-xs">{awardName}</span>
                             {awardDefinitions[awardName] && (
@@ -349,7 +531,7 @@ const Awards = () => {
                             {userName}
                           </td>
                           {Object.keys(awardsSummary).map(awardName => (
-                            <td key={awardName} className="px-3 py-3 text-center text-sm text-gray-700 border-b border-gray-200">
+                            <td key={awardName} className="px-3 py-3 text-center text-sm text-gray-700 border-b border-gray-200 whitespace-nowrap">
                               <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                                 (awardsSummary[awardName][userName] || 0) > 0 
                                   ? 'bg-blue-100 text-blue-800' 
@@ -365,7 +547,7 @@ const Awards = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </>
           )}
         </div>
       ) : (
@@ -390,7 +572,28 @@ const Awards = () => {
         <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
           {/* Awards Cards Layout - Better for mobile */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
-            {Object.entries(awardDefinitions).map(([awardName, definition], index) => {
+            {Object.entries(awardDefinitions)
+              .sort(([awardNameA], [awardNameB]) => {
+                // Define the order - Unusual Lock towards the end
+                const order = [
+                  'Flop of the Week',
+                  'Lone Wolf',
+                  'Pack',
+                  'Lock of the Week',
+                  'Close Call',
+                  'Sore Loser',
+                  'Biggest Loser',
+                  'Boldest Favorite',
+                  'Big Dawg',
+                  'Big Kahuna',
+                  'Tinkerbell',
+                  'Unusual Lock'
+                ];
+                const indexA = order.indexOf(awardNameA);
+                const indexB = order.indexOf(awardNameB);
+                return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+              })
+              .map(([awardName, definition], index) => {
               const awardWinners = awards[awardName] || [];
               const isExpanded = expandedAwards.has(awardName);
               const displayedWinners = isExpanded ? awardWinners : awardWinners.slice(0, 3);

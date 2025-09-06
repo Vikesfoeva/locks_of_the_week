@@ -1535,7 +1535,8 @@ app.get('/api/awards-summary', async (req, res) => {
       'Boldest Favorite',
       'Big Dawg',
       'Big Kahuna',
-      'Tinkerbell'
+      'Tinkerbell',
+      'Unusual Lock'
     ];
 
     const awardsSummary = {};
@@ -1696,7 +1697,17 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
   }).filter(Boolean);
 
   // Calculate awards using existing function
-  return calculateWeeklyAwards(enrichedPicks);
+  const awards = calculateWeeklyAwards(enrichedPicks);
+  
+  // Get manual awards for this week
+  const manualAwards = await getManualAwards(year, selectedGameWeek, mainDb);
+  
+  // Merge manual awards with calculated awards
+  Object.entries(manualAwards).forEach(([awardName, awardData]) => {
+    awards[awardName] = awardData;
+  });
+
+  return awards;
 }
 
 // Get awards data for a specific week
@@ -1861,6 +1872,14 @@ app.get('/api/awards', async (req, res) => {
 
     // 6. Calculate awards
     const awards = calculateWeeklyAwards(enrichedPicks);
+
+    // 7. Get manual awards for this week
+    const manualAwards = await getManualAwards(year, selectedGameWeek, mainDb);
+    
+    // 8. Merge manual awards with calculated awards
+    Object.entries(manualAwards).forEach(([awardName, awardData]) => {
+      awards[awardName] = awardData;
+    });
 
     res.json({ awards, weekPicks: enrichedPicks.length, weekComplete: true });
   } catch (err) {
@@ -2541,3 +2560,318 @@ function formatPickDetails(pick) {
     return pick.selectedOutcomeName || `${pick.pickSide || 'Unknown'} ${pick.line || ''}`;
   }
 }
+
+// Get manual awards for a specific week
+async function getManualAwards(year, week, mainDb) {
+  try {
+    const manualAward = await mainDb.collection('manual_awards').findOne({
+      year: year,
+      week: week
+    });
+    
+    if (!manualAward) {
+      return {};
+    }
+    
+    return {
+      'Unusual Lock': [{
+        gameDetails: manualAward.gameDetails,
+        pickDetails: manualAward.pickDetails,
+        score: manualAward.score,
+        margin: manualAward.margin,
+        winners: [{
+          userName: manualAward.winnerName,
+          firebaseUid: manualAward.winnerFirebaseUid
+        }]
+      }]
+    };
+  } catch (err) {
+    console.error('Error fetching manual awards:', err);
+    return {};
+  }
+}
+
+// Get winning picks for manual award selection
+app.get('/api/manual-awards/winning-picks', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year, week: selectedGameWeek } = req.query;
+
+    // Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    if (!selectedGameWeek) {
+      return res.status(400).json({ error: 'Week parameter is required' });
+    }
+
+    // Check if the week has concluded
+    if (!isWeekComplete(selectedGameWeek)) {
+      return res.json({ 
+        picks: [], 
+        message: 'Manual awards can only be selected after the week concludes',
+        weekComplete: false
+      });
+    }
+
+    // Get all users
+    const users = await mainDb.collection('users').find({}).toArray();
+    const userMap = {};
+    users.forEach(user => {
+      if (user.firebaseUid) {
+        userMap[user.firebaseUid] = {
+          _id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          firebaseUid: user.firebaseUid
+        };
+      }
+    });
+
+    // Get all winning picks for this week
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+    const weekPicks = await picksCollection.find({ 
+      collectionName: selectedGameWeek,
+      result: 'WIN'
+    }).toArray();
+
+    // Get game details for this week
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
+    
+    // Build game map
+    const gameMap = {};
+    games.forEach(game => {
+      if (game._id) {
+        gameMap[game._id.toString()] = game;
+      }
+    });
+
+    // Enrich picks with game and user details
+    const enrichedPicks = weekPicks.map(pick => {
+      const game = gameMap[pick.gameId];
+      const user = userMap[pick.userId];
+      
+      if (!game || !user) return null;
+
+      // Calculate margin
+      let margin = null;
+      if (game.homeScore !== null && game.awayScore !== null && game.status === 'final') {
+        const homeScore = parseFloat(game.homeScore) || 0;
+        const awayScore = parseFloat(game.awayScore) || 0;
+        const scoreDiff = homeScore - awayScore;
+
+        if (pick.pickType === 'spread') {
+          const pickedSpread = parseFloat(pick.line) || 0;
+          const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
+          
+          if (pickedSpread < 0) {
+            if (pickedHome) {
+              margin = scoreDiff - Math.abs(pickedSpread);
+            } else {
+              if (scoreDiff < 0) {
+                margin = Math.abs(scoreDiff) - Math.abs(pickedSpread);
+              } else {
+                margin = -(scoreDiff + Math.abs(pickedSpread));
+              }
+            }
+          } else {
+            if (pickedHome) {
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            } else {
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            }
+          }
+        } else if (pick.pickType === 'total') {
+          const totalScore = homeScore + awayScore;
+          const pickedTotal = parseFloat(pick.line) || 0;
+          const isOverPick = pick.pickSide === 'OVER';
+          
+          if (isOverPick) {
+            margin = totalScore - pickedTotal;
+          } else {
+            margin = pickedTotal - totalScore;
+          }
+        }
+      }
+
+      return {
+        pickId: pick._id.toString(),
+        userId: pick.userId,
+        gameId: pick.gameId,
+        userName: user.name,
+        gameDetails: `${game.away_team_abbrev} @ ${game.home_team_abbrev}`,
+        pickDetails: formatPickDetails(pick),
+        score: game.homeScore !== null && game.awayScore !== null ? 
+          `${game.away_team_abbrev} ${game.awayScore} - ${game.home_team_abbrev} ${game.homeScore}` : null,
+        margin: margin,
+        pickType: pick.pickType,
+        pickSide: pick.pickSide,
+        line: pick.line
+      };
+    }).filter(Boolean);
+
+    // Check if manual award already exists for this week
+    const existingAward = await mainDb.collection('manual_awards').findOne({
+      year: year,
+      week: selectedGameWeek
+    });
+
+    res.json({ 
+      picks: enrichedPicks,
+      existingAward: existingAward ? {
+        pickId: existingAward.pickId,
+        winnerName: existingAward.winnerName
+      } : null,
+      weekComplete: true
+    });
+  } catch (err) {
+    console.error('Error fetching winning picks:', err);
+    res.status(500).json({ error: 'Failed to fetch winning picks', details: err.message });
+  }
+});
+
+// Set manual award for a week
+app.post('/api/manual-awards', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    const { year, week, pickId } = req.body;
+
+    if (!year || !week || !pickId) {
+      return res.status(400).json({ error: 'Year, week, and pickId are required' });
+    }
+
+    // Check if the week has concluded
+    if (!isWeekComplete(week)) {
+      return res.status(400).json({ error: 'Manual awards can only be set after the week concludes' });
+    }
+
+    // Get the specific pick
+    const picksCollectionName = `cy_${year}_picks`;
+    const picksCollection = mainDb.collection(picksCollectionName);
+    const pick = await picksCollection.findOne({ 
+      _id: new ObjectId(pickId),
+      collectionName: week,
+      result: 'WIN'
+    });
+
+    if (!pick) {
+      return res.status(404).json({ error: 'Winning pick not found' });
+    }
+
+    // Get user details
+    const user = await mainDb.collection('users').findOne({ firebaseUid: pick.userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get game details
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const game = await yearDb.collection(week).findOne({ _id: new ObjectId(pick.gameId) });
+    if (!game) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    // Calculate margin
+    let margin = null;
+    if (game.homeScore !== null && game.awayScore !== null && game.status === 'final') {
+      const homeScore = parseFloat(game.homeScore) || 0;
+      const awayScore = parseFloat(game.awayScore) || 0;
+      const scoreDiff = homeScore - awayScore;
+
+      if (pick.pickType === 'spread') {
+        const pickedSpread = parseFloat(pick.line) || 0;
+        const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
+        
+        if (pickedSpread < 0) {
+          if (pickedHome) {
+            margin = scoreDiff - Math.abs(pickedSpread);
+          } else {
+            if (scoreDiff < 0) {
+              margin = Math.abs(scoreDiff) - Math.abs(pickedSpread);
+            } else {
+              margin = -(scoreDiff + Math.abs(pickedSpread));
+            }
+          }
+        } else {
+          if (pickedHome) {
+            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+          } else {
+            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+          }
+        }
+      } else if (pick.pickType === 'total') {
+        const totalScore = homeScore + awayScore;
+        const pickedTotal = parseFloat(pick.line) || 0;
+        const isOverPick = pick.pickSide === 'OVER';
+        
+        if (isOverPick) {
+          margin = totalScore - pickedTotal;
+        } else {
+          margin = pickedTotal - totalScore;
+        }
+      }
+    }
+
+    // Create manual award document
+    const manualAward = {
+      year: parseInt(year),
+      week: week,
+      pickId: pickId,
+      userId: pick.userId,
+      winnerName: `${user.firstName} ${user.lastName}`,
+      winnerFirebaseUid: user.firebaseUid,
+      gameDetails: `${game.away_team_abbrev} @ ${game.home_team_abbrev}`,
+      pickDetails: formatPickDetails(pick),
+      score: game.homeScore !== null && game.awayScore !== null ? 
+        `${game.away_team_abbrev} ${game.awayScore} - ${game.home_team_abbrev} ${game.homeScore}` : null,
+      margin: margin,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Upsert the manual award (replace if exists)
+    await mainDb.collection('manual_awards').updateOne(
+      { year: parseInt(year), week: week },
+      { $set: manualAward },
+      { upsert: true }
+    );
+
+    res.json({ message: 'Manual award set successfully', award: manualAward });
+  } catch (err) {
+    console.error('Error setting manual award:', err);
+    res.status(500).json({ error: 'Failed to set manual award', details: err.message });
+  }
+});
+
+// Delete manual award for a week
+app.delete('/api/manual-awards', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    const { year, week } = req.query;
+
+    if (!year || !week) {
+      return res.status(400).json({ error: 'Year and week are required' });
+    }
+
+    const result = await mainDb.collection('manual_awards').deleteOne({
+      year: parseInt(year),
+      week: week
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Manual award not found' });
+    }
+
+    res.json({ message: 'Manual award deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting manual award:', err);
+    res.status(500).json({ error: 'Failed to delete manual award', details: err.message });
+  }
+});
