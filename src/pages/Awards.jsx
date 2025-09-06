@@ -135,7 +135,7 @@ const Awards = () => {
               gameGroup.gameDetails, // Game (e.g., "UTAH @ UCLA")
               gameGroup.pickDetails, // Pick (e.g., "UTAH -6.5")
               gameGroup.score || '',
-              gameGroup.margin !== undefined ? (gameGroup.margin > 0 ? '+' : '') + gameGroup.margin.toFixed(1) : '',
+              gameGroup.margin !== undefined ? gameGroup.margin.toFixed(1) : '',
               // Additional info based on award type
               gameGroup.count !== undefined ? `${gameGroup.count} people made this pick` :
               gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others` :
@@ -320,7 +320,7 @@ const Awards = () => {
                           )}
                           {gameGroup.margin !== undefined && (
                             <div className="text-xs text-blue-600 mt-1">
-                              Margin: {gameGroup.margin > 0 ? '+' : ''}{gameGroup.margin.toFixed(1)}
+                              Margin: {gameGroup.margin.toFixed(1)}
                             </div>
                           )}
                           {gameGroup.spread !== undefined && (

@@ -1574,21 +1574,22 @@ app.get('/api/awards', async (req, res) => {
           const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
           
           // Calculate the margin relative to what was needed to cover the spread
-          if (pickedHome) {
-            // User picked home team (e.g., UTAH -6.5)
-            // They needed home team to win by MORE than the spread
-            // Margin = actual victory margin - spread requirement
-            // Example: UTAH wins 43-10 with -6.5 spread: (43-10) - 6.5 = 33 - 6.5 = 26.5
-            margin = scoreDiff - Math.abs(pickedSpread);
-          } else {
-            // User picked away team
-            if (pickedSpread < 0) {
-              // Away team is favorite (e.g., UTAH -6.5 @ UCLA or BAMA -13.5 @ FSU)
-              // They needed away team to win by MORE than the spread
+          // Determine if the picked team is favorite or underdog based on the spread sign
+          if (pickedSpread < 0) {
+            // Picked team is favorite (negative spread)
+            if (pickedHome) {
+              // Home team is favorite (e.g., UTAH -6.5 at home)
+              // They needed to win by MORE than the spread
+              // Margin = actual victory margin - spread requirement
+              // Example: UTAH wins 43-10 with -6.5 spread: (43-10) - 6.5 = 33 - 6.5 = 26.5
+              margin = scoreDiff - Math.abs(pickedSpread);
+            } else {
+              // Away team is favorite (e.g., BAMA -13.5 @ FSU)
+              // They needed to win by MORE than the spread
               if (scoreDiff < 0) {
                 // Away team won (scoreDiff is negative when away team wins)
                 // Margin = actual away victory margin - spread requirement
-                // Example: UTAH wins 43-10 with -6.5 spread: (43-10) - 6.5 = 33 - 6.5 = 26.5
+                // Example: BAMA wins 31-17 with -13.5 spread: (31-17) - 13.5 = 14 - 13.5 = 0.5
                 margin = Math.abs(scoreDiff) - Math.abs(pickedSpread);
               } else {
                 // Away team lost (scoreDiff is positive when home team wins)
@@ -1596,12 +1597,21 @@ app.get('/api/awards', async (req, res) => {
                 // Example: BAMA loses 17-31 with -13.5 spread: -(14 + 13.5) = -27.5
                 margin = -(scoreDiff + Math.abs(pickedSpread));
               }
+            }
+          } else {
+            // Picked team is underdog (positive spread)
+            if (pickedHome) {
+              // Home team is underdog (e.g., CHAR +6.5 at home vs APP)
+              // They needed to lose by LESS than the spread (or win outright)
+              // Margin = spread cushion - actual defeat margin
+              // Example: CHAR loses 11-34 with +6.5 spread: 6.5 - 23 = -16.5
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
             } else {
               // Away team is underdog (e.g., UCLA +6.5 @ UTAH)  
-              // They needed away team to lose by LESS than the spread (or win outright)
+              // They needed to lose by LESS than the spread (or win outright)
               // Margin = spread cushion - actual defeat margin
-              // Example: UCLA loses 10-43 with +6.5 spread: 6.5 - (43-10) = 6.5 - 33 = -26.5
-              margin = Math.abs(pickedSpread) - scoreDiff;
+              // Example: UCLA loses 10-43 with +6.5 spread: 6.5 - 33 = -26.5
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
             }
           }
           actualSpread = pickedSpread;
@@ -1788,11 +1798,11 @@ function calculateWeeklyAwards(picks) {
   
 
 
-  // 3. Lock of the Week - correct pick furthest from being incorrect (largest margin)
+  // 3. Lock of the Week - correct pick furthest from being incorrect (largest absolute margin)
   const correctPicksWithMargin = correctPicks.filter(pick => pick.margin !== null);
   if (correctPicksWithMargin.length > 0) {
-    const maxMargin = Math.max(...correctPicksWithMargin.map(pick => pick.margin));
-    const lockPicks = correctPicksWithMargin.filter(pick => pick.margin === maxMargin);
+    const maxAbsMargin = Math.max(...correctPicksWithMargin.map(pick => Math.abs(pick.margin)));
+    const lockPicks = correctPicksWithMargin.filter(pick => Math.abs(pick.margin) === maxAbsMargin);
     
     // Group by game
     const lockGameGroups = {};
@@ -1803,7 +1813,7 @@ function calculateWeeklyAwards(picks) {
           gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
           pickDetails: formatPickDetails(pick),
           score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-          margin: pick.margin,
+          margin: Math.abs(pick.margin), // Always show as absolute value
           winners: []
         };
       }
@@ -1816,10 +1826,10 @@ function calculateWeeklyAwards(picks) {
     awards['Lock of the Week'] = Object.values(lockGameGroups);
   }
 
-  // 4. Close Call - correct pick closest to being incorrect (smallest margin)
+  // 4. Close Call - correct pick closest to being incorrect (smallest absolute margin)
   if (correctPicksWithMargin.length > 0) {
-    const minMargin = Math.min(...correctPicksWithMargin.map(pick => pick.margin));
-    const closeCallPicks = correctPicksWithMargin.filter(pick => pick.margin === minMargin);
+    const minAbsMargin = Math.min(...correctPicksWithMargin.map(pick => Math.abs(pick.margin)));
+    const closeCallPicks = correctPicksWithMargin.filter(pick => Math.abs(pick.margin) === minAbsMargin);
     
     // Group by game
     const closeCallGameGroups = {};
@@ -1830,7 +1840,7 @@ function calculateWeeklyAwards(picks) {
           gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
           pickDetails: formatPickDetails(pick),
           score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-          margin: pick.margin,
+          margin: Math.abs(pick.margin), // Always show as absolute value
           winners: []
         };
       }
