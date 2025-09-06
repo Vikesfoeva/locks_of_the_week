@@ -10,6 +10,8 @@ const Awards = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedAwards, setExpandedAwards] = useState(new Set());
+  const [weekComplete, setWeekComplete] = useState(true);
+  const [weekMessage, setWeekMessage] = useState('');
   const isInitialMount = useRef(true);
 
   // Award definitions for reference
@@ -80,11 +82,15 @@ const Awards = () => {
       }
       const data = await response.json();
       setAwards(data.awards || {});
+      setWeekComplete(data.weekComplete !== false); // Default to true if not specified
+      setWeekMessage(data.message || '');
       // Reset expanded state when new data loads
       setExpandedAwards(new Set());
     } catch (err) {
       console.error('Error fetching awards:', err);
       setAwards({});
+      setWeekComplete(true);
+      setWeekMessage('');
       setError(err.message);
     } finally {
       setLoading(false);
@@ -193,7 +199,7 @@ const Awards = () => {
           <span className="text-sm md:text-base text-gray-700 font-medium">
             Admin Only
           </span>
-          {Object.keys(awards).length > 0 && (
+          {Object.keys(awards).length > 0 && weekComplete && (
             <button
               onClick={exportToExcel}
               className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200"
@@ -251,10 +257,17 @@ const Awards = () => {
       {Object.keys(awards).length === 0 ? (
         <div className="text-center p-8">
           <div className="text-gray-500 mb-4">
-            {error ? error : 'No awards data available for this week.'}
+            {error ? error : weekMessage || 'No awards data available for this week.'}
           </div>
           <div className="text-sm text-gray-400">
-            Awards are calculated after games are completed and results are processed.
+            {!weekComplete ? (
+              <>
+                Awards will be calculated after all games in the week have concluded.<br/>
+                The week ends at midnight Monday Eastern Time.
+              </>
+            ) : (
+              'Awards are calculated after games are completed and results are processed.'
+            )}
           </div>
         </div>
       ) : (

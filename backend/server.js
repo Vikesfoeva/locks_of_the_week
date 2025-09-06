@@ -832,6 +832,58 @@ const calculateThreeOEligible = (collectionName, submissionTime) => {
   }
 };
 
+// Check if a week has concluded (midnight Monday Eastern Time)
+const isWeekComplete = (collectionName) => {
+  try {
+    // Parse the Tuesday date from collection name
+    const tuesdayDate = parseCollectionNameToDate(collectionName);
+    if (!tuesdayDate) {
+      console.warn(`Could not parse collection name: ${collectionName}`);
+      return false; // Default to false if we can't parse the date
+    }
+
+    // Calculate Monday of the following week (Tuesday + 6 days)
+    const mondayDate = new Date(tuesdayDate);
+    mondayDate.setDate(tuesdayDate.getDate() + 6);
+
+    // Determine if this date falls in DST
+    const isDST = (date) => {
+      const year = date.getFullYear();
+      // DST typically runs from 2nd Sunday in March to 1st Sunday in November
+      const march = new Date(year, 2, 1);
+      const november = new Date(year, 10, 1);
+      
+      // Find second Sunday in March
+      const marchSecondSunday = new Date(year, 2, 8 + (7 - march.getDay()) % 7);
+      // Find first Sunday in November  
+      const novemberFirstSunday = new Date(year, 10, 1 + (7 - november.getDay()) % 7);
+      
+      return date >= marchSecondSunday && date < novemberFirstSunday;
+    };
+
+    // Create week end time: Tuesday 12:00:00 AM ET of the following week
+    // This is midnight Monday night/Tuesday morning Eastern Time
+    const etOffset = isDST(mondayDate) ? 4 : 5; // EDT = UTC-4, EST = UTC-5
+    const weekEndUTC = new Date(Date.UTC(
+      mondayDate.getFullYear(),
+      mondayDate.getMonth(),
+      mondayDate.getDate() + 1, // Tuesday (Monday + 1)
+      0 + etOffset, // Midnight ET + offset = UTC hours
+      0,
+      0,
+      0
+    ));
+
+    // Compare current time against week end time
+    const nowUTC = new Date();
+    
+    return nowUTC >= weekEndUTC;
+  } catch (error) {
+    console.error('Error checking if week is complete:', error);
+    return false; // Default to false on error
+  }
+};
+
 // Get standings data
 app.get('/api/standings', async (req, res) => {
   try {
@@ -1450,6 +1502,15 @@ app.get('/api/awards', async (req, res) => {
       return res.status(400).json({ error: 'Week parameter is required' });
     }
 
+    // 2. Check if the week has concluded before calculating awards
+    if (!isWeekComplete(selectedGameWeek)) {
+      return res.json({ 
+        awards: {}, 
+        message: 'Awards will be calculated after the week concludes (midnight Monday Eastern Time)',
+        weekComplete: false
+      });
+    }
+
     const picksCollectionName = `cy_${year}_picks`;
     const picksCollection = mainDb.collection(picksCollectionName);
 
@@ -1576,7 +1637,7 @@ app.get('/api/awards', async (req, res) => {
     // 6. Calculate awards
     const awards = calculateWeeklyAwards(enrichedPicks);
 
-    res.json({ awards, weekPicks: enrichedPicks.length });
+    res.json({ awards, weekPicks: enrichedPicks.length, weekComplete: true });
   } catch (err) {
     console.error("Error fetching awards:", err);
     res.status(500).json({ error: 'Failed to fetch awards', details: err.message });
