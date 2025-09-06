@@ -1323,16 +1323,34 @@ const Standings = () => {
                     // Try to get game time from various possible fields
                     const gameTime = pick.gameDetails?.gameTime || pick.gameTime || pick.gameDetails?.commence_time || pick.commence_time;
                     
+                    // Helper function to format line value with + sign for positive numbers (only for spreads)
+                    const formatLineValue = (line, pickType) => {
+                      if (line === undefined || line === null) return '';
+                      if (typeof line === 'number') {
+                        // Only add + sign for spread picks, not for total (over/under) picks
+                        if (pickType === 'spread') {
+                          return line > 0 ? `+${line}` : `${line}`;
+                        } else if (pickType === 'total') {
+                          // For totals (over/under), just return the number as is
+                          return `${line}`;
+                        }
+                      }
+                      return '';
+                    };
+
                     // Determine the user's pick based on pickType and pickSide
                     let userPick = '';
                     let pickDescription = '';
                     
                     if (pick.pickType === 'spread') {
                       userPick = pick.pickSide; // This should be the team (KC, TB, etc.)
-                      pickDescription = `${userPick} (Spread)`;
+                      const lineValue = formatLineValue(pick.line, pick.pickType);
+                      pickDescription = lineValue ? `${userPick} (${lineValue})` : `${userPick} (Spread)`;
                     } else if (pick.pickType === 'total') {
                       userPick = pick.pickSide; // This should be 'over' or 'under'
-                      pickDescription = `${userPick.charAt(0).toUpperCase() + userPick.slice(1)} (Total)`;
+                      const lineValue = formatLineValue(pick.line, pick.pickType);
+                      const formattedPick = userPick.charAt(0).toUpperCase() + userPick.slice(1);
+                      pickDescription = lineValue ? `${formattedPick} (${lineValue})` : `${formattedPick} (Total)`;
                     } else if (pick.pickType === 'moneyline') {
                       userPick = pick.pickSide; // This should be the team
                       pickDescription = `${userPick} (ML)`;
