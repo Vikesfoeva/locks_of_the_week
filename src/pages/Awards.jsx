@@ -138,7 +138,7 @@ const Awards = () => {
               gameGroup.margin !== undefined ? gameGroup.margin.toFixed(1) : '',
               // Additional info based on award type
               gameGroup.count !== undefined ? `${gameGroup.count} people made this pick` :
-              gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others` :
+              gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others${gameGroup.packMembers ? ` (Pack: ${gameGroup.packMembers.map(p => p.userName).join(', ')})` : ''}` :
               gameGroup.spread !== undefined ? `Spread: ${gameGroup.spread > 0 ? '+' : ''}${gameGroup.spread}` :
               gameGroup.total !== undefined ? `Total: ${gameGroup.total}` : ''
             ];
@@ -341,6 +341,18 @@ const Awards = () => {
                           {gameGroup.againstCount !== undefined && (
                             <div className="text-xs text-green-600 mt-1">
                               Against {gameGroup.againstCount} others
+                              {gameGroup.packMembers && gameGroup.packMembers.length > 0 && (
+                                <div className="mt-1">
+                                  <span className="text-gray-600">Pack: </span>
+                                  <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {gameGroup.packMembers.map((packMember, packIndex) => (
+                                      <span key={packIndex} className="inline-block bg-red-50 px-1.5 py-0.5 rounded text-xs text-red-700 border border-red-200" title={packMember.pickDetails}>
+                                        {packMember.userName}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                           

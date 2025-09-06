@@ -1772,6 +1772,22 @@ function calculateWeeklyAwards(picks) {
         if (otherIncorrectCount >= 2) {
           const loneWolfPick = picks.find(p => p.result && p.result.toUpperCase() === 'WIN');
           
+          // Get the pack members (people who made incorrect opposing picks)
+          const packMembers = [];
+          Object.entries(choiceGroups)
+            .filter(([otherChoice]) => otherChoice !== choice)
+            .forEach(([, { picks: otherPicks }]) => {
+              otherPicks
+                .filter(p => p.result && p.result.toUpperCase() === 'LOSS')
+                .forEach(packPick => {
+                  packMembers.push({
+                    userId: packPick.user.firebaseUid,
+                    userName: packPick.user.name,
+                    pickDetails: formatPickDetails(packPick)
+                  });
+                });
+            });
+          
           // Find existing game group or create new one
           const gameKey = `${loneWolfPick.game.away_team_abbrev} @ ${loneWolfPick.game.home_team_abbrev}`;
           let existingGameAward = awards['Lone Wolf'].find(award => award.gameDetails === gameKey);
@@ -1782,7 +1798,8 @@ function calculateWeeklyAwards(picks) {
               pickDetails: formatPickDetails(loneWolfPick),
               score: `${loneWolfPick.game.away_team_abbrev} ${loneWolfPick.game.awayScore}, ${loneWolfPick.game.home_team_abbrev} ${loneWolfPick.game.homeScore}`,
               againstCount: otherIncorrectCount,
-              winners: []
+              winners: [],
+              packMembers: packMembers
             };
             awards['Lone Wolf'].push(existingGameAward);
           }
@@ -1795,8 +1812,6 @@ function calculateWeeklyAwards(picks) {
       }
     });
   });
-  
-
 
   // 3. Lock of the Week - correct pick furthest from being incorrect (largest absolute margin)
   const correctPicksWithMargin = correctPicks.filter(pick => pick.margin !== null);
