@@ -125,23 +125,25 @@ const Awards = () => {
     ]);
     
     // Add data for each award
-    Object.entries(awards).forEach(([awardName, winners]) => {
-      if (winners.length > 0) {
-        winners.forEach(winner => {
-          const row = [
-            awardName,
-            winner.userName,
-            winner.details.split(' - ')[0], // Game (e.g., "UTAH @ UCLA")
-            winner.details.split(' - ')[1], // Pick (e.g., "UTAH -6.5")
-            winner.score || '',
-            winner.margin !== undefined ? (winner.margin > 0 ? '+' : '') + winner.margin.toFixed(1) : '',
-            // Additional info based on award type
-            winner.count !== undefined ? `${winner.count} people made this pick` :
-            winner.againstCount !== undefined ? `Against ${winner.againstCount} others` :
-            winner.spread !== undefined ? `Spread: ${winner.spread > 0 ? '+' : ''}${winner.spread}` :
-            winner.total !== undefined ? `Total: ${winner.total}` : ''
-          ];
-          excelData.push(row);
+    Object.entries(awards).forEach(([awardName, gameGroups]) => {
+      if (gameGroups.length > 0) {
+        gameGroups.forEach(gameGroup => {
+          gameGroup.winners.forEach(winner => {
+            const row = [
+              awardName,
+              winner.userName,
+              gameGroup.gameDetails, // Game (e.g., "UTAH @ UCLA")
+              gameGroup.pickDetails, // Pick (e.g., "UTAH -6.5")
+              gameGroup.score || '',
+              gameGroup.margin !== undefined ? (gameGroup.margin > 0 ? '+' : '') + gameGroup.margin.toFixed(1) : '',
+              // Additional info based on award type
+              gameGroup.count !== undefined ? `${gameGroup.count} people made this pick` :
+              gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others` :
+              gameGroup.spread !== undefined ? `Spread: ${gameGroup.spread > 0 ? '+' : ''}${gameGroup.spread}` :
+              gameGroup.total !== undefined ? `Total: ${gameGroup.total}` : ''
+            ];
+            excelData.push(row);
+          });
         });
       } else {
         // Add row for awards with no winners
@@ -306,40 +308,53 @@ const Awards = () => {
                     <div className="text-gray-400 text-sm italic">No winners this week</div>
                   ) : (
                     <div className="space-y-2">
-                      {displayedWinners.map((winner, index) => (
+                      {displayedWinners.map((gameGroup, index) => (
                         <div key={index} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-md p-3 border border-purple-200">
-                          <div className="font-semibold text-purple-800 text-sm">{winner.userName}</div>
-                          <div className="text-xs text-gray-600 mt-1">{winner.details}</div>
-                          {winner.score && (
+                          <div className="font-semibold text-purple-800 text-sm mb-2">
+                            {gameGroup.gameDetails} - {gameGroup.pickDetails}
+                          </div>
+                          {gameGroup.score && (
                             <div className="text-xs text-gray-700 mt-1 font-medium">
-                              Final Score: {winner.score}
+                              Final Score: {gameGroup.score}
                             </div>
                           )}
-                          {winner.margin !== undefined && (
+                          {gameGroup.margin !== undefined && (
                             <div className="text-xs text-blue-600 mt-1">
-                              Margin: {winner.margin > 0 ? '+' : ''}{winner.margin.toFixed(1)}
+                              Margin: {gameGroup.margin > 0 ? '+' : ''}{gameGroup.margin.toFixed(1)}
                             </div>
                           )}
-                          {winner.spread !== undefined && (
+                          {gameGroup.spread !== undefined && (
                             <div className="text-xs text-blue-600 mt-1">
-                              Spread: {winner.spread > 0 ? '+' : ''}{winner.spread}
+                              Spread: {gameGroup.spread > 0 ? '+' : ''}{gameGroup.spread}
                             </div>
                           )}
-                          {winner.total !== undefined && (
+                          {gameGroup.total !== undefined && (
                             <div className="text-xs text-blue-600 mt-1">
-                              Total: {winner.total}
+                              Total: {gameGroup.total}
                             </div>
                           )}
-                          {winner.count !== undefined && (
+                          {gameGroup.count !== undefined && (
                             <div className="text-xs text-red-600 mt-1">
-                              {winner.count} people made this pick
+                              {gameGroup.count} people made this pick
                             </div>
                           )}
-                          {winner.againstCount !== undefined && (
+                          {gameGroup.againstCount !== undefined && (
                             <div className="text-xs text-green-600 mt-1">
-                              Against {winner.againstCount} others
+                              Against {gameGroup.againstCount} others
                             </div>
                           )}
+                          
+                          {/* Winners List */}
+                          <div className="mt-2 pt-2 border-t border-purple-200">
+                            <div className="text-xs text-gray-600 mb-1">Winners:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {gameGroup.winners.map((winner, winnerIndex) => (
+                                <span key={winnerIndex} className="inline-block bg-white px-2 py-1 rounded text-xs text-purple-700 border border-purple-300">
+                                  {winner.userName}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       ))}
                       

@@ -1677,29 +1677,46 @@ function calculateWeeklyAwards(picks) {
   incorrectPicks.forEach(pick => {
     const key = `${pick.gameId}_${pick.pickType}_${pick.pickSide}_${pick.line}`;
     if (!incorrectPickCounts[key]) {
-      incorrectPickCounts[key] = { count: 0, pick: pick };
+      incorrectPickCounts[key] = { count: 0, picks: [] };
     }
     incorrectPickCounts[key].count++;
+    incorrectPickCounts[key].picks.push(pick);
   });
   
   let maxIncorrectCount = 0;
-  let flopPicks = [];
-  Object.values(incorrectPickCounts).forEach(({ count, pick }) => {
+  let flopPickGroups = [];
+  Object.values(incorrectPickCounts).forEach(({ count, picks }) => {
     if (count > maxIncorrectCount) {
       maxIncorrectCount = count;
-      flopPicks = [pick];
+      flopPickGroups = [picks];
     } else if (count === maxIncorrectCount) {
-      flopPicks.push(pick);
+      flopPickGroups.push(picks);
     }
   });
   
-  awards['Flop of the Week'] = flopPicks.map(pick => ({
-    userId: pick.user.firebaseUid,
-    userName: pick.user.name,
-    details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-    score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-    count: maxIncorrectCount
-  }));
+  // Flatten all picks from groups that tied for the most incorrect
+  const allFlopPicks = flopPickGroups.flat();
+  
+  // Group by game
+  const flopGameGroups = {};
+  allFlopPicks.forEach(pick => {
+    const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+    if (!flopGameGroups[gameKey]) {
+      flopGameGroups[gameKey] = {
+        gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+        pickDetails: formatPickDetails(pick),
+        score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+        count: maxIncorrectCount,
+        winners: []
+      };
+    }
+    flopGameGroups[gameKey].winners.push({
+      userId: pick.user.firebaseUid,
+      userName: pick.user.name
+    });
+  });
+  
+  awards['Flop of the Week'] = Object.values(flopGameGroups);
 
   // 2. Lone Wolf - correct pick by one person countered by 2+ others on the SAME GAME
   const gamePickAnalysis = {};
@@ -1745,12 +1762,24 @@ function calculateWeeklyAwards(picks) {
         if (otherIncorrectCount >= 2) {
           const loneWolfPick = picks.find(p => p.result && p.result.toUpperCase() === 'WIN');
           
-          awards['Lone Wolf'].push({
+          // Find existing game group or create new one
+          const gameKey = `${loneWolfPick.game.away_team_abbrev} @ ${loneWolfPick.game.home_team_abbrev}`;
+          let existingGameAward = awards['Lone Wolf'].find(award => award.gameDetails === gameKey);
+          
+          if (!existingGameAward) {
+            existingGameAward = {
+              gameDetails: gameKey,
+              pickDetails: formatPickDetails(loneWolfPick),
+              score: `${loneWolfPick.game.away_team_abbrev} ${loneWolfPick.game.awayScore}, ${loneWolfPick.game.home_team_abbrev} ${loneWolfPick.game.homeScore}`,
+              againstCount: otherIncorrectCount,
+              winners: []
+            };
+            awards['Lone Wolf'].push(existingGameAward);
+          }
+          
+          existingGameAward.winners.push({
             userId: loneWolfPick.user.firebaseUid,
-            userName: loneWolfPick.user.name,
-            details: `${loneWolfPick.game.away_team_abbrev} @ ${loneWolfPick.game.home_team_abbrev} - ${formatPickDetails(loneWolfPick)}`,
-            score: `${loneWolfPick.game.away_team_abbrev} ${loneWolfPick.game.awayScore}, ${loneWolfPick.game.home_team_abbrev} ${loneWolfPick.game.homeScore}`,
-            againstCount: otherIncorrectCount
+            userName: loneWolfPick.user.name
           });
         }
       }
@@ -1765,13 +1794,26 @@ function calculateWeeklyAwards(picks) {
     const maxMargin = Math.max(...correctPicksWithMargin.map(pick => pick.margin));
     const lockPicks = correctPicksWithMargin.filter(pick => pick.margin === maxMargin);
     
-    awards['Lock of the Week'] = lockPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      margin: pick.margin
-    }));
+    // Group by game
+    const lockGameGroups = {};
+    lockPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!lockGameGroups[gameKey]) {
+        lockGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          margin: pick.margin,
+          winners: []
+        };
+      }
+      lockGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Lock of the Week'] = Object.values(lockGameGroups);
   }
 
   // 4. Close Call - correct pick closest to being incorrect (smallest margin)
@@ -1779,13 +1821,26 @@ function calculateWeeklyAwards(picks) {
     const minMargin = Math.min(...correctPicksWithMargin.map(pick => pick.margin));
     const closeCallPicks = correctPicksWithMargin.filter(pick => pick.margin === minMargin);
     
-    awards['Close Call'] = closeCallPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      margin: pick.margin
-    }));
+    // Group by game
+    const closeCallGameGroups = {};
+    closeCallPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!closeCallGameGroups[gameKey]) {
+        closeCallGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          margin: pick.margin,
+          winners: []
+        };
+      }
+      closeCallGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Close Call'] = Object.values(closeCallGameGroups);
   }
 
   // 5. Sore Loser - incorrect pick closest to being correct (smallest negative margin)
@@ -1795,13 +1850,26 @@ function calculateWeeklyAwards(picks) {
     const minAbsMargin = Math.min(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const soreLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === minAbsMargin);
     
-    awards['Sore Loser'] = soreLoserPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      margin: Math.abs(pick.margin)
-    }));
+    // Group by game
+    const soreLoserGameGroups = {};
+    soreLoserPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!soreLoserGameGroups[gameKey]) {
+        soreLoserGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          margin: Math.abs(pick.margin),
+          winners: []
+        };
+      }
+      soreLoserGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Sore Loser'] = Object.values(soreLoserGameGroups);
   }
 
   // 6. Biggest Loser - incorrect pick furthest from being correct (largest negative margin)
@@ -1809,13 +1877,26 @@ function calculateWeeklyAwards(picks) {
     const maxAbsMargin = Math.max(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const biggestLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === maxAbsMargin);
     
-    awards['Biggest Loser'] = biggestLoserPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      margin: Math.abs(pick.margin)
-    }));
+    // Group by game
+    const biggestLoserGameGroups = {};
+    biggestLoserPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!biggestLoserGameGroups[gameKey]) {
+        biggestLoserGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          margin: Math.abs(pick.margin),
+          winners: []
+        };
+      }
+      biggestLoserGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Biggest Loser'] = Object.values(biggestLoserGameGroups);
   }
 
   // 7. Boldest Favorite - correct spread pick with largest spread by favorite (most negative line)
@@ -1829,13 +1910,26 @@ function calculateWeeklyAwards(picks) {
       const largestFavoriteSpread = Math.min(...favoritePicks.map(pick => parseFloat(pick.line))); // Most negative line
       const boldestFavoritePicks = favoritePicks.filter(pick => parseFloat(pick.line) === largestFavoriteSpread);
       
-      awards['Boldest Favorite'] = boldestFavoritePicks.map(pick => ({
-        userId: pick.user.firebaseUid,
-        userName: pick.user.name,
-        details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-        score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-        spread: parseFloat(pick.line)
-      }));
+      // Group by game
+      const boldestFavoriteGameGroups = {};
+      boldestFavoritePicks.forEach(pick => {
+        const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+        if (!boldestFavoriteGameGroups[gameKey]) {
+          boldestFavoriteGameGroups[gameKey] = {
+            gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+            pickDetails: formatPickDetails(pick),
+            score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+            spread: parseFloat(pick.line),
+            winners: []
+          };
+        }
+        boldestFavoriteGameGroups[gameKey].winners.push({
+          userId: pick.user.firebaseUid,
+          userName: pick.user.name
+        });
+      });
+      
+      awards['Boldest Favorite'] = Object.values(boldestFavoriteGameGroups);
     }
   }
 
@@ -1847,13 +1941,26 @@ function calculateWeeklyAwards(picks) {
       const largestUnderdogSpread = Math.max(...underdogPicks.map(pick => parseFloat(pick.line))); // Most positive line
       const bigDawgPicks = underdogPicks.filter(pick => parseFloat(pick.line) === largestUnderdogSpread);
       
-      awards['Big Dawg'] = bigDawgPicks.map(pick => ({
-        userId: pick.user.firebaseUid,
-        userName: pick.user.name,
-        details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-        score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-        spread: parseFloat(pick.line)
-      }));
+      // Group by game
+      const bigDawgGameGroups = {};
+      bigDawgPicks.forEach(pick => {
+        const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+        if (!bigDawgGameGroups[gameKey]) {
+          bigDawgGameGroups[gameKey] = {
+            gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+            pickDetails: formatPickDetails(pick),
+            score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+            spread: parseFloat(pick.line),
+            winners: []
+          };
+        }
+        bigDawgGameGroups[gameKey].winners.push({
+          userId: pick.user.firebaseUid,
+          userName: pick.user.name
+        });
+      });
+      
+      awards['Big Dawg'] = Object.values(bigDawgGameGroups);
     }
   }
 
@@ -1867,13 +1974,26 @@ function calculateWeeklyAwards(picks) {
     const highestTotal = Math.max(...correctOverPicks.map(pick => pick.actualTotal));
     const bigKahunaPicks = correctOverPicks.filter(pick => pick.actualTotal === highestTotal);
     
-    awards['Big Kahuna'] = bigKahunaPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      total: pick.actualTotal
-    }));
+    // Group by game
+    const bigKahunaGameGroups = {};
+    bigKahunaPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!bigKahunaGameGroups[gameKey]) {
+        bigKahunaGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          total: pick.actualTotal,
+          winners: []
+        };
+      }
+      bigKahunaGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Big Kahuna'] = Object.values(bigKahunaGameGroups);
   }
 
   // 10. Tinkerbell - correct under pick with smallest total
@@ -1886,13 +2006,26 @@ function calculateWeeklyAwards(picks) {
     const lowestTotal = Math.min(...correctUnderPicks.map(pick => pick.actualTotal));
     const tinkerbellPicks = correctUnderPicks.filter(pick => pick.actualTotal === lowestTotal);
     
-    awards['Tinkerbell'] = tinkerbellPicks.map(pick => ({
-      userId: pick.user.firebaseUid,
-      userName: pick.user.name,
-      details: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev} - ${formatPickDetails(pick)}`,
-      score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
-      total: pick.actualTotal
-    }));
+    // Group by game
+    const tinkerbellGameGroups = {};
+    tinkerbellPicks.forEach(pick => {
+      const gameKey = `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`;
+      if (!tinkerbellGameGroups[gameKey]) {
+        tinkerbellGameGroups[gameKey] = {
+          gameDetails: `${pick.game.away_team_abbrev} @ ${pick.game.home_team_abbrev}`,
+          pickDetails: formatPickDetails(pick),
+          score: `${pick.game.away_team_abbrev} ${pick.game.awayScore}, ${pick.game.home_team_abbrev} ${pick.game.homeScore}`,
+          total: pick.actualTotal,
+          winners: []
+        };
+      }
+      tinkerbellGameGroups[gameKey].winners.push({
+        userId: pick.user.firebaseUid,
+        userName: pick.user.name
+      });
+    });
+    
+    awards['Tinkerbell'] = Object.values(tinkerbellGameGroups);
   }
 
   return awards;
