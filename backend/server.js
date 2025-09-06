@@ -1487,6 +1487,218 @@ app.get('/api/three-zero-standings', async (req, res) => {
   }
 });
 
+// Get historical awards summary across all weeks
+app.get('/api/awards-summary', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year } = req.query;
+
+    // Determine the year
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = parseInt(year);
+    }
+
+    // Get all users
+    const users = await mainDb.collection('users').find({}).toArray();
+    const userMap = {};
+    users.forEach(user => {
+      if (user.firebaseUid) {
+        userMap[user.firebaseUid] = {
+          _id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          firebaseUid: user.firebaseUid
+        };
+      }
+    });
+
+    // Get available weeks by finding all collections in the year database
+    const yearDbName = `cy_${year}`;
+    const yearDb = client.db(yearDbName);
+    const collections = await yearDb.listCollections().toArray();
+    const availableWeeks = collections
+      .map(col => col.name)
+      .filter(name => name.startsWith('odds_'))
+      .sort();
+    
+
+    // Initialize awards summary
+    const awardNames = [
+      'Flop of the Week',
+      'Lone Wolf', 
+      'Lock of the Week',
+      'Close Call',
+      'Sore Loser',
+      'Biggest Loser',
+      'Boldest Favorite',
+      'Big Dawg',
+      'Big Kahuna',
+      'Tinkerbell'
+    ];
+
+    const awardsSummary = {};
+    const userNames = Object.values(userMap).map(user => user.name).sort();
+    
+    // Initialize summary structure
+    awardNames.forEach(awardName => {
+      awardsSummary[awardName] = {};
+      userNames.forEach(userName => {
+        awardsSummary[awardName][userName] = 0;
+      });
+    });
+
+    // Process each completed week
+    for (const week of availableWeeks) {
+      if (!isWeekComplete(week)) continue;
+
+      try {
+        // Fetch awards for this week using internal logic
+        const weekAwards = await getWeeklyAwards(year, week, userMap, mainDb);
+        
+        
+        // Count awards for each user
+        Object.entries(weekAwards).forEach(([awardName, gameGroups]) => {
+          if (awardsSummary[awardName]) {
+            gameGroups.forEach(gameGroup => {
+              gameGroup.winners.forEach(winner => {
+                if (awardsSummary[awardName][winner.userName] !== undefined) {
+                  awardsSummary[awardName][winner.userName]++;
+                }
+              });
+              
+              // Handle Pack members (opposite of Lone Wolf)
+              if (awardName === 'Lone Wolf' && gameGroup.packMembers) {
+                // Initialize Pack award if it doesn't exist
+                if (!awardsSummary['Pack']) {
+                  awardsSummary['Pack'] = {};
+                  userNames.forEach(userName => {
+                    awardsSummary['Pack'][userName] = 0;
+                  });
+                }
+                
+                gameGroup.packMembers.forEach(packMember => {
+                  if (awardsSummary['Pack'][packMember.userName] !== undefined) {
+                    awardsSummary['Pack'][packMember.userName]++;
+                  }
+                });
+              }
+            });
+          }
+        });
+      } catch (weekError) {
+        console.error(`Error processing week ${week}:`, weekError);
+      }
+    }
+
+
+    res.json({ 
+      awardsSummary, 
+      year,
+      weeksProcessed: availableWeeks.filter(week => isWeekComplete(week)).length,
+      totalWeeks: availableWeeks.length
+    });
+  } catch (err) {
+    console.error("Error fetching awards summary:", err);
+    res.status(500).json({ error: 'Failed to fetch awards summary', details: err.message });
+  }
+});
+
+// Helper function to get weekly awards data (extracted from existing logic)
+async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
+  const picksCollectionName = `cy_${year}_picks`;
+  const picksCollection = mainDb.collection(picksCollectionName);
+
+  // Fetch all picks for the selected week
+  const weekPicks = await picksCollection.find({ 
+    collectionName: selectedGameWeek 
+  }).toArray();
+
+  if (weekPicks.length === 0) {
+    return {};
+  }
+
+  // Get game details for this week
+  const yearDbName = `cy_${year}`;
+  const yearDb = client.db(yearDbName);
+  const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
+  
+  // Build game map
+  const gameMap = {};
+  games.forEach(game => {
+    if (game._id) {
+      gameMap[game._id.toString()] = game;
+    }
+  });
+
+  // Enrich picks with game details and calculate margins (same logic as existing awards endpoint)
+  const enrichedPicks = weekPicks.map(pick => {
+    const game = gameMap[pick.gameId];
+    const user = userMap[pick.userId];
+    
+    if (!game || !user) return null;
+
+    let margin = null;
+    let actualSpread = null;
+    let actualTotal = null;
+
+    // Calculate margin based on pick type and game result
+    if (game.homeScore !== null && game.awayScore !== null && game.status === 'final') {
+      const homeScore = parseFloat(game.homeScore) || 0;
+      const awayScore = parseFloat(game.awayScore) || 0;
+      const scoreDiff = homeScore - awayScore;
+
+      if (pick.pickType === 'spread') {
+        const pickedSpread = parseFloat(pick.line) || 0;
+        const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
+        
+        if (pickedSpread < 0) {
+          if (pickedHome) {
+            margin = scoreDiff - Math.abs(pickedSpread);
+          } else {
+            if (scoreDiff < 0) {
+              margin = Math.abs(scoreDiff) - Math.abs(pickedSpread);
+            } else {
+              margin = -(scoreDiff + Math.abs(pickedSpread));
+            }
+          }
+        } else {
+          if (pickedHome) {
+            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+          } else {
+            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+          }
+        }
+        actualSpread = pickedSpread;
+      } else if (pick.pickType === 'total') {
+        const totalScore = homeScore + awayScore;
+        const pickedTotal = parseFloat(pick.line) || 0;
+        const isOverPick = pick.pickSide === 'OVER';
+        
+        if (isOverPick) {
+          margin = totalScore - pickedTotal;
+        } else {
+          margin = pickedTotal - totalScore;
+        }
+        actualTotal = pickedTotal;
+      }
+    }
+
+    return {
+      ...pick,
+      user: user,
+      game: game,
+      margin: margin,
+      actualSpread: actualSpread,
+      actualTotal: actualTotal
+    };
+  }).filter(Boolean);
+
+  // Calculate awards using existing function
+  return calculateWeeklyAwards(enrichedPicks);
+}
+
 // Get awards data for a specific week
 app.get('/api/awards', async (req, res) => {
   try {

@@ -12,12 +12,17 @@ const Awards = () => {
   const [expandedAwards, setExpandedAwards] = useState(new Set());
   const [weekComplete, setWeekComplete] = useState(true);
   const [weekMessage, setWeekMessage] = useState('');
+  const [showSummary, setShowSummary] = useState(false);
+  const [awardsSummary, setAwardsSummary] = useState({});
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
   const isInitialMount = useRef(true);
 
   // Award definitions for reference
   const awardDefinitions = {
     'Flop of the Week': 'An incorrect pick that resulted in the most losses for the group',
     'Lone Wolf': 'A correct pick by one person that was countered incorrectly by two or more others',
+    'Pack': 'An incorrect pick made by multiple people that was countered correctly by a Lone Wolf',
     'Lock of the Week': 'A correct pick that was furthest from being incorrect',
     'Close Call': 'A correct pick that was closest to being incorrect',
     'Sore Loser': 'An incorrect pick that was closest to being correct',
@@ -97,6 +102,25 @@ const Awards = () => {
     }
   };
 
+  const fetchAwardsSummary = async (year) => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const response = await fetch(`/api/awards-summary?year=${year}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch awards summary');
+      }
+      const data = await response.json();
+      setAwardsSummary(data.awardsSummary || {});
+    } catch (err) {
+      console.error('Error fetching awards summary:', err);
+      setAwardsSummary({});
+      setSummaryError(err.message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   const toggleExpanded = (awardName) => {
     setExpandedAwards(prev => {
       const newSet = new Set(prev);
@@ -107,6 +131,13 @@ const Awards = () => {
       }
       return newSet;
     });
+  };
+
+  const toggleSummaryView = () => {
+    if (!showSummary && activeYear) {
+      fetchAwardsSummary(activeYear);
+    }
+    setShowSummary(!showSummary);
   };
 
   const exportToExcel = () => {
@@ -196,12 +227,23 @@ const Awards = () => {
 
       {/* Controls Row */}
       <div className="flex flex-row items-center justify-between mb-3 md:mb-4 gap-2 md:gap-4">
-        {/* Left side - Info and Export */}
+        {/* Left side - Info, Toggle, and Export */}
         <div className="flex items-center gap-2 md:gap-4">
           <span className="text-sm md:text-base text-gray-700 font-medium">
             Admin Only
           </span>
-          {Object.keys(awards).length > 0 && weekComplete && (
+          <button
+            onClick={toggleSummaryView}
+            className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
+              showSummary 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+            }`}
+          >
+            <span className="hidden md:inline">{showSummary ? 'Show Weekly View' : 'Show Summary Table'}</span>
+            <span className="md:hidden">{showSummary ? 'Weekly' : 'Summary'}</span>
+          </button>
+          {Object.keys(awards).length > 0 && weekComplete && !showSummary && (
             <button
               onClick={exportToExcel}
               className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200"
@@ -214,9 +256,10 @@ const Awards = () => {
         </div>
 
         {/* Right side - Week Selector */}
-        <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-          <div className="flex items-center gap-1">
-            <label htmlFor="week-select" className="text-xs md:text-sm font-medium text-gray-700 whitespace-nowrap">Week:</label>
+        {!showSummary && (
+          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1">
+              <label htmlFor="week-select" className="text-xs md:text-sm font-medium text-gray-700 whitespace-nowrap">Week:</label>
             <select
               id="week-select"
               value={selectedWeek || ''}
@@ -253,26 +296,97 @@ const Awards = () => {
             </select>
           </div>
         </div>
+        )}
       </div>
 
-      {/* Awards Table */}
-      {Object.keys(awards).length === 0 ? (
-        <div className="text-center p-6">
-          <div className="text-gray-500 mb-3">
-            {error ? error : weekMessage || 'No awards data available for this week.'}
-          </div>
-          <div className="text-sm text-gray-400">
-            {!weekComplete ? (
-              <>
-                Awards will be calculated after all games in the week have concluded.<br/>
-                The week ends at midnight Monday Eastern Time.
-              </>
-            ) : (
-              'Awards are calculated after games are completed and results are processed.'
-            )}
-          </div>
+      {/* Main Content Area */}
+      {showSummary ? (
+        /* Awards Summary Table */
+        <div className="shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+          {summaryLoading ? (
+            <div className="text-center p-8">Loading awards summary...</div>
+          ) : summaryError ? (
+            <div className="text-center p-8 text-red-500">Error: {summaryError}</div>
+          ) : Object.keys(awardsSummary).length === 0 ? (
+            <div className="text-center p-6">
+              <div className="text-gray-500 mb-3">No awards summary data available.</div>
+            </div>
+          ) : (
+            <div className="p-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Awards Summary - Total Wins by Player</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full table-auto">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10">
+                        Player
+                      </th>
+                      {/* Awards as columns */}
+                      {Object.keys(awardsSummary).map(awardName => (
+                        <th key={awardName} className="px-3 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 min-w-[100px]">
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-xs">{awardName}</span>
+                            {awardDefinitions[awardName] && (
+                              <div className="group relative">
+                                <QuestionMarkCircleIcon className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-help flex-shrink-0" />
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-normal w-72 z-[9999] pointer-events-none">
+                                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                  {awardDefinitions[awardName]}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Get all unique user names and create rows */}
+                    {Object.keys(awardsSummary).length > 0 && 
+                      Object.keys(Object.values(awardsSummary)[0] || {}).sort().map((userName, userIndex) => (
+                        <tr key={userName} className={userIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 border-b border-gray-200 sticky left-0 bg-inherit z-10">
+                            {userName}
+                          </td>
+                          {Object.keys(awardsSummary).map(awardName => (
+                            <td key={awardName} className="px-3 py-3 text-center text-sm text-gray-700 border-b border-gray-200">
+                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                (awardsSummary[awardName][userName] || 0) > 0 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {awardsSummary[awardName][userName] || 0}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
+        /* Weekly Awards View */
+        Object.keys(awards).length === 0 ? (
+          <div className="text-center p-6">
+            <div className="text-gray-500 mb-3">
+              {error ? error : weekMessage || 'No awards data available for this week.'}
+            </div>
+            <div className="text-sm text-gray-400">
+              {!weekComplete ? (
+                <>
+                  Awards will be calculated after all games in the week have concluded.<br/>
+                  The week ends at midnight Monday Eastern Time.
+                </>
+              ) : (
+                'Awards are calculated after games are completed and results are processed.'
+              )}
+            </div>
+          </div>
+        ) : (
         <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
           {/* Awards Cards Layout - Better for mobile */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
@@ -399,6 +513,7 @@ const Awards = () => {
             })}
           </div>
         </div>
+        )
       )}
     </div>
   );
