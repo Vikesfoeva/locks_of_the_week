@@ -228,6 +228,9 @@ const WeeklyLocks = () => {
   const resultModal = useFilterModal([], []);
   const dateModal = useFilterModal([], []);
   const timeModal = useFilterModal([], []);
+  
+  // Traditional view specific user filter
+  const traditionalUserModal = useFilterModal([], []);
 
   // Extract current filter values for compatibility with existing logic
   const userFilter = userModal.selectedItems;
@@ -238,6 +241,9 @@ const WeeklyLocks = () => {
   const resultFilter = resultModal.selectedItems;
   const dateFilter = dateModal.selectedItems;
   const timeFilter = timeModal.selectedItems;
+  
+  // Traditional view specific filters
+  const traditionalUserFilter = traditionalUserModal.selectedItems;
 
 
 
@@ -259,6 +265,8 @@ const WeeklyLocks = () => {
     resultModal.handleSelectionChange([]);
     dateModal.handleSelectionChange([]);
     timeModal.handleSelectionChange([]);
+    // Reset traditional view filters
+    traditionalUserModal.handleSelectionChange([]);
     // Reset sort configuration to default (User alphabetically)
     setSortConfig({ key: 'user', direction: 'ascending' });
   };
@@ -375,6 +383,13 @@ const WeeklyLocks = () => {
   const uniqueDates = totalUniqueDates;
   const uniqueTimes = totalUniqueTimes;
   
+  // Get unique user names for traditional view filter
+  const uniqueTraditionalUsers = useMemo(() => {
+    return users.map(user => {
+      return (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '') || user.email;
+    }).filter(Boolean).sort();
+  }, [users]);
+  
 
 
   // Filter status checks using the new modal system
@@ -386,6 +401,9 @@ const WeeklyLocks = () => {
   const isResultFiltered = resultFilter.length > 0 && resultFilter.length < totalUniqueResults.length;
   const isDateFiltered = dateFilter.length > 0 && dateFilter.length < totalUniqueDates.length;
   const isTimeFiltered = timeFilter.length > 0 && timeFilter.length < totalUniqueTimes.length;
+  
+  // Traditional view filter status checks
+  const isTraditionalUserFiltered = traditionalUserFilter.length > 0 && traditionalUserFilter.length < users.length;
 
   const filteredAndSortedPicks = useMemo(() => {
     let filtered = [...allPicks];
@@ -613,6 +631,18 @@ const WeeklyLocks = () => {
     // All 3 picks must have threeOEligible === true for combined result to be true
     return picks.every(pick => pick.threeOEligible === true);
   }
+
+  // Filter users for traditional view
+  const filteredUsersForTraditionalView = useMemo(() => {
+    if (traditionalUserFilter.length === 0) {
+      return users; // No filter applied, return all users
+    }
+    
+    return users.filter(user => {
+      const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '') || user.email;
+      return traditionalUserFilter.includes(userName);
+    });
+  }, [users, traditionalUserFilter]);
 
   // Helper: calculate weekly W-L-T record for a user
   function calculateWeeklyRecord(userId) {
@@ -991,7 +1021,45 @@ const WeeklyLocks = () => {
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto border border-gray-300 rounded shadow relative" style={{ scrollbarWidth: 'thin' }}>
+            <>
+              {/* Traditional View Filter Controls */}
+              <div className="mb-4 flex flex-wrap gap-2 justify-center md:justify-start">
+                <button
+                  className="border border-gray-400 text-gray-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-gray-100 text-sm md:text-base"
+                  onClick={() => traditionalUserModal.resetFilter()}
+                  type="button"
+                >
+                  <span className="hidden sm:inline">Reset User Filter</span>
+                  <span className="sm:hidden">Reset Filter</span>
+                </button>
+                <button
+                  {...createFilterButtonProps(traditionalUserModal, uniqueTraditionalUsers, (selectedUsers) => {
+                    traditionalUserModal.handleSelectionChange(selectedUsers);
+                  }, {
+                    IconComponent: FunnelIconOutline,
+                    IconComponentSolid: FunnelIconSolid,
+                    className: `px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base flex items-center gap-2 ${
+                      isTraditionalUserFiltered 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                        : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+                    }`
+                  })}
+                >
+                  {isTraditionalUserFiltered ? (
+                    <FunnelIconSolid className="h-4 w-4" />
+                  ) : (
+                    <FunnelIconOutline className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">Filter Users</span>
+                  <span className="sm:hidden">Filter</span>
+                  {isTraditionalUserFiltered && (
+                    <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
+                      {traditionalUserFilter.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-gray-300 rounded shadow relative" style={{ scrollbarWidth: 'thin' }}>
              <table className="w-full bg-white text-xs sm:text-sm md:text-base" style={{ minWidth: 'max-content' }}>
                <thead>
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
@@ -1023,7 +1091,7 @@ const WeeklyLocks = () => {
                  </tr>
                </thead>
                <tbody>
-                 {users
+                 {filteredUsersForTraditionalView
                    .sort((a, b) => {
                      const nameA = (a.firstName || '') + (a.lastName ? ' ' + a.lastName : '') || a.email;
                      const nameB = (b.firstName || '') + (b.lastName ? ' ' + b.lastName : '') || b.email;
@@ -1089,6 +1157,7 @@ const WeeklyLocks = () => {
                </tbody>
              </table>
             </div>
+            </>
           )}
         </>
       ) : (
@@ -1165,6 +1234,15 @@ const WeeklyLocks = () => {
           resultModal.handleSelectionChange(selectedResults);
         }, {
           title: 'Filter W/L/T',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(traditionalUserModal, uniqueTraditionalUsers, (selectedUsers) => {
+          traditionalUserModal.handleSelectionChange(selectedUsers);
+        }, {
+          title: 'Filter Users (Traditional View)',
           placement: 'bottom-start',
         })}
       />
