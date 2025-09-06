@@ -183,10 +183,10 @@ const Awards = () => {
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-2 py-2 md:p-4">
+    <div className="max-w-7xl mx-auto px-2 py-2 md:px-4 md:py-3">
       {/* Title and Description */}
-      <div className="text-center mb-4 md:mb-6">
-        <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1 md:mb-2">
+      <div className="text-center mb-3 md:mb-4">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1">
           Weekly Awards - {activeYear}
         </h1>
         <p className="text-sm md:text-base text-gray-600">
@@ -195,7 +195,7 @@ const Awards = () => {
       </div>
 
       {/* Controls Row */}
-      <div className="flex flex-row items-center justify-between mb-4 md:mb-6 gap-2 md:gap-4">
+      <div className="flex flex-row items-center justify-between mb-3 md:mb-4 gap-2 md:gap-4">
         {/* Left side - Info and Export */}
         <div className="flex items-center gap-2 md:gap-4">
           <span className="text-sm md:text-base text-gray-700 font-medium">
@@ -257,8 +257,8 @@ const Awards = () => {
 
       {/* Awards Table */}
       {Object.keys(awards).length === 0 ? (
-        <div className="text-center p-8">
-          <div className="text-gray-500 mb-4">
+        <div className="text-center p-6">
+          <div className="text-gray-500 mb-3">
             {error ? error : weekMessage || 'No awards data available for this week.'}
           </div>
           <div className="text-sm text-gray-400">
@@ -275,7 +275,7 @@ const Awards = () => {
       ) : (
         <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
           {/* Awards Cards Layout - Better for mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
             {Object.entries(awardDefinitions).map(([awardName, definition], index) => {
               const awardWinners = awards[awardName] || [];
               const isExpanded = expandedAwards.has(awardName);
@@ -288,8 +288,8 @@ const Awards = () => {
               const isRightColumn = index % 3 === 2; // Third column in 3-column grid
               
               return (
-                <div key={awardName} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-2 mb-3">
+                <div key={awardName} className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-bold text-gray-800 text-sm">{awardName}</h3>
                     <div className="group relative">
                       <QuestionMarkCircleIcon className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
@@ -307,10 +307,10 @@ const Awards = () => {
                   {awardWinners.length === 0 ? (
                     <div className="text-gray-400 text-sm italic">No winners this week</div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {displayedWinners.map((gameGroup, index) => (
-                        <div key={index} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-md p-3 border border-purple-200">
-                          <div className="font-semibold text-purple-800 text-sm mb-2">
+                        <div key={index} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-md p-2.5 border border-purple-200">
+                          <div className="font-semibold text-purple-800 text-sm mb-1.5">
                             {gameGroup.gameDetails} - {gameGroup.pickDetails}
                           </div>
                           {gameGroup.score && (
@@ -345,11 +345,11 @@ const Awards = () => {
                           )}
                           
                           {/* Winners List */}
-                          <div className="mt-2 pt-2 border-t border-purple-200">
+                          <div className="mt-1.5 pt-1.5 border-t border-purple-200">
                             <div className="text-xs text-gray-600 mb-1">Winners:</div>
                             <div className="flex flex-wrap gap-1">
                               {gameGroup.winners.map((winner, winnerIndex) => (
-                                <span key={winnerIndex} className="inline-block bg-white px-2 py-1 rounded text-xs text-purple-700 border border-purple-300">
+                                <span key={winnerIndex} className="inline-block bg-white px-1.5 py-0.5 rounded text-xs text-purple-700 border border-purple-300">
                                   {winner.userName}
                                 </span>
                               ))}
@@ -361,7 +361,7 @@ const Awards = () => {
                       {hasMore && (
                         <button
                           onClick={() => toggleExpanded(awardName)}
-                          className="w-full mt-2 px-3 py-2 text-xs text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors duration-200 flex items-center justify-center gap-1"
+                          className="w-full mt-1.5 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors duration-200 flex items-center justify-center gap-1"
                         >
                           {isExpanded ? (
                             <>
