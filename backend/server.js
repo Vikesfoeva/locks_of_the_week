@@ -673,6 +673,7 @@ app.get('/api/picks', async (req, res) => {
     const picksCollection = getPicksCollectionName(year);
     let query = { collectionName };
     if (userId) {
+      // Picks are stored with Firebase UID as string, so use userId directly
       query.userId = userId;
     }
 
@@ -915,6 +916,7 @@ app.get('/api/standings', async (req, res) => {
     if (availableGameWeeks.length === 0) {
       const emptyStandings = users.map(user => ({
         _id: user._id.toString(),
+        firebaseUid: user.firebaseUid,
         name: `${user.firstName} ${user.lastName}`,
         rank: '-', wins: 0, losses: 0, ties: 0,
         weekWins: 0, weekLosses: 0, weekTies: 0,
@@ -948,6 +950,7 @@ app.get('/api/standings', async (req, res) => {
       if (user.firebaseUid) {
         userStatsByFirebaseUid[user.firebaseUid] = {
           _id: user._id.toString(),
+          firebaseUid: user.firebaseUid,
           name: `${user.firstName} ${user.lastName}`,
           total: { wins: 0, losses: 0, ties: 0 },
           currentWeek: { wins: 0, losses: 0, ties: 0 },
@@ -1027,7 +1030,7 @@ app.get('/api/standings', async (req, res) => {
       const stats = user.firebaseUid ? userStatsByFirebaseUid[user.firebaseUid] : null;
       if (!stats) {
         return {
-          _id: user._id.toString(), name: `${user.firstName} ${user.lastName}`,
+          _id: user._id.toString(), firebaseUid: user.firebaseUid, name: `${user.firstName} ${user.lastName}`,
           rank: '-', wins: 0, losses: 0, ties: 0, weekWins: 0, weekLosses: 0, weekTies: 0, rankChange: '0',
           payout: 0, gamesBack: '-'
         };
@@ -1038,7 +1041,7 @@ app.get('/api/standings', async (req, res) => {
       const rankChange = (prevRank && rank) ? prevRank - rank : 0;
 
       return {
-        _id: stats._id, name: stats.name, rank: rank,
+        _id: stats._id, firebaseUid: stats.firebaseUid, name: stats.name, rank: rank,
         wins: stats.total.wins, losses: stats.total.losses, ties: stats.total.ties,
         weekWins: stats.currentWeek.wins, weekLosses: stats.currentWeek.losses, weekTies: stats.currentWeek.ties,
         rankChange: rankChange > 0 ? `+${rankChange}` : `${rankChange}`,

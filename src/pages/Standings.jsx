@@ -5,6 +5,57 @@ import { FunnelIcon as FunnelIconSolid } from '@heroicons/react/24/solid';
 import FilterModal from '../components/FilterModal';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 
+// Component for user name buttons with conditional clickability
+const UserNameButton = ({ user, isTopFive, onPicksClick, checkPicksComplete }) => {
+  const [hasCompletePicks, setHasCompletePicks] = useState(null);
+  const [isChecking, setIsChecking] = useState(false);
+
+  const handleClick = async () => {
+    if (isChecking) return;
+    
+    setIsChecking(true);
+    try {
+      const isComplete = await checkPicksComplete();
+      setHasCompletePicks(isComplete);
+      
+      if (isComplete) {
+        onPicksClick();
+      }
+    } catch (err) {
+      console.error('Error checking picks completeness:', err);
+      setHasCompletePicks(false);
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const baseClasses = `font-medium text-left ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`;
+  
+  if (hasCompletePicks === null || hasCompletePicks) {
+    // Clickable - either we haven't checked yet or user has complete picks
+    return (
+      <button
+        onClick={handleClick}
+        disabled={isChecking}
+        className={`${baseClasses} hover:underline cursor-pointer hover:text-blue-600 ${isChecking ? 'opacity-50' : ''}`}
+        title={hasCompletePicks === null ? "Click to view picks" : "View picks"}
+      >
+        {user.name}
+      </button>
+    );
+  } else {
+    // Not clickable - user hasn't submitted all picks
+    return (
+      <span 
+        className={`${baseClasses} opacity-60 cursor-not-allowed`}
+        title="User hasn't submitted all picks for this week"
+      >
+        {user.name}
+      </span>
+    );
+  }
+};
+
 const Standings = () => {
   const [standings, setStandings] = useState([]);
   const [availableWeeks, setAvailableWeeks] = useState([]);
@@ -40,6 +91,12 @@ const Standings = () => {
   const legendBtnRef = useRef(null);
   const [legendPopoverPosition, setLegendPopoverPosition] = useState({ top: 0, left: 0 });
 
+  // User picks popup state
+  const [picksPopupOpen, setPicksPopupOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userPicks, setUserPicks] = useState([]);
+  const [picksLoading, setPicksLoading] = useState(false);
+
 
 
   const fetchThreeZeroStandings = async (year) => {
@@ -55,6 +112,46 @@ const Standings = () => {
     } catch (err) {
       console.error('Error fetching 3-0 week standings:', err);
       setError(err.message);
+    }
+  };
+
+  // Check if user has completed their picks (3 picks) for the week
+  const checkUserPicksComplete = async (userId) => {
+    if (!selectedWeek || !activeYear) return false;
+    
+    try {
+      const response = await fetch(`/api/picks?userId=${userId}&collectionName=${selectedWeek}&year=${activeYear}`);
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.length >= 3; // User has submitted all required picks
+    } catch (err) {
+      console.error('Error checking user picks:', err);
+      return false;
+    }
+  };
+
+  const fetchUserPicks = async (userId, userName) => {
+    if (!selectedWeek || !activeYear) return;
+    
+    setPicksLoading(true);
+    setSelectedUser({ id: userId, name: userName });
+    setPicksPopupOpen(true);
+    
+    try {
+      const response = await fetch(`/api/picks?userId=${userId}&collectionName=${selectedWeek}&year=${activeYear}`);
+      if (!response.ok) throw new Error('Failed to fetch user picks');
+      const data = await response.json();
+      console.log('Raw picks data:', data);
+      if (data.length > 0) {
+        console.log('First pick structure:', data[0]);
+        console.log('Game details:', data[0].gameDetails);
+      }
+      setUserPicks(data || []);
+    } catch (err) {
+      console.error('Error fetching user picks:', err);
+      setUserPicks([]);
+    } finally {
+      setPicksLoading(false);
     }
   };
 
@@ -792,9 +889,18 @@ const Standings = () => {
                     </div>
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
-                    <span className={`font-medium ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
-                      {user.name}
-                    </span>
+                    {user.firebaseUid ? (
+                      <UserNameButton 
+                        user={user}
+                        isTopFive={isTopFive}
+                        onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
+                        checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
+                      />
+                    ) : (
+                      <span className={`font-medium ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
+                        {user.name}
+                      </span>
+                    )}
                   </td>
                   <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded whitespace-nowrap">
@@ -969,9 +1075,18 @@ const Standings = () => {
                         </div>
                       </td>
                       <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
-                        <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
-                          {user.name}
-                        </span>
+                        {user.firebaseUid ? (
+                          <UserNameButton 
+                            user={user}
+                            isTopFive={isTopFive && user.threeZeroWeeks > 0}
+                            onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
+                            checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
+                          />
+                        ) : (
+                          <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
+                            {user.name}
+                          </span>
+                        )}
                       </td>
                       <td className="px-1 py-2 md:px-4 md:py-4 border-r border-gray-200">
                         <span className="font-bold text-sm md:text-lg text-blue-600">
@@ -1157,6 +1272,137 @@ const Standings = () => {
           placement: 'bottom-start',
         })}
       />
+
+      {/* User Picks Popup */}
+      {picksPopupOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">
+                  {selectedUser?.name}'s Picks
+                </h3>
+                <button
+                  onClick={() => setPicksPopupOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                Week: {selectedWeek ? (() => {
+                  const parts = selectedWeek.split('_');
+                  const date = new Date(parts[1], parts[2] - 1, parts[3]);
+                  return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+                })() : ''}
+              </p>
+            </div>
+            
+            <div className="p-4">
+              {picksLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-gray-500">Loading picks...</div>
+                </div>
+              ) : userPicks.length > 0 ? (
+                <div className="space-y-3">
+                  {userPicks.map((pick, index) => {
+                    // Try to get team names from various possible fields
+                    const awayTeam = pick.gameDetails?.away_team_abbrev || pick.gameDetails?.awayTeam || 
+                                   pick.gameDetails?.away_team || pick.awayTeam || pick.away_team || 
+                                   pick.gameDetails?.away || pick.away ||
+                                   pick.gameDetails?.awayAbbreviation || pick.awayAbbreviation ||
+                                   'Away Team';
+                    const homeTeam = pick.gameDetails?.home_team_abbrev || pick.gameDetails?.homeTeam || 
+                                   pick.gameDetails?.home_team || pick.homeTeam || pick.home_team || 
+                                   pick.gameDetails?.home || pick.home ||
+                                   pick.gameDetails?.homeAbbreviation || pick.homeAbbreviation ||
+                                   'Home Team';
+
+                    console.log('Pick', index + 1, '- Away:', awayTeam, 'Home:', homeTeam);
+                    
+                    // Try to get game time from various possible fields
+                    const gameTime = pick.gameDetails?.gameTime || pick.gameTime || pick.gameDetails?.commence_time || pick.commence_time;
+                    
+                    // Determine the user's pick based on pickType and pickSide
+                    let userPick = '';
+                    let pickDescription = '';
+                    
+                    if (pick.pickType === 'spread') {
+                      userPick = pick.pickSide; // This should be the team (KC, TB, etc.)
+                      pickDescription = `${userPick} (Spread)`;
+                    } else if (pick.pickType === 'total') {
+                      userPick = pick.pickSide; // This should be 'over' or 'under'
+                      pickDescription = `${userPick.charAt(0).toUpperCase() + userPick.slice(1)} (Total)`;
+                    } else if (pick.pickType === 'moneyline') {
+                      userPick = pick.pickSide; // This should be the team
+                      pickDescription = `${userPick} (ML)`;
+                    } else {
+                      userPick = pick.pickSide || pick.pick || 'Unknown';
+                      pickDescription = userPick;
+                    }
+                    
+                    // Try to get confidence
+                    const confidence = pick.confidence || pick.confidencePoints;
+
+                    // Get the result of the pick
+                    const result = pick.result?.toUpperCase();
+                    let resultDisplay = '';
+                    let resultClass = '';
+                    
+                    if (result === 'WIN' || result === 'W') {
+                      resultDisplay = 'W';
+                      resultClass = 'bg-green-500 text-white';
+                    } else if (result === 'LOSS' || result === 'L') {
+                      resultDisplay = 'L';
+                      resultClass = 'bg-red-500 text-white';
+                    } else if (result === 'TIE' || result === 'T') {
+                      resultDisplay = 'T';
+                      resultClass = 'bg-yellow-500 text-white';
+                    } else {
+                      resultDisplay = '--';
+                      resultClass = 'bg-gray-400 text-white';
+                    }
+
+                    return (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {awayTeam} @ {homeTeam}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {gameTime ? new Date(gameTime).toLocaleString() : 'Time TBD'}
+                          </div>
+                        </div>
+                        <div className="ml-4 flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            pick.pickType === 'spread' || pick.pickType === 'moneyline' 
+                              ? (userPick === awayTeam ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800')
+                              : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {pickDescription}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${resultClass}`}>
+                            {resultDisplay}
+                          </span>
+                          {confidence && (
+                            <span className="text-sm text-gray-500">
+                              ({confidence})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No picks found for this week
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
