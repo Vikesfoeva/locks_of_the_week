@@ -644,8 +644,8 @@ const Locks = () => {
     let aValue = a[key];
     let bValue = b[key];
     if (key === 'commenceTime' || key === 'date' || key === 'time') {
-      // For time sorting, use the original commenceTime field, not the formatted time string
-      if (key === 'time') {
+      // For date and time sorting, use the original commenceTime field, not the formatted strings
+      if (key === 'time' || key === 'date') {
         aValue = a.commenceTime ? new Date(a.commenceTime) : new Date(0);
         bValue = b.commenceTime ? new Date(b.commenceTime) : new Date(0);
       } else {
