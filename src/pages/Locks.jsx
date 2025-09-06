@@ -74,6 +74,10 @@ const Locks = () => {
   // Mobile sort/filter modal state
   const [showMobileSortFilter, setShowMobileSortFilter] = useState(false);
 
+  // Team name modal state for mobile
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [selectedTeamInfo, setSelectedTeamInfo] = useState(null);
+
   // Helper function to parse collection name to a Date object for sorting
   const parseCollectionNameToDate = (collectionName) => {
     if (!collectionName || typeof collectionName !== 'string') return null;
@@ -443,6 +447,20 @@ const Locks = () => {
     setHideStartedGames(true);
     // Reset sort configuration to default (null key triggers default league-based sorting)
     setSortConfig({ key: null, direction: 'asc' });
+  };
+
+  // Handler for showing team details modal
+  const handleTeamClick = (teamAbbrev, teamFull, isHome, game) => {
+    setSelectedTeamInfo({
+      abbreviation: teamAbbrev,
+      fullName: teamFull,
+      isHome: isHome,
+      opponent: isHome ? game.awayTeamFull : game.homeTeamFull,
+      opponentAbbrev: isHome ? game.awayTeam : game.homeTeam,
+      gameTime: formatGameDate(game.commenceTime),
+      league: game.league
+    });
+    setShowTeamModal(true);
   };
 
   const handleFilterChange = (e, key) => {
@@ -1058,9 +1076,29 @@ const Locks = () => {
                     <span className="md:hidden">{formatLeagueForMobile(game.league)}</span>
                     <span className="hidden md:inline">{game.league}</span>
                   </td>
-                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">{game.awayTeam}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleTeamClick(game.awayTeam, game.awayTeamFull, false, game)}
+                      className="md:hidden text-blue-600 hover:text-blue-800 underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+                      title="Tap for full team name"
+                    >
+                      {game.awayTeam}
+                    </button>
+                    <span className="hidden md:inline">{game.awayTeam}</span>
+                  </td>
                   <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{game.awayTeamFull}</td>
-                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">{game.homeTeam}</td>
+                  <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleTeamClick(game.homeTeam, game.homeTeamFull, true, game)}
+                      className="md:hidden text-blue-600 hover:text-blue-800 underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+                      title="Tap for full team name"
+                    >
+                      {game.homeTeam}
+                    </button>
+                    <span className="hidden md:inline">{game.homeTeam}</span>
+                  </td>
                   <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{game.homeTeamFull}</td>
                   <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                     <div className="md:hidden text-xs leading-tight">
@@ -1432,6 +1470,69 @@ const Locks = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Team Details Modal for Mobile */}
+      {showTeamModal && selectedTeamInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 md:hidden">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Team Details</h3>
+              <button
+                onClick={() => setShowTeamModal(false)}
+                className="text-gray-500 hover:text-gray-700 focus:outline-none"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600 mb-1">
+                  {selectedTeamInfo.abbreviation}
+                </div>
+                <div className="text-lg font-medium text-gray-800">
+                  {selectedTeamInfo.fullName}
+                </div>
+              </div>
+              
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Position:</span>
+                  <span className="text-sm font-medium">
+                    {selectedTeamInfo.isHome ? 'Home' : 'Away'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Opponent:</span>
+                  <span className="text-sm font-medium">
+                    {selectedTeamInfo.opponent} ({selectedTeamInfo.opponentAbbrev})
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">League:</span>
+                  <span className="text-sm font-medium">{selectedTeamInfo.league}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Game Time:</span>
+                  <span className="text-sm font-medium">{selectedTeamInfo.gameTime}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setShowTeamModal(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Close
               </button>
             </div>
           </div>
