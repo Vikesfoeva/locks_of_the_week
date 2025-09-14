@@ -1549,6 +1549,25 @@ app.get('/api/awards-summary', async (req, res) => {
       'Unusual Lock'
     ];
 
+    // Define good vs bad awards
+    const goodAwards = [
+      'Lone Wolf',
+      'Lock of the Week',
+      'Close Call',
+      'Boldest Favorite',
+      'Big Dawg',
+      'Big Kahuna',
+      'Tinkerbell',
+      'Unusual Lock'
+    ];
+
+    const badAwards = [
+      'Flop of the Week',
+      'Pack',
+      'Sore Loser',
+      'Biggest Loser'
+    ];
+
     const awardsSummary = {};
     const userNames = Object.values(userMap).map(user => user.name).sort();
     
@@ -1558,6 +1577,19 @@ app.get('/api/awards-summary', async (req, res) => {
       userNames.forEach(userName => {
         awardsSummary[awardName][userName] = 0;
       });
+    });
+
+    // Initialize summary columns
+    awardsSummary['Total Good'] = {};
+    awardsSummary['Total Bad'] = {};
+    awardsSummary['Diff'] = {};
+    awardsSummary['Total'] = {};
+    
+    userNames.forEach(userName => {
+      awardsSummary['Total Good'][userName] = 0;
+      awardsSummary['Total Bad'][userName] = 0;
+      awardsSummary['Diff'][userName] = 0;
+      awardsSummary['Total'][userName] = 0;
     });
 
     // Process each completed week
@@ -1595,6 +1627,36 @@ app.get('/api/awards-summary', async (req, res) => {
       }
     }
 
+    // Calculate summary totals for each user
+    userNames.forEach(userName => {
+      let totalGood = 0;
+      let totalBad = 0;
+      let total = 0;
+
+      // Sum up good awards
+      goodAwards.forEach(awardName => {
+        if (awardsSummary[awardName] && awardsSummary[awardName][userName] !== undefined) {
+          totalGood += awardsSummary[awardName][userName];
+        }
+      });
+
+      // Sum up bad awards
+      badAwards.forEach(awardName => {
+        if (awardsSummary[awardName] && awardsSummary[awardName][userName] !== undefined) {
+          totalBad += awardsSummary[awardName][userName];
+        }
+      });
+
+      // Calculate totals
+      total = totalGood + totalBad;
+      const diff = totalGood - totalBad;
+
+      // Update summary columns
+      awardsSummary['Total Good'][userName] = totalGood;
+      awardsSummary['Total Bad'][userName] = totalBad;
+      awardsSummary['Diff'][userName] = diff;
+      awardsSummary['Total'][userName] = total;
+    });
 
     res.json({ 
       awardsSummary, 

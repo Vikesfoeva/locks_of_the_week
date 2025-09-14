@@ -38,6 +38,10 @@ const Awards = () => {
   const bigKahunaModal = useFilterModal();
   const tinkerbellModal = useFilterModal();
   const unusualLockModal = useFilterModal();
+  const totalGoodModal = useFilterModal();
+  const totalBadModal = useFilterModal();
+  const diffModal = useFilterModal();
+  const totalModal = useFilterModal();
 
   // Award modal mapping
   const awardModals = {
@@ -53,6 +57,10 @@ const Awards = () => {
     'Big Kahuna': bigKahunaModal,
     'Tinkerbell': tinkerbellModal,
     'Unusual Lock': unusualLockModal,
+    'Total Good': totalGoodModal,
+    'Total Bad': totalBadModal,
+    'Diff': diffModal,
+    'Total': totalModal,
   };
 
   // Manual award selection state
@@ -76,7 +84,11 @@ const Awards = () => {
     'Big Dawg': 'A correct lock with the largest spread by an underdog',
     'Big Kahuna': 'A correct lock with the highest over total',
     'Tinkerbell': 'A correct lock with the smallest under total',
-    'Unusual Lock': 'A correct lock with some originality and creativity'
+    'Unusual Lock': 'A correct lock with some originality and creativity',
+    'Total Good': 'Total count of positive awards (Lone Wolf, Lock of the Week, Close Call, Boldest Favorite, Big Dawg, Big Kahuna, Tinkerbell, Unusual Lock)',
+    'Total Bad': 'Total count of negative awards (Flop of the Week, Pack, Sore Loser, Biggest Loser)',
+    'Diff': 'Difference between Total Good and Total Bad awards (Good - Bad)',
+    'Total': 'Total count of all awards received'
   };
 
   // Award abbreviations for compact table display
@@ -92,7 +104,11 @@ const Awards = () => {
     'Big Dawg': 'Dawg',
     'Big Kahuna': 'Kahuna',
     'Tinkerbell': 'Tinkerbell',
-    'Unusual Lock': 'Unusual'
+    'Unusual Lock': 'Unusual',
+    'Total Good': 'Good',
+    'Total Bad': 'Bad',
+    'Diff': 'Diff',
+    'Total': 'Total'
   };
 
   useEffect(() => {
@@ -644,7 +660,7 @@ const Awards = () => {
       {/* Main Content Area */}
       {showSummary ? (
         /* Awards Summary Table */
-        <div className="shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+        <div className="shadow-lg rounded-xl border border-gray-200 overflow-hidden w-full">
           {summaryLoading ? (
             <div className="text-center p-8">Loading awards summary...</div>
           ) : summaryError ? (
@@ -664,11 +680,11 @@ const Awards = () => {
                   Reset Filters
                 </button>
               </div>
-              <div className="w-full">
-                <table className="w-full table-auto border-collapse">
-                  <thead>
+              <div className="w-full max-h-[70vh] overflow-y-auto overflow-x-hidden">
+                <table className="w-full table-fixed border-collapse">
+                  <thead className="sticky top-0 z-20">
                     <tr className="bg-gray-50">
-                      <th className="px-2 py-2 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 w-auto">
+                      <th className="px-2 py-2 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-30 w-auto">
                         <div className="flex items-center gap-1">
                           <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Player</span>
                           <div className="flex flex-col ml-1">
@@ -692,12 +708,58 @@ const Awards = () => {
                           />
                         </div>
                       </th>
-                      {/* Awards as columns */}
-                      {Object.keys(awardsSummary).map(awardName => (
+                      {/* Individual Awards as columns */}
+                      {Object.keys(awardsSummary).filter(awardName => 
+                        !['Total Good', 'Total Bad', 'Diff', 'Total'].includes(awardName)
+                      ).map(awardName => (
                         <th key={awardName} className="px-1 py-2 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 w-auto min-w-[55px]">
                           <div className="flex flex-col items-center justify-center gap-0.5">
                             <div className="flex items-center gap-1">
                               <span className="font-bold text-gray-800 text-xs leading-tight text-center">{awardAbbreviations[awardName] || awardName}</span>
+                              <div className="flex flex-col">
+                                <ChevronUpIcon
+                                  className={`h-3 w-3 cursor-pointer ${sortConfig.key === awardName && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                                  onClick={e => { e.stopPropagation(); setSortConfig({ key: awardName, direction: 'asc' }); }}
+                                />
+                                <ChevronDownIcon
+                                  className={`h-3 w-3 cursor-pointer ${sortConfig.key === awardName && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                                  onClick={e => { e.stopPropagation(); setSortConfig({ key: awardName, direction: 'desc' }); }}
+                                />
+                              </div>
+                              <button
+                                {...createFilterButtonProps(awardModals[awardName], getUniqueValues(awardName), () => {
+                                  // No callback needed - modal handles everything
+                                }, {
+                                  IconComponent: FunnelIconOutline,
+                                  IconComponentSolid: FunnelIconSolid,
+                                  className: "p-1 rounded hover:bg-gray-200 transition-colors"
+                                })}
+                              />
+                            </div>
+                            {awardDefinitions[awardName] && (
+                              <div className="group relative">
+                                <QuestionMarkCircleIcon className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-help flex-shrink-0" />
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-normal w-72 z-[9999] pointer-events-none">
+                                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                  <div className="font-semibold mb-2">{awardName}</div>
+                                  <div>{awardDefinitions[awardName]}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </th>
+                      ))}
+                      {/* Summary columns with different styling */}
+                      {['Total Good', 'Total Bad', 'Diff', 'Total'].map(awardName => (
+                        <th key={awardName} className={`px-1 py-2 text-center text-sm font-semibold border-b border-gray-200 w-auto min-w-[55px] ${
+                          awardName === 'Diff' ? 'text-purple-700 bg-purple-50' : 
+                          awardName === 'Total' ? 'text-indigo-700 bg-indigo-50' :
+                          awardName === 'Total Good' ? 'text-green-700 bg-green-50' :
+                          'text-red-700 bg-red-50'
+                        }`}>
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-xs leading-tight text-center">{awardAbbreviations[awardName] || awardName}</span>
                               <div className="flex flex-col">
                                 <ChevronUpIcon
                                   className={`h-3 w-3 cursor-pointer ${sortConfig.key === awardName && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
@@ -741,7 +803,10 @@ const Awards = () => {
                           <td className="px-2 py-2 text-sm font-medium text-gray-900 border-b border-gray-200 sticky left-0 bg-inherit z-10">
                             {userName}
                           </td>
-                          {Object.keys(awardsSummary).map(awardName => (
+                          {/* Individual award cells */}
+                          {Object.keys(awardsSummary).filter(awardName => 
+                            !['Total Good', 'Total Bad', 'Diff', 'Total'].includes(awardName)
+                          ).map(awardName => (
                             <td key={awardName} className="px-1 py-2 text-center text-sm text-gray-700 border-b border-gray-200">
                               <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${
                                 (awardsSummary[awardName][userName] || 0) > 0 
@@ -752,6 +817,30 @@ const Awards = () => {
                               </span>
                             </td>
                           ))}
+                          {/* Summary columns with special styling */}
+                          {['Total Good', 'Total Bad', 'Diff', 'Total'].map(awardName => {
+                            const value = awardsSummary[awardName][userName] || 0;
+                            return (
+                              <td key={awardName} className={`px-1 py-2 text-center text-sm border-b border-gray-200 ${
+                                awardName === 'Diff' ? 'bg-purple-50' : 
+                                awardName === 'Total' ? 'bg-indigo-50' :
+                                awardName === 'Total Good' ? 'bg-green-50' :
+                                'bg-red-50'
+                              }`}>
+                                <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                  awardName === 'Diff' 
+                                    ? value > 0 ? 'bg-green-100 text-green-800' : value < 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500'
+                                    : awardName === 'Total Good'
+                                    ? value > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'
+                                    : awardName === 'Total Bad'
+                                    ? value > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500'
+                                    : value > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {awardName === 'Diff' && value > 0 ? `+${value}` : value}
+                                </span>
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))
                     }
@@ -784,7 +873,7 @@ const Awards = () => {
           {/* Awards Cards Layout - Better for mobile */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
             {Object.entries(awardDefinitions)
-              .filter(([awardName]) => awardName !== 'Pack') // Remove Pack from cards since it's shown in Lone Wolf
+              .filter(([awardName]) => awardName !== 'Pack' && !['Total Good', 'Total Bad', 'Diff', 'Total'].includes(awardName)) // Remove Pack and summary columns from cards
               .sort(([awardNameA], [awardNameB]) => {
                 // Define the order - Unusual Lock towards the end
                 const order = [
