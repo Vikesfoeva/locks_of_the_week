@@ -5,23 +5,81 @@ const Snydermetrics = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedWeek, setSelectedWeek] = useState('ytd');
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+
   useEffect(() => {
     fetchSnydermetrics();
-  }, []);
+  }, [selectedWeek]);
 
   const fetchSnydermetrics = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/snydermetrics');
+      const url = selectedWeek === 'ytd' 
+        ? '/api/snydermetrics' 
+        : `/api/snydermetrics?week=${encodeURIComponent(selectedWeek)}`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch Snydermetrics');
       const result = await response.json();
       setData(result);
+      if (result.availableWeeks) {
+        setAvailableWeeks(result.availableWeeks);
+      }
     } catch (err) {
       console.error('Error fetching Snydermetrics:', err);
       setError('Failed to load Snydermetrics data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatWeekName = (weekName) => {
+    if (weekName === 'ytd') return 'Year to Date';
+    // Convert odds_2024_09_14 to "Week of Sep 14, 2024"
+    const match = weekName.match(/odds_(\d{4})_(\d{2})_(\d{2})/);
+    if (match) {
+      const [, year, month, day] = match;
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return `Week of ${date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      })}`;
+    }
+    return weekName;
+  };
+
+  const renderWeekSelector = () => {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Filter by Week</h3>
+          <div className="flex items-center space-x-4">
+            <label htmlFor="week-select" className="text-sm font-medium text-gray-700">
+              Select Week:
+            </label>
+            <select
+              id="week-select"
+              value={selectedWeek}
+              onChange={(e) => setSelectedWeek(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="ytd">Year to Date</option>
+              {availableWeeks.map(week => (
+                <option key={week} value={week}>
+                  {formatWeekName(week)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {selectedWeek !== 'ytd' && (
+          <div className="mt-2 text-sm text-gray-600">
+            Showing statistics for: <span className="font-medium">{formatWeekName(selectedWeek)}</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderConsolidatedTable = () => {
@@ -31,7 +89,9 @@ const Snydermetrics = () => {
 
     return (
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">SNYDERMETRICS</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">
+          SNYDERMETRICS - {selectedWeek === 'ytd' ? 'YEAR TO DATE' : formatWeekName(selectedWeek).toUpperCase()}
+        </h3>
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-300">
             <thead className="bg-blue-50">
@@ -208,6 +268,9 @@ const Snydermetrics = () => {
           </div>
         </div>
 
+        {/* Week Selector */}
+        {renderWeekSelector()}
+
         {/* Legend */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Legend</h3>
@@ -241,9 +304,13 @@ const Snydermetrics = () => {
           <p className="text-blue-800 text-sm">
             Snydermetrics provides comprehensive analysis of locking patterns and success rates.
             The data is calculated based on all user picks.
-            {data && data.availableWeeks && (
+            {data && (
               <span className="block mt-2">
-                Data includes {data.availableWeeks.length} weeks of picks for the current season.
+                {selectedWeek === 'ytd' ? (
+                  <>Data includes {data.availableWeeks?.length || 0} weeks of picks for the current season.</>
+                ) : (
+                  <>Showing data for {formatWeekName(selectedWeek)} only.</>
+                )}
               </span>
             )}
           </p>

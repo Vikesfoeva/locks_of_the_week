@@ -2296,7 +2296,7 @@ function calculateWeeklyAwards(picks) {
 app.get('/api/snydermetrics', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    let { year } = req.query;
+    let { year, week } = req.query;
 
     // 1. Determine the year
     if (!year) {
@@ -2333,14 +2333,24 @@ app.get('/api/snydermetrics', async (req, res) => {
       return dateA - dateB;
     });
 
-    // 3. Fetch all picks for all weeks
+    // 3. Filter weeks if specific week is requested
+    let weeksToQuery = availableGameWeeks;
+    if (week && week !== 'ytd') {
+      // If specific week is requested, filter to just that week
+      weeksToQuery = availableGameWeeks.filter(weekName => weekName === week);
+      if (weeksToQuery.length === 0) {
+        return res.status(400).json({ error: 'Week not found', availableWeeks: availableGameWeeks });
+      }
+    }
+
+    // 4. Fetch picks for selected weeks
     const allPicks = await picksCollection.find({ 
-      collectionName: { $in: availableGameWeeks } 
+      collectionName: { $in: weeksToQuery } 
     }).toArray();
 
-    // 4. Fetch all games for enrichment
+    // 5. Fetch all games for enrichment
     const allGames = {};
-    for (const week of availableGameWeeks) {
+    for (const week of weeksToQuery) {
       const games = await yearDb.collection(week).find({}).toArray();
       games.forEach(game => {
         if (game._id) {
@@ -2451,7 +2461,8 @@ app.get('/api/snydermetrics', async (req, res) => {
       Object.keys(stats).forEach(category => {
         const { W, L, T } = stats[category];
         const total = W + L + T;
-        const percentage = total > 0 ? (W / total) : 0;
+        // Correct formula: (1*W + 0.5*T + 0*L) / (W + T + L)
+        const percentage = total > 0 ? ((W + 0.5 * T) / total) : 0;
         
         result[category] = {
           W,
@@ -2498,21 +2509,21 @@ app.get('/api/snydermetrics', async (req, res) => {
           L: cfbData.L,
           T: cfbData.T,
           total: cfbData.W + cfbData.L + cfbData.T,
-          percentage: (cfbData.W + cfbData.L + cfbData.T) > 0 ? parseFloat(((cfbData.W / (cfbData.W + cfbData.L + cfbData.T)) * 100).toFixed(1)) : 0
+          percentage: (cfbData.W + cfbData.L + cfbData.T) > 0 ? parseFloat((((cfbData.W + 0.5 * cfbData.T) / (cfbData.W + cfbData.L + cfbData.T)) * 100).toFixed(1)) : 0
         },
         nfl: {
           W: nflData.W,
           L: nflData.L,
           T: nflData.T,
           total: nflData.W + nflData.L + nflData.T,
-          percentage: (nflData.W + nflData.L + nflData.T) > 0 ? parseFloat(((nflData.W / (nflData.W + nflData.L + nflData.T)) * 100).toFixed(1)) : 0
+          percentage: (nflData.W + nflData.L + nflData.T) > 0 ? parseFloat((((nflData.W + 0.5 * nflData.T) / (nflData.W + nflData.L + nflData.T)) * 100).toFixed(1)) : 0
         },
         totals: {
           W: totalData.W,
           L: totalData.L,
           T: totalData.T,
           total: totalData.W + totalData.L + totalData.T,
-          percentage: (totalData.W + totalData.L + totalData.T) > 0 ? parseFloat(((totalData.W / (totalData.W + totalData.L + totalData.T)) * 100).toFixed(1)) : 0
+          percentage: (totalData.W + totalData.L + totalData.T) > 0 ? parseFloat((((totalData.W + 0.5 * totalData.T) / (totalData.W + totalData.L + totalData.T)) * 100).toFixed(1)) : 0
         }
       };
     });
@@ -2525,24 +2536,26 @@ app.get('/api/snydermetrics', async (req, res) => {
           L: cfbTrueTotals.L,
           T: cfbTrueTotals.T,
           total: cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T,
-          percentage: (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T) > 0 ? parseFloat(((cfbTrueTotals.W / (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T)) * 100).toFixed(1)) : 0
+          percentage: (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T) > 0 ? parseFloat((((cfbTrueTotals.W + 0.5 * cfbTrueTotals.T) / (cfbTrueTotals.W + cfbTrueTotals.L + cfbTrueTotals.T)) * 100).toFixed(1)) : 0
         },
         nfl: {
           W: nflTrueTotals.W,
           L: nflTrueTotals.L,
           T: nflTrueTotals.T,
           total: nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T,
-          percentage: (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T) > 0 ? parseFloat(((nflTrueTotals.W / (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T)) * 100).toFixed(1)) : 0
+          percentage: (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T) > 0 ? parseFloat((((nflTrueTotals.W + 0.5 * nflTrueTotals.T) / (nflTrueTotals.W + nflTrueTotals.L + nflTrueTotals.T)) * 100).toFixed(1)) : 0
         },
         totals: {
           W: overallTrueTotals.W,
           L: overallTrueTotals.L,
           T: overallTrueTotals.T,
           total: overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T,
-          percentage: (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T) > 0 ? parseFloat(((overallTrueTotals.W / (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T)) * 100).toFixed(1)) : 0
+          percentage: (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T) > 0 ? parseFloat((((overallTrueTotals.W + 0.5 * overallTrueTotals.T) / (overallTrueTotals.W + overallTrueTotals.L + overallTrueTotals.T)) * 100).toFixed(1)) : 0
         }
       },
-      availableWeeks: availableGameWeeks
+      availableWeeks: availableGameWeeks,
+      selectedWeek: week || 'ytd',
+      weeksQueried: weeksToQuery
     });
 
   } catch (err) {
