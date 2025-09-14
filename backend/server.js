@@ -833,7 +833,7 @@ const calculateThreeOEligible = (collectionName, submissionTime) => {
   }
 };
 
-// Check if a week has concluded (midnight Monday Eastern Time)
+// Check if a week has concluded (4am Tuesday Eastern Time)
 const isWeekComplete = (collectionName) => {
   try {
     // Parse the Tuesday date from collection name
@@ -862,14 +862,14 @@ const isWeekComplete = (collectionName) => {
       return date >= marchSecondSunday && date < novemberFirstSunday;
     };
 
-    // Create week end time: Tuesday 12:00:00 AM ET of the following week
-    // This is midnight Monday night/Tuesday morning Eastern Time
+    // Create week end time: Tuesday 4:00:00 AM ET of the following week
+    // This is 4am Tuesday morning Eastern Time
     const etOffset = isDST(mondayDate) ? 4 : 5; // EDT = UTC-4, EST = UTC-5
     const weekEndUTC = new Date(Date.UTC(
       mondayDate.getFullYear(),
       mondayDate.getMonth(),
       mondayDate.getDate() + 1, // Tuesday (Monday + 1)
-      0 + etOffset, // Midnight ET + offset = UTC hours
+      4 + etOffset, // 4am ET + offset = UTC hours
       0,
       0,
       0
@@ -1732,7 +1732,7 @@ app.get('/api/awards', async (req, res) => {
     if (!isWeekComplete(selectedGameWeek)) {
       return res.json({ 
         awards: {}, 
-        message: 'Awards will be calculated after the week concludes (midnight Monday Eastern Time)',
+        message: 'Awards will be calculated after the week concludes (4am Tuesday Eastern Time)',
         weekComplete: false
       });
     }

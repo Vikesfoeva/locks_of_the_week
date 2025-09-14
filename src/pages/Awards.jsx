@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { QuestionMarkCircleIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { QuestionMarkCircleIcon, ArrowDownTrayIcon, ChevronUpIcon, ChevronDownIcon, FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
+import { FunnelIcon as FunnelIconSolid } from '@heroicons/react/24/solid';
 import * as XLSX from 'xlsx';
+import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
+import FilterModal from '../components/FilterModal';
 
 const Awards = () => {
   const [awards, setAwards] = useState([]);
@@ -17,6 +20,40 @@ const Awards = () => {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const isInitialMount = useRef(true);
+
+  // Sorting state - using established pattern
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  // Filter modals - using established pattern
+  const playerModal = useFilterModal();
+  const flopsModal = useFilterModal();
+  const loneWolfModal = useFilterModal();
+  const packModal = useFilterModal();
+  const lockModal = useFilterModal();
+  const closeCallModal = useFilterModal();
+  const soreLoserModal = useFilterModal();
+  const biggestLoserModal = useFilterModal();
+  const boldestFavoriteModal = useFilterModal();
+  const bigDawgModal = useFilterModal();
+  const bigKahunaModal = useFilterModal();
+  const tinkerbellModal = useFilterModal();
+  const unusualLockModal = useFilterModal();
+
+  // Award modal mapping
+  const awardModals = {
+    'Flop of the Week': flopsModal,
+    'Lone Wolf': loneWolfModal,
+    'Pack': packModal,
+    'Lock of the Week': lockModal,
+    'Close Call': closeCallModal,
+    'Sore Loser': soreLoserModal,
+    'Biggest Loser': biggestLoserModal,
+    'Boldest Favorite': boldestFavoriteModal,
+    'Big Dawg': bigDawgModal,
+    'Big Kahuna': bigKahunaModal,
+    'Tinkerbell': tinkerbellModal,
+    'Unusual Lock': unusualLockModal,
+  };
 
   // Manual award selection state
   const [showManualAwardSelector, setShowManualAwardSelector] = useState(false);
@@ -42,6 +79,22 @@ const Awards = () => {
     'Unusual Lock': 'A correct pick with some originality and creativity'
   };
 
+  // Award abbreviations for compact table display
+  const awardAbbreviations = {
+    'Flop of the Week': 'Flop',
+    'Lone Wolf': 'Wolf',
+    'Pack': 'Pack',
+    'Lock of the Week': 'Lock',
+    'Close Call': 'Close',
+    'Sore Loser': 'Sore L',
+    'Biggest Loser': 'Big L',
+    'Boldest Favorite': 'Fav',
+    'Big Dawg': 'Dawg',
+    'Big Kahuna': 'Kahuna',
+    'Tinkerbell': 'Tinkerbell',
+    'Unusual Lock': 'Unusual'
+  };
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -60,12 +113,42 @@ const Awards = () => {
         const standingsData = await standingsResponse.json();
         
         setAvailableWeeks(standingsData.availableWeeks);
-        setSelectedWeek(standingsData.selectedWeek);
 
-        // 3. Fetch awards for the latest week
-        if (standingsData.selectedWeek) {
-          await fetchAwards(year, standingsData.selectedWeek);
+        // 3. Find the most recently completed week (has awards calculated)
+        let mostRecentCompletedWeek = null;
+        if (standingsData.availableWeeks && standingsData.availableWeeks.length > 0) {
+          // Check weeks from most recent to oldest
+          for (let i = standingsData.availableWeeks.length - 1; i >= 0; i--) {
+            const weekToCheck = standingsData.availableWeeks[i];
+            try {
+              const awardsResponse = await fetch(`/api/awards?year=${year}&week=${weekToCheck}`);
+              if (awardsResponse.ok) {
+                const awardsData = await awardsResponse.json();
+                // If week is complete and has awards, use this week
+                if (awardsData.weekComplete !== false && Object.keys(awardsData.awards || {}).length > 0) {
+                  mostRecentCompletedWeek = weekToCheck;
+                  setAwards(awardsData.awards || {});
+                  setWeekComplete(awardsData.weekComplete !== false);
+                  setWeekMessage(awardsData.message || '');
+                  break;
+                }
+              }
+            } catch (weekErr) {
+              // Continue to next week if this one fails
+              console.warn(`Failed to check awards for week ${weekToCheck}:`, weekErr);
+              continue;
+            }
+          }
+          
+          // If no completed weeks found, default to most recent week
+          if (!mostRecentCompletedWeek) {
+            mostRecentCompletedWeek = standingsData.availableWeeks[standingsData.availableWeeks.length - 1];
+            // Still try to fetch awards for UI feedback
+            await fetchAwards(year, mostRecentCompletedWeek);
+          }
         }
+
+        setSelectedWeek(mostRecentCompletedWeek);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -301,11 +384,90 @@ const Awards = () => {
     }
   };
 
+  // Sorting is now handled directly via setSortConfig calls in the UI components
+
+  // Reset filters function - following established pattern
+  const handleResetFilters = () => {
+    // Reset all modal system filters
+    playerModal.resetFilter();
+    Object.values(awardModals).forEach(modal => modal.resetFilter());
+    // Reset sort configuration to default
+    setSortConfig({ key: null, direction: 'asc' });
+  };
+
+  // Helper to get unique values for filters
+  const getUniqueValues = (key) => {
+    if (Object.keys(awardsSummary).length === 0) return [];
+    
+    if (key === 'player') {
+      return Object.keys(Object.values(awardsSummary)[0] || {}).sort();
+    } else if (awardsSummary[key]) {
+      // For award columns, return available counts (including 0)
+      const counts = Object.values(awardsSummary[key] || {});
+      const uniqueCounts = Array.from(new Set(counts)).sort((a, b) => a - b);
+      return uniqueCounts.map(String);
+    }
+    return [];
+  };
+
+  // Get filtered data using modal filters
+  const getFilteredData = useMemo(() => {
+    if (Object.keys(awardsSummary).length === 0) return [];
+    
+    let users = Object.keys(Object.values(awardsSummary)[0] || {});
+    
+    // Apply player filter
+    if (playerModal.appliedItems.length > 0) {
+      users = users.filter(userName => playerModal.appliedItems.includes(userName));
+    }
+    
+    // Apply award filters
+    Object.entries(awardModals).forEach(([awardName, modal]) => {
+      if (modal.appliedItems.length > 0 && awardsSummary[awardName]) {
+        users = users.filter(userName => {
+          const count = awardsSummary[awardName][userName] || 0;
+          return modal.appliedItems.includes(String(count));
+        });
+      }
+    });
+    
+    return users;
+  }, [awardsSummary, playerModal.appliedItems, ...Object.values(awardModals).map(m => m.appliedItems)]);
+
+  // Get sorted data
+  const getSortedData = useMemo(() => {
+    let users = [...getFilteredData];
+    
+    if (sortConfig.key) {
+      users.sort((a, b) => {
+        let aVal, bVal;
+        
+        if (sortConfig.key === 'player') {
+          aVal = a.toLowerCase();
+          bVal = b.toLowerCase();
+        } else {
+          // Award column
+          aVal = awardsSummary[sortConfig.key]?.[a] || 0;
+          bVal = awardsSummary[sortConfig.key]?.[b] || 0;
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      // Default alphabetical sort by player name
+      users.sort();
+    }
+    
+    return users;
+  }, [getFilteredData, sortConfig, awardsSummary]);
+
   if (loading) return <div className="text-center p-8">Loading awards...</div>;
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-2 py-2 md:px-4 md:py-3">
+    <div className="mx-auto px-1 py-2 md:px-2 md:py-3">
       {/* Title and Description */}
       <div className="text-center mb-3 md:mb-4">
         <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1">
@@ -493,27 +655,76 @@ const Awards = () => {
             </div>
           ) : (
             <>
-              <div className="p-4 pb-0">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Awards Summary - Total Wins by Player</h3>
+              <div className="p-3 pb-0 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-800">Awards Summary - Total Wins by Player</h3>
+                <button
+                  onClick={handleResetFilters}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-1"
+                >
+                  Reset Filters
+                </button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="table-auto border-collapse">
+              <div className="w-full">
+                <table className="w-full table-auto border-collapse">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 w-auto">
-                        Player
+                      <th className="px-2 py-2 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 w-auto">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wide">Player</span>
+                          <div className="flex flex-col ml-1">
+                            <ChevronUpIcon
+                              className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'player' && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                              onClick={e => { e.stopPropagation(); setSortConfig({ key: 'player', direction: 'asc' }); }}
+                            />
+                            <ChevronDownIcon
+                              className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'player' && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                              onClick={e => { e.stopPropagation(); setSortConfig({ key: 'player', direction: 'desc' }); }}
+                            />
+                          </div>
+                          <button
+                            {...createFilterButtonProps(playerModal, getUniqueValues('player'), () => {
+                              // No callback needed - modal handles everything
+                            }, {
+                              IconComponent: FunnelIconOutline,
+                              IconComponentSolid: FunnelIconSolid,
+                              className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
+                            })}
+                          />
+                        </div>
                       </th>
                       {/* Awards as columns */}
                       {Object.keys(awardsSummary).map(awardName => (
-                        <th key={awardName} className="px-3 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 whitespace-nowrap w-auto">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-xs">{awardName}</span>
+                        <th key={awardName} className="px-1 py-2 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 w-auto min-w-[55px]">
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-gray-800 text-xs leading-tight text-center">{awardAbbreviations[awardName] || awardName}</span>
+                              <div className="flex flex-col">
+                                <ChevronUpIcon
+                                  className={`h-3 w-3 cursor-pointer ${sortConfig.key === awardName && sortConfig.direction === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                                  onClick={e => { e.stopPropagation(); setSortConfig({ key: awardName, direction: 'asc' }); }}
+                                />
+                                <ChevronDownIcon
+                                  className={`h-3 w-3 cursor-pointer ${sortConfig.key === awardName && sortConfig.direction === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                                  onClick={e => { e.stopPropagation(); setSortConfig({ key: awardName, direction: 'desc' }); }}
+                                />
+                              </div>
+                              <button
+                                {...createFilterButtonProps(awardModals[awardName], getUniqueValues(awardName), () => {
+                                  // No callback needed - modal handles everything
+                                }, {
+                                  IconComponent: FunnelIconOutline,
+                                  IconComponentSolid: FunnelIconSolid,
+                                  className: "p-1 rounded hover:bg-gray-200 transition-colors"
+                                })}
+                              />
+                            </div>
                             {awardDefinitions[awardName] && (
                               <div className="group relative">
                                 <QuestionMarkCircleIcon className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-help flex-shrink-0" />
                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-normal w-72 z-[9999] pointer-events-none">
                                   <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
-                                  {awardDefinitions[awardName]}
+                                  <div className="font-semibold mb-2">{awardName}</div>
+                                  <div>{awardDefinitions[awardName]}</div>
                                 </div>
                               </div>
                             )}
@@ -525,14 +736,14 @@ const Awards = () => {
                   <tbody>
                     {/* Get all unique user names and create rows */}
                     {Object.keys(awardsSummary).length > 0 && 
-                      Object.keys(Object.values(awardsSummary)[0] || {}).sort().map((userName, userIndex) => (
+                      getSortedData.map((userName, userIndex) => (
                         <tr key={userName} className={userIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 border-b border-gray-200 sticky left-0 bg-inherit z-10">
+                          <td className="px-2 py-2 text-sm font-medium text-gray-900 border-b border-gray-200 sticky left-0 bg-inherit z-10">
                             {userName}
                           </td>
                           {Object.keys(awardsSummary).map(awardName => (
-                            <td key={awardName} className="px-3 py-3 text-center text-sm text-gray-700 border-b border-gray-200 whitespace-nowrap">
-                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                            <td key={awardName} className="px-1 py-2 text-center text-sm text-gray-700 border-b border-gray-200">
+                              <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${
                                 (awardsSummary[awardName][userName] || 0) > 0 
                                   ? 'bg-blue-100 text-blue-800' 
                                   : 'bg-gray-100 text-gray-500'
@@ -561,7 +772,7 @@ const Awards = () => {
               {!weekComplete ? (
                 <>
                   Awards will be calculated after all games in the week have concluded.<br/>
-                  The week ends at midnight Monday Eastern Time.
+                  The week ends at 4am Tuesday Eastern Time.
                 </>
               ) : (
                 'Awards are calculated after games are completed and results are processed.'
@@ -718,6 +929,28 @@ const Awards = () => {
         </div>
         )
       )}
+
+      {/* Filter Modals */}
+      <FilterModal
+        {...createFilterModalProps(playerModal, getUniqueValues('player'), (appliedItems) => {
+          // appliedItems are already set by the modal, no additional action needed
+        }, {
+          title: 'Filter Players',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      {Object.entries(awardModals).map(([awardName, modal]) => (
+        <FilterModal
+          key={awardName}
+          {...createFilterModalProps(modal, getUniqueValues(awardName), (appliedItems) => {
+            // appliedItems are already set by the modal, no additional action needed
+          }, {
+            title: `Filter ${awardName}`,
+            placement: 'bottom-start',
+          })}
+        />
+      ))}
     </div>
   );
 };
