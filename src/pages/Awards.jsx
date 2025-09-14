@@ -65,18 +65,18 @@ const Awards = () => {
 
   // Award definitions for reference
   const awardDefinitions = {
-    'Flop of the Week': 'An incorrect pick that resulted in the most losses for the group',
-    'Lone Wolf': 'A correct pick by one person that was countered incorrectly by two or more others',
-    'Pack': 'An incorrect pick made by multiple people that was countered correctly by a Lone Wolf',
-    'Lock of the Week': 'A correct pick that was furthest from being incorrect',
-    'Close Call': 'A correct pick that was closest to being incorrect',
-    'Sore Loser': 'An incorrect pick that was closest to being correct',
-    'Biggest Loser': 'An incorrect pick that was furthest from being correct',
-    'Boldest Favorite': 'A correct pick with the largest spread by a favorite',
-    'Big Dawg': 'A correct pick with the largest spread by an underdog',
-    'Big Kahuna': 'A correct pick with the highest over total',
-    'Tinkerbell': 'A correct pick with the smallest under total',
-    'Unusual Lock': 'A correct pick with some originality and creativity'
+    'Flop of the Week': 'An incorrect lock that resulted in the most losses for the group',
+    'Lone Wolf': 'A correct lock by one person that was countered incorrectly by two or more others',
+    'Pack': 'An incorrect lock made by multiple people that was countered correctly by a Lone Wolf',
+    'Lock of the Week': 'A correct lock that was furthest from being incorrect',
+    'Close Call': 'A correct lock that was closest to being incorrect',
+    'Sore Loser': 'An incorrect lock that was closest to being correct',
+    'Biggest Loser': 'An incorrect lock that was furthest from being correct',
+    'Boldest Favorite': 'A correct lock with the largest spread by a favorite',
+    'Big Dawg': 'A correct lock with the largest spread by an underdog',
+    'Big Kahuna': 'A correct lock with the highest over total',
+    'Tinkerbell': 'A correct lock with the smallest under total',
+    'Unusual Lock': 'A correct lock with some originality and creativity'
   };
 
   // Award abbreviations for compact table display
@@ -241,7 +241,7 @@ const Awards = () => {
       'Award',
       'Winner',
       'Game',
-      'Pick',
+      'Lock',
       'Final Score',
       'Margin',
       'Additional Info'
@@ -260,7 +260,7 @@ const Awards = () => {
               gameGroup.score || '',
               gameGroup.margin !== undefined ? gameGroup.margin.toFixed(1) : '',
               // Additional info based on award type
-              gameGroup.count !== undefined ? `${gameGroup.count} people made this pick` :
+              gameGroup.count !== undefined ? `${gameGroup.count} people made this lock` :
               gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others${gameGroup.packMembers ? ` (Pack: ${gameGroup.packMembers.map(p => p.userName).join(', ')})` : ''}` :
               gameGroup.spread !== undefined ? `Spread: ${gameGroup.spread > 0 ? '+' : ''}${gameGroup.spread}` :
               gameGroup.total !== undefined ? `Total: ${gameGroup.total}` : ''
@@ -317,7 +317,7 @@ const Awards = () => {
       setExistingManualAward(data.existingAward);
       setSelectedPickId(data.existingAward?.pickId || '');
     } catch (err) {
-      console.error('Error fetching winning picks:', err);
+      console.error('Error fetching winning locks:', err);
       setManualAwardError(err.message);
     } finally {
       setManualAwardLoading(false);
@@ -474,7 +474,7 @@ const Awards = () => {
           Weekly Awards - {activeYear}
         </h1>
         <p className="text-sm md:text-base text-gray-600">
-          Recognition for standout picks and performances
+          Recognition for standout locks and performances
         </p>
       </div>
 
@@ -577,9 +577,9 @@ const Awards = () => {
           )}
           
           {manualAwardLoading ? (
-            <div className="text-center p-4">Loading winning picks...</div>
+            <div className="text-center p-4">Loading winning locks...</div>
           ) : winningPicks.length === 0 ? (
-            <div className="text-center p-4 text-gray-500">No winning picks available for manual award selection.</div>
+            <div className="text-center p-4 text-gray-500">No winning locks available for manual award selection.</div>
           ) : (
             <div className="space-y-3">
               {existingManualAward && (
@@ -601,7 +601,7 @@ const Awards = () => {
               
               <div className="grid grid-cols-1 gap-2">
                 <label className="text-sm font-medium text-purple-700">
-                  Select a winning pick for the Unusual Lock award:
+                  Select a winning lock for the Unusual Lock award:
                 </label>
                 <select
                   value={selectedPickId}
@@ -609,7 +609,7 @@ const Awards = () => {
                   className="border border-purple-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-colors duration-200"
                   disabled={manualAwardLoading}
                 >
-                  <option value="">Choose a winning pick...</option>
+                  <option value="">Choose a winning lock...</option>
                   {winningPicks
                     .sort((a, b) => a.userName.localeCompare(b.userName))
                     .map((pick) => (
@@ -784,12 +784,12 @@ const Awards = () => {
           {/* Awards Cards Layout - Better for mobile */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
             {Object.entries(awardDefinitions)
+              .filter(([awardName]) => awardName !== 'Pack') // Remove Pack from cards since it's shown in Lone Wolf
               .sort(([awardNameA], [awardNameB]) => {
                 // Define the order - Unusual Lock towards the end
                 const order = [
                   'Flop of the Week',
                   'Lone Wolf',
-                  'Pack',
                   'Lock of the Week',
                   'Close Call',
                   'Sore Loser',
@@ -863,24 +863,12 @@ const Awards = () => {
                           )}
                           {gameGroup.count !== undefined && (
                             <div className="text-xs text-red-600 mt-1">
-                              {gameGroup.count} people made this pick
+                              {gameGroup.count} people made this lock
                             </div>
                           )}
                           {gameGroup.againstCount !== undefined && (
                             <div className="text-xs text-green-600 mt-1">
                               Against {gameGroup.againstCount} others
-                              {gameGroup.packMembers && gameGroup.packMembers.length > 0 && (
-                                <div className="mt-1">
-                                  <span className="text-gray-600">Pack: </span>
-                                  <div className="flex flex-wrap gap-1 mt-0.5">
-                                    {gameGroup.packMembers.map((packMember, packIndex) => (
-                                      <span key={packIndex} className="inline-block bg-red-50 px-1.5 py-0.5 rounded text-xs text-red-700 border border-red-200" title={packMember.pickDetails}>
-                                        {packMember.userName}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           )}
                           
@@ -888,13 +876,31 @@ const Awards = () => {
                           <div className="mt-1.5 pt-1.5 border-t border-purple-200">
                             <div className="text-xs text-gray-600 mb-1">Winners:</div>
                             <div className="flex flex-wrap gap-1">
-                              {gameGroup.winners.map((winner, winnerIndex) => (
-                                <span key={winnerIndex} className="inline-block bg-white px-1.5 py-0.5 rounded text-xs text-purple-700 border border-purple-300">
-                                  {winner.userName}
-                                </span>
-                              ))}
+                              {gameGroup.winners
+                                .sort((a, b) => a.userName.localeCompare(b.userName))
+                                .map((winner, winnerIndex) => (
+                                  <span key={winnerIndex} className="inline-block bg-white px-1.5 py-0.5 rounded text-xs text-purple-700 border border-purple-300">
+                                    {winner.userName}
+                                  </span>
+                                ))}
                             </div>
                           </div>
+
+                          {/* Pack Members - Show after winners */}
+                          {gameGroup.packMembers && gameGroup.packMembers.length > 0 && (
+                            <div className="mt-1.5 pt-1.5 border-t border-red-200">
+                              <div className="text-xs text-gray-600 mb-1">Pack:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {gameGroup.packMembers
+                                  .sort((a, b) => a.userName.localeCompare(b.userName))
+                                  .map((packMember, packIndex) => (
+                                    <span key={packIndex} className="inline-block bg-red-50 px-1.5 py-0.5 rounded text-xs text-red-700 border border-red-200" title={packMember.pickDetails}>
+                                      {packMember.userName}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                       

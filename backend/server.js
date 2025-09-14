@@ -1527,7 +1527,8 @@ app.get('/api/awards-summary', async (req, res) => {
     // Initialize awards summary
     const awardNames = [
       'Flop of the Week',
-      'Lone Wolf', 
+      'Lone Wolf',
+      'Pack', 
       'Lock of the Week',
       'Close Call',
       'Sore Loser',
@@ -1571,14 +1572,6 @@ app.get('/api/awards-summary', async (req, res) => {
               
               // Handle Pack members (opposite of Lone Wolf)
               if (awardName === 'Lone Wolf' && gameGroup.packMembers) {
-                // Initialize Pack award if it doesn't exist
-                if (!awardsSummary['Pack']) {
-                  awardsSummary['Pack'] = {};
-                  userNames.forEach(userName => {
-                    awardsSummary['Pack'][userName] = 0;
-                  });
-                }
-                
                 gameGroup.packMembers.forEach(packMember => {
                   if (awardsSummary['Pack'][packMember.userName] !== undefined) {
                     awardsSummary['Pack'][packMember.userName]++;
