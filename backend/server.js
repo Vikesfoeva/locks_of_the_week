@@ -1474,6 +1474,15 @@ app.get('/api/three-zero-standings', async (req, res) => {
     // Sort by 3-0 weeks (descending)
     standings.sort((a, b) => b.threeZeroWeeks - a.threeZeroWeeks || a.name.localeCompare(b.name));
 
+    // Add proper ranking logic
+    let currentRank = 1;
+    for (let i = 0; i < standings.length; i++) {
+      if (i > 0 && standings[i].threeZeroWeeks !== standings[i - 1].threeZeroWeeks) {
+        currentRank = i + 1;
+      }
+      standings[i].rank = currentRank;
+    }
+
     res.json({ 
       standings, 
       totalThreeZeroWeeks, 

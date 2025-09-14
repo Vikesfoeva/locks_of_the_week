@@ -306,29 +306,24 @@ const Standings = () => {
     return actualTies;
   };
 
-  // Helper function to detect ties in 3-0 week standings based on threeZeroWeeks value
+  // Helper function to detect ties in 3-0 week standings based on rank value
   const getTiedUsersThreeZero = (standings) => {
     const tieGroups = {};
-    const rankMap = {}; // Map to track what rank each threeZeroWeeks value should get
     
-    // Group users by threeZeroWeeks value and assign ranks
-    standings.forEach((user, index) => {
-      const threeZeroWeeks = user.threeZeroWeeks || 0;
-      if (!tieGroups[threeZeroWeeks]) {
-        tieGroups[threeZeroWeeks] = [];
-        // Find the first occurrence of this threeZeroWeeks value to determine rank
-        const firstIndex = standings.findIndex(u => (u.threeZeroWeeks || 0) === threeZeroWeeks);
-        rankMap[threeZeroWeeks] = firstIndex + 1;
+    // Group users by their rank value
+    standings.forEach((user) => {
+      const rank = user.rank || 1;
+      if (!tieGroups[rank]) {
+        tieGroups[rank] = [];
       }
-      tieGroups[threeZeroWeeks].push({ ...user, effectiveRank: rankMap[threeZeroWeeks] });
+      tieGroups[rank].push(user);
     });
     
-    // Return only groups with more than 1 user (actual ties) mapped by effective rank
+    // Return only groups with more than 1 user (actual ties)
     const actualTies = {};
-    Object.keys(tieGroups).forEach(threeZeroWeeks => {
-      if (tieGroups[threeZeroWeeks].length > 1) {
-        const effectiveRank = rankMap[threeZeroWeeks];
-        actualTies[effectiveRank] = tieGroups[threeZeroWeeks];
+    Object.keys(tieGroups).forEach(rank => {
+      if (tieGroups[rank].length > 1) {
+        actualTies[rank] = tieGroups[rank];
       }
     });
     
@@ -500,7 +495,7 @@ const Standings = () => {
   const uniqueUserNames = getUniqueValues(filteredStandingsForUserName, 'name');
   const uniqueRanks = viewMode === 'regular' 
     ? getUniqueValues(filteredStandingsForRank, 'rank')
-    : filteredStandingsForRank.map((_, index) => String(index + 1)); // Generate ranks for 3-0 view
+    : getUniqueValues(filteredStandingsForRank, 'rank'); // Use backend-provided ranks for 3-0 view
   const uniqueWinPcts = viewMode === 'regular' 
     ? getUniqueValues(filteredStandingsForWinPct, 'winPct')
     : filteredStandingsForWinPct.map(user => `${user.percentage || 0}%`);
@@ -1033,15 +1028,12 @@ const Standings = () => {
                     }
                     
                     // Add the regular user row
-                    const rank = idx + 1;
-                    const isTopFive = rank <= 5;
+                    const rank = user.rank || (idx + 1); // Use backend-provided rank, fallback to index-based
+                    const isTopFive = rank <= 5 && user.threeZeroWeeks > 0; // Only top 5 if they have 3-0 weeks
                     const hasEarnings = user.payout > 0;
                     
-                    // Check if this user is tied based on threeZeroWeeks value
-                    // Find the effective rank (first occurrence rank) for tie detection
-                    const threeZeroWeeks = user.threeZeroWeeks || 0;
-                    const firstIndex = sortedStandings.findIndex(u => (u.threeZeroWeeks || 0) === threeZeroWeeks);
-                    const effectiveRank = firstIndex + 1;
+                    // Check if this user is tied based on rank value
+                    const effectiveRank = rank;
                     const isTied = tiedUsers[effectiveRank] && tiedUsers[effectiveRank].length > 1;
                     
                     // Determine row styling
@@ -1060,17 +1052,17 @@ const Standings = () => {
                         <div className="flex items-center">
                           {isTopFive && user.threeZeroWeeks > 0 && (
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 ${
-                              effectiveRank === 1 ? 'bg-yellow-500' : 
-                              effectiveRank === 2 ? 'bg-gray-400' : 
-                              effectiveRank === 3 ? 'bg-amber-600' :
-                              effectiveRank === 4 ? 'bg-blue-500' :
+                              rank === 1 ? 'bg-yellow-500' : 
+                              rank === 2 ? 'bg-gray-400' : 
+                              rank === 3 ? 'bg-amber-600' :
+                              rank === 4 ? 'bg-blue-500' :
                               'bg-green-500'
                             }`}>
-                              {isTied ? `T-${effectiveRank}` : effectiveRank}
+                              {isTied ? `T-${rank}` : rank}
                             </div>
                           )}
                           <span className={`font-bold text-sm md:text-lg ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800' : 'text-gray-600'}`}>
-                            {(!isTopFive || user.threeZeroWeeks === 0) && (isTied ? `T-${effectiveRank}` : effectiveRank)}
+                            {(!isTopFive || user.threeZeroWeeks === 0) && (isTied ? `T-${rank}` : rank)}
                           </span>
                         </div>
                       </td>
