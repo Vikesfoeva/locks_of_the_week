@@ -10,50 +10,62 @@ const UserNameButton = ({ user, isTopFive, onPicksClick, checkPicksComplete }) =
   const [hasCompletePicks, setHasCompletePicks] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
 
-  const handleClick = async () => {
-    if (isChecking) return;
-    
-    setIsChecking(true);
-    try {
-      const isComplete = await checkPicksComplete();
-      setHasCompletePicks(isComplete);
-      
-      if (isComplete) {
-        onPicksClick();
-      }
-    } catch (err) {
-      console.error('Error checking picks completeness:', err);
-      setHasCompletePicks(false);
-    } finally {
-      setIsChecking(false);
-    }
-  };
+  // TEMPORARILY DISABLED: User name click functionality
+  // const handleClick = async () => {
+  //   if (isChecking) return;
+  //   
+  //   setIsChecking(true);
+  //   try {
+  //     const isComplete = await checkPicksComplete();
+  //     setHasCompletePicks(isComplete);
+  //     
+  //     if (isComplete) {
+  //       onPicksClick();
+  //     }
+  //   } catch (err) {
+  //     console.error('Error checking picks completeness:', err);
+  //     setHasCompletePicks(false);
+  //   } finally {
+  //     setIsChecking(false);
+  //   }
+  // };
 
   const baseClasses = `font-medium text-left ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`;
   
-  if (hasCompletePicks === null || hasCompletePicks) {
-    // Clickable - either we haven't checked yet or user has complete picks
-    return (
-      <button
-        onClick={handleClick}
-        disabled={isChecking}
-        className={`${baseClasses} hover:underline cursor-pointer hover:text-blue-600 ${isChecking ? 'opacity-50' : ''}`}
-        title={hasCompletePicks === null ? "Click to view picks" : "View picks"}
-      >
-        {user.name}
-      </button>
-    );
-  } else {
-    // Not clickable - user hasn't submitted all picks
-    return (
-      <span 
-        className={`${baseClasses} opacity-60 cursor-not-allowed`}
-        title="User hasn't submitted all picks for this week"
-      >
-        {user.name}
-      </span>
-    );
-  }
+  // TEMPORARILY DISABLED: Always render as non-clickable span
+  return (
+    <span 
+      className={`${baseClasses} opacity-60 cursor-not-allowed`}
+      title="User name click functionality temporarily disabled"
+    >
+      {user.name}
+    </span>
+  );
+  
+  // ORIGINAL CODE (commented out):
+  // if (hasCompletePicks === null || hasCompletePicks) {
+  //   // Clickable - either we haven't checked yet or user has complete picks
+  //   return (
+  //     <button
+  //       onClick={handleClick}
+  //       disabled={isChecking}
+  //       className={`${baseClasses} hover:underline cursor-pointer hover:text-blue-600 ${isChecking ? 'opacity-50' : ''}`}
+  //       title={hasCompletePicks === null ? "Click to view picks" : "View picks"}
+  //     >
+  //       {user.name}
+  //     </button>
+  //   );
+  // } else {
+  //   // Not clickable - user hasn't submitted all picks
+  //   return (
+  //     <span 
+  //       className={`${baseClasses} opacity-60 cursor-not-allowed`}
+  //       title="User hasn't submitted all picks for this week"
+  //     >
+  //       {user.name}
+  //     </span>
+  //   );
+  // }
 };
 
 const Standings = () => {
@@ -130,30 +142,31 @@ const Standings = () => {
     }
   };
 
-  const fetchUserPicks = async (userId, userName) => {
-    if (!selectedWeek || !activeYear) return;
-    
-    setPicksLoading(true);
-    setSelectedUser({ id: userId, name: userName });
-    setPicksPopupOpen(true);
-    
-    try {
-      const response = await fetch(`/api/picks?userId=${userId}&collectionName=${selectedWeek}&year=${activeYear}`);
-      if (!response.ok) throw new Error('Failed to fetch user picks');
-      const data = await response.json();
-      console.log('Raw picks data:', data);
-      if (data.length > 0) {
-        console.log('First pick structure:', data[0]);
-        console.log('Game details:', data[0].gameDetails);
-      }
-      setUserPicks(data || []);
-    } catch (err) {
-      console.error('Error fetching user picks:', err);
-      setUserPicks([]);
-    } finally {
-      setPicksLoading(false);
-    }
-  };
+  // TEMPORARILY DISABLED: fetchUserPicks function
+  // const fetchUserPicks = async (userId, userName) => {
+  //   if (!selectedWeek || !activeYear) return;
+  //   
+  //   setPicksLoading(true);
+  //   setSelectedUser({ id: userId, name: userName });
+  //   setPicksPopupOpen(true);
+  //   
+  //   try {
+  //     const response = await fetch(`/api/picks?userId=${userId}&collectionName=${selectedWeek}&year=${activeYear}`);
+  //     if (!response.ok) throw new Error('Failed to fetch user picks');
+  //     const data = await response.json();
+  //     console.log('Raw picks data:', data);
+  //     if (data.length > 0) {
+  //       console.log('First pick structure:', data[0]);
+  //       console.log('Game details:', data[0].gameDetails);
+  //     }
+  //     setUserPicks(data || []);
+  //   } catch (err) {
+  //     console.error('Error fetching user picks:', err);
+  //     setUserPicks([]);
+  //   } finally {
+  //     setPicksLoading(false);
+  //   }
+  // };
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -937,8 +950,8 @@ const Standings = () => {
                       <UserNameButton 
                         user={user}
                         isTopFive={isTopFive}
-                        onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
-                        checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
+                        // TEMPORARILY DISABLED: onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
+                        // TEMPORARILY DISABLED: checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
                       />
                     ) : (
                       <span className={`font-medium ${isTopFive ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
@@ -1120,8 +1133,8 @@ const Standings = () => {
                           <UserNameButton 
                             user={user}
                             isTopFive={isTopFive && user.threeZeroWeeks > 0}
-                            onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
-                            checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
+                            // TEMPORARILY DISABLED: onPicksClick={() => fetchUserPicks(user.firebaseUid, user.name)}
+                            // TEMPORARILY DISABLED: checkPicksComplete={() => checkUserPicksComplete(user.firebaseUid)}
                           />
                         ) : (
                           <span className={`font-medium ${isTopFive && user.threeZeroWeeks > 0 ? 'text-gray-800 text-xs md:text-lg' : 'text-gray-700 text-xs md:text-base'}`}>
@@ -1379,8 +1392,8 @@ const Standings = () => {
         })}
       />
 
-      {/* User Picks Popup */}
-      {picksPopupOpen && (
+      {/* TEMPORARILY DISABLED: User Picks Popup */}
+      {/* {picksPopupOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="p-4 border-b border-gray-200">
@@ -1526,7 +1539,7 @@ const Standings = () => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 };
