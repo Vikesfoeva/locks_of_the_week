@@ -358,13 +358,23 @@ const WeeklyLocks = () => {
   const totalUniqueHomeTeams = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'home_team_abbrev'), [allPicks]);
   const totalUniqueLocks = useMemo(() => getUniqueValues(allPicks, 'lock'), [allPicks]);
   const totalUniqueResults = useMemo(() => getUniqueValues(allPicks, 'result'), [allPicks]);
-  const totalUniqueDates = useMemo(() => Array.from(new Set(
-    allPicks
-      .map(pick => pick.gameDetails?.commence_time)
-      .filter(Boolean)
-      .map(commenceTime => formatGameDate(commenceTime))
-      .filter(Boolean)
-  )).sort(), [allPicks]);
+  const totalUniqueDates = useMemo(() => {
+    const uniqueDates = Array.from(new Set(
+      allPicks
+        .map(pick => pick.gameDetails?.commence_time)
+        .filter(Boolean)
+        .map(commenceTime => formatGameDate(commenceTime))
+        .filter(Boolean)
+    ));
+    
+    // Sort chronologically by converting back to Date objects for comparison
+    return uniqueDates.sort((a, b) => {
+      // Convert formatted date strings back to Date objects for proper chronological sorting
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateA - dateB;
+    });
+  }, [allPicks]);
   const totalUniqueTimes = useMemo(() => Array.from(new Set(
     allPicks
       .map(pick => pick.gameDetails?.commence_time)
