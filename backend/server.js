@@ -1729,10 +1729,23 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
             }
           }
         } else {
+          // Picked team is underdog (positive spread)
           if (pickedHome) {
-            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            if (scoreDiff >= 0) {
+              // Home team won outright - margin = spread + victory margin
+              margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+            } else {
+              // Home team lost - margin = spread cushion - actual defeat margin
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            }
           } else {
-            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            if (scoreDiff <= 0) {
+              // Away team won outright - margin = spread + victory margin
+              margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+            } else {
+              // Away team lost - margin = spread cushion - actual defeat margin
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            }
           }
         }
         actualSpread = pickedSpread;
@@ -1892,16 +1905,26 @@ app.get('/api/awards', async (req, res) => {
             // Picked team is underdog (positive spread)
             if (pickedHome) {
               // Home team is underdog (e.g., CHAR +6.5 at home vs APP)
-              // They needed to lose by LESS than the spread (or win outright)
-              // Margin = spread cushion - actual defeat margin
-              // Example: CHAR loses 11-34 with +6.5 spread: 6.5 - 23 = -16.5
-              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              if (scoreDiff >= 0) {
+                // Home team won outright - margin = spread + victory margin
+                // Example: GT +3.5 wins 24-21: 3.5 + 3 = 6.5
+                margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+              } else {
+                // Home team lost - margin = spread cushion - actual defeat margin
+                // Example: CHAR loses 11-34 with +6.5 spread: 6.5 - 23 = -16.5
+                margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              }
             } else {
-              // Away team is underdog (e.g., UCLA +6.5 @ UTAH)  
-              // They needed to lose by LESS than the spread (or win outright)
-              // Margin = spread cushion - actual defeat margin
-              // Example: UCLA loses 10-43 with +6.5 spread: 6.5 - 33 = -26.5
-              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              // Away team is underdog (e.g., UCLA +6.5 @ UTAH)
+              if (scoreDiff <= 0) {
+                // Away team won outright - margin = spread + victory margin
+                // Example: NM +15.5 wins 35-10: 15.5 + 25 = 40.5
+                margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+              } else {
+                // Away team lost - margin = spread cushion - actual defeat margin
+                // Example: UCLA loses 10-43 with +6.5 spread: 6.5 - 33 = -26.5
+                margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              }
             }
           }
           actualSpread = pickedSpread;
@@ -2758,10 +2781,23 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
               }
             }
           } else {
+            // Picked team is underdog (positive spread)
             if (pickedHome) {
-              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              if (scoreDiff >= 0) {
+                // Home team won outright - margin = spread + victory margin
+                margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+              } else {
+                // Home team lost - margin = spread cushion - actual defeat margin
+                margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              }
             } else {
-              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              if (scoreDiff <= 0) {
+                // Away team won outright - margin = spread + victory margin
+                margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+              } else {
+                // Away team lost - margin = spread cushion - actual defeat margin
+                margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+              }
             }
           }
         } else if (pick.pickType === 'total') {
@@ -2877,10 +2913,23 @@ app.post('/api/manual-awards', async (req, res) => {
             }
           }
         } else {
+          // Picked team is underdog (positive spread)
           if (pickedHome) {
-            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            if (scoreDiff >= 0) {
+              // Home team won outright - margin = spread + victory margin
+              margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+            } else {
+              // Home team lost - margin = spread cushion - actual defeat margin
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            }
           } else {
-            margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            if (scoreDiff <= 0) {
+              // Away team won outright - margin = spread + victory margin
+              margin = Math.abs(pickedSpread) + Math.abs(scoreDiff);
+            } else {
+              // Away team lost - margin = spread cushion - actual defeat margin
+              margin = Math.abs(pickedSpread) - Math.abs(scoreDiff);
+            }
           }
         }
       } else if (pick.pickType === 'total') {

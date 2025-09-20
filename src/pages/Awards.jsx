@@ -274,7 +274,7 @@ const Awards = () => {
               gameGroup.gameDetails, // Game (e.g., "UTAH @ UCLA")
               gameGroup.pickDetails, // Pick (e.g., "UTAH -6.5")
               gameGroup.score || '',
-              gameGroup.margin !== undefined ? gameGroup.margin.toFixed(1) : '',
+              gameGroup.margin !== undefined && awardName !== 'Unusual Lock' ? gameGroup.margin.toFixed(1) : '',
               // Additional info based on award type
               gameGroup.count !== undefined ? `${gameGroup.count} people made this lock` :
               gameGroup.againstCount !== undefined ? `Against ${gameGroup.againstCount} others${gameGroup.packMembers ? ` (Pack: ${gameGroup.packMembers.map(p => p.userName).join(', ')})` : ''}` :
@@ -631,7 +631,6 @@ const Awards = () => {
                     .map((pick) => (
                       <option key={pick.pickId} value={pick.pickId}>
                         {pick.userName} - {pick.gameDetails} - {pick.pickDetails}
-                        {pick.margin !== null && ` (Margin: ${pick.margin.toFixed(1)})`}
                       </option>
                     ))}
                 </select>
@@ -935,7 +934,7 @@ const Awards = () => {
                               Final Score: {gameGroup.score}
                             </div>
                           )}
-                          {gameGroup.margin !== undefined && (
+                          {gameGroup.margin !== undefined && awardName !== 'Unusual Lock' && (
                             <div className="text-xs text-blue-600 mt-1">
                               Margin: {gameGroup.margin.toFixed(1)}
                             </div>
