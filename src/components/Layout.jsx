@@ -9,6 +9,7 @@ const navigation = [
       { name: 'Pick Locks', href: '/locks' },
     { name: 'Weekly Locks', href: '/weekly' },
   { name: 'Standings', href: '/standings' },
+  { name: 'Snydermetrics', href: '/snydermetrics' },
 ]
 
 export default function Layout() {
@@ -18,7 +19,7 @@ export default function Layout() {
   const [error, setError] = useState('')
 
   const adminNav = currentUser?.role === 'admin'
-    ? [{ name: 'Admin', href: '/admin' }, { name: 'Awards', href: '/awards' }, { name: 'Snydermetrics', href: '/snydermetrics' }]
+    ? [{ name: 'Admin', href: '/admin' }, { name: 'Awards', href: '/awards' }]
     : [];
 
   async function handleLogout() {

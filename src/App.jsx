@@ -77,7 +77,7 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/snydermetrics" element={
-            <PrivateRoute adminOnly>
+            <PrivateRoute>
               <ProfileSetupGuard>
                 <Snydermetrics />
               </ProfileSetupGuard>
