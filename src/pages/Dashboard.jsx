@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { API_URL } from '../config'
 
@@ -71,6 +71,24 @@ export default function Dashboard() {
     loading: true,
     error: null
   })
+  const [announcementMinimized, setAnnouncementMinimized] = useState(() => {
+    // Initialize state directly from localStorage to avoid race conditions
+    if (typeof window !== 'undefined') {
+      const savedMinimizedState = localStorage.getItem('announcementMinimized')
+      if (savedMinimizedState !== null) {
+        const parsedState = JSON.parse(savedMinimizedState)
+        console.log('Initializing announcement minimized state from localStorage:', parsedState)
+        return parsedState
+      }
+    }
+    return false
+  })
+
+  // Save announcement minimized state to localStorage when it changes
+  useEffect(() => {
+    console.log('Saving announcement minimized state to localStorage:', announcementMinimized)
+    localStorage.setItem('announcementMinimized', JSON.stringify(announcementMinimized))
+  }, [announcementMinimized])
 
   // Fetch dashboard data
   useEffect(() => {
@@ -197,10 +215,29 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-2 flex-1">
-                <h3 className="text-sm font-medium text-blue-800">Announcement</h3>
-                <div className="mt-1 text-sm text-blue-700">
-                  <div dangerouslySetInnerHTML={{ __html: announcement.message.replace(/\n/g, '<br />') }} />
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-blue-800">Announcement</h3>
+                  <button
+                    onClick={() => setAnnouncementMinimized(!announcementMinimized)}
+                    className="ml-2 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                    aria-label={announcementMinimized ? "Expand announcement" : "Minimize announcement"}
+                  >
+                    {announcementMinimized ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
+                {!announcementMinimized && (
+                  <div className="mt-1 text-sm text-blue-700">
+                    <div dangerouslySetInnerHTML={{ __html: announcement.message.replace(/\n/g, '<br />') }} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
