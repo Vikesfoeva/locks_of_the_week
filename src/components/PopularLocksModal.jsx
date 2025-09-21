@@ -1,6 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const PopularLocksModal = ({ picks, userMap, onClose }) => {
+  const [showRemainingOnly, setShowRemainingOnly] = useState(false);
+
   // Prevent background scrolling when modal is open
   useEffect(() => {
     // Save current body overflow style
@@ -14,12 +16,18 @@ const PopularLocksModal = ({ picks, userMap, onClose }) => {
       document.body.style.overflow = originalStyle;
     };
   }, []);
+  
   const getPopularPicks = () => {
     if (!picks || picks.length === 0) {
       return [];
     }
 
-    const pickCounts = picks.reduce((acc, pick) => {
+    // Filter picks based on showRemainingOnly toggle
+    const filteredPicks = showRemainingOnly 
+      ? picks.filter(pick => !pick.result) // Only picks without final results
+      : picks; // All picks
+
+    const pickCounts = filteredPicks.reduce((acc, pick) => {
       const { gameDetails, pickType, pickSide, line, userId } = pick;
       if (!gameDetails) return acc;
 
@@ -90,7 +98,35 @@ const PopularLocksModal = ({ picks, userMap, onClose }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4 text-center sm:text-left pr-8">Top 5 Popular Locks</h2>
+        <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4 text-center sm:text-left pr-8">
+          {showRemainingOnly ? 'Top 5 Remaining Popular Locks' : 'Top 5 Popular Locks'}
+        </h2>
+        
+        {/* Toggle Button */}
+        <div className="mb-4 flex justify-center">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setShowRemainingOnly(false)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                !showRemainingOnly
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All Picks
+            </button>
+            <button
+              onClick={() => setShowRemainingOnly(true)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                showRemainingOnly
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Remaining Only
+            </button>
+          </div>
+        </div>
         {popularPicks.length > 0 ? (
           <ul className="space-y-2 sm:space-y-3">
             {popularPicks.map((pick, index) => (
