@@ -256,17 +256,17 @@ const WeeklyLocks = () => {
   };
 
   const handleResetFilters = () => {
-    // Reset all modal system filters
-    userModal.handleSelectionChange([]);
-    leagueModal.handleSelectionChange([]);
-    awayTeamModal.handleSelectionChange([]);
-    homeTeamModal.handleSelectionChange([]);
-    lockModal.handleSelectionChange([]);
-    resultModal.handleSelectionChange([]);
-    dateModal.handleSelectionChange([]);
-    timeModal.handleSelectionChange([]);
+    // Reset all modal system filters - use resetFilter to properly clear both selectedItems and appliedItems
+    userModal.resetFilter();
+    leagueModal.resetFilter();
+    awayTeamModal.resetFilter();
+    homeTeamModal.resetFilter();
+    lockModal.resetFilter();
+    resultModal.resetFilter();
+    dateModal.resetFilter();
+    timeModal.resetFilter();
     // Reset traditional view filters
-    traditionalUserModal.handleSelectionChange([]);
+    traditionalUserModal.resetFilter();
     // Reset sort configuration to default (User alphabetically)
     setSortConfig({ key: 'user', direction: 'ascending' });
   };
