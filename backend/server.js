@@ -1791,7 +1791,7 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
 app.get('/api/awards', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    let { year, week: selectedGameWeek } = req.query;
+    let { year, week: selectedGameWeek, isAdmin } = req.query;
 
     // 1. Determine the year
     if (!year) {
@@ -1812,6 +1812,24 @@ app.get('/api/awards', async (req, res) => {
         message: 'Awards will be calculated after the week concludes (4am Tuesday Eastern Time)',
         weekComplete: false
       });
+    }
+
+    // 3. For non-admin users, check if the week is published
+    if (isAdmin !== 'true') {
+      const publishedWeek = await mainDb.collection('awardsData').findOne({
+        year: parseInt(year),
+        week: selectedGameWeek,
+        published: true
+      });
+
+      if (!publishedWeek) {
+        return res.json({ 
+          awards: {}, 
+          message: 'This week has not been published yet. Only published weeks are visible to non-admin users.',
+          weekComplete: true,
+          published: false
+        });
+      }
     }
 
     const picksCollectionName = `cy_${year}_picks`;
@@ -2999,5 +3017,128 @@ app.delete('/api/manual-awards', async (req, res) => {
   } catch (err) {
     console.error('Error deleting manual award:', err);
     res.status(500).json({ error: 'Failed to delete manual award', details: err.message });
+  }
+});
+
+// Get published status for weeks
+app.get('/api/awards/published-status', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    const { year } = req.query;
+
+    if (!year) {
+      return res.status(400).json({ error: 'Year is required' });
+    }
+
+    const publishedWeeks = await mainDb.collection('awardsData').find({
+      year: parseInt(year),
+      published: true
+    }).toArray();
+
+    const statusMap = {};
+    publishedWeeks.forEach(week => {
+      statusMap[week.week] = {
+        published: true,
+        publishedAt: week.publishedAt,
+        publishedBy: week.publishedBy
+      };
+    });
+
+    res.json({ publishedWeeks: statusMap });
+  } catch (err) {
+    console.error('Error fetching published status:', err);
+    res.status(500).json({ error: 'Failed to fetch published status', details: err.message });
+  }
+});
+
+// Publish a week's awards
+app.post('/api/awards/publish', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    const { year, week, publishedBy } = req.body;
+
+    if (!year || !week || !publishedBy) {
+      return res.status(400).json({ error: 'Year, week, and publishedBy are required' });
+    }
+
+    // Check if the week has concluded
+    if (!isWeekComplete(week)) {
+      return res.status(400).json({ error: 'Week must be completed before publishing' });
+    }
+
+    // Check if week already exists in awardsData
+    const existingWeek = await mainDb.collection('awardsData').findOne({
+      year: parseInt(year),
+      week: week
+    });
+
+    const now = new Date();
+    
+    if (existingWeek) {
+      // Update existing record
+      await mainDb.collection('awardsData').updateOne(
+        { year: parseInt(year), week: week },
+        { 
+          $set: { 
+            published: true, 
+            publishedAt: now, 
+            publishedBy: publishedBy,
+            updatedAt: now
+          }
+        }
+      );
+    } else {
+      // Create new record
+      await mainDb.collection('awardsData').insertOne({
+        year: parseInt(year),
+        week: week,
+        published: true,
+        publishedAt: now,
+        publishedBy: publishedBy,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    res.json({ 
+      message: 'Week published successfully',
+      publishedAt: now,
+      publishedBy: publishedBy
+    });
+  } catch (err) {
+    console.error('Error publishing week:', err);
+    res.status(500).json({ error: 'Failed to publish week', details: err.message });
+  }
+});
+
+// Unpublish a week's awards
+app.post('/api/awards/unpublish', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    const { year, week } = req.body;
+
+    if (!year || !week) {
+      return res.status(400).json({ error: 'Year and week are required' });
+    }
+
+    const result = await mainDb.collection('awardsData').updateOne(
+      { year: parseInt(year), week: week },
+      { 
+        $set: { 
+          published: false, 
+          unpublishedAt: new Date(),
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Week not found in awards data' });
+    }
+
+    res.json({ message: 'Week unpublished successfully' });
+  } catch (err) {
+    console.error('Error unpublishing week:', err);
+    res.status(500).json({ error: 'Failed to unpublish week', details: err.message });
   }
 });

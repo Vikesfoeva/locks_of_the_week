@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { QuestionMarkCircleIcon, ArrowDownTrayIcon, ChevronUpIcon, ChevronDownIcon, FunnelIcon as FunnelIconOutline } from '@heroicons/react/24/outline';
+import { QuestionMarkCircleIcon, ArrowDownTrayIcon, ChevronUpIcon, ChevronDownIcon, FunnelIcon as FunnelIconOutline, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid } from '@heroicons/react/24/solid';
 import * as XLSX from 'xlsx';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 import FilterModal from '../components/FilterModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const Awards = () => {
+  const { currentUser } = useAuth();
   const [awards, setAwards] = useState([]);
   const [availableWeeks, setAvailableWeeks] = useState([]);
   const [selectedWeek, setSelectedWeek] = useState(null);
@@ -22,6 +24,11 @@ const Awards = () => {
   const [summaryViewMode, setSummaryViewMode] = useState('table'); // 'table' or 'cards'
   const [isMobile, setIsMobile] = useState(false);
   const isInitialMount = useRef(true);
+
+  // Publishing system state
+  const [publishedWeeks, setPublishedWeeks] = useState({});
+  const [publishingLoading, setPublishingLoading] = useState(false);
+  const [publishingError, setPublishingError] = useState(null);
 
   // Sorting state - using established pattern
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -150,14 +157,26 @@ const Awards = () => {
         
         setAvailableWeeks(standingsData.availableWeeks);
 
-        // 3. Find the most recently completed week (has awards calculated)
+        // 3. Fetch published status for all users
+        const publishedWeeksData = await fetch(`/api/awards/published-status?year=${year}`).then(res => res.json());
+        const publishedWeeksMap = publishedWeeksData.publishedWeeks || {};
+        setPublishedWeeks(publishedWeeksMap);
+
+        // 4. Find the most recently completed week (has awards calculated)
         let mostRecentCompletedWeek = null;
         if (standingsData.availableWeeks && standingsData.availableWeeks.length > 0) {
+          // For non-admin users, filter to only published weeks
+          let weeksToCheck = standingsData.availableWeeks;
+          if (currentUser?.role !== 'admin') {
+            weeksToCheck = standingsData.availableWeeks.filter(week => publishedWeeksMap[week]);
+          }
+          
           // Check weeks from most recent to oldest
-          for (let i = standingsData.availableWeeks.length - 1; i >= 0; i--) {
-            const weekToCheck = standingsData.availableWeeks[i];
+          for (let i = weeksToCheck.length - 1; i >= 0; i--) {
+            const weekToCheck = weeksToCheck[i];
             try {
-              const awardsResponse = await fetch(`/api/awards?year=${year}&week=${weekToCheck}`);
+              const isAdmin = currentUser?.role === 'admin';
+              const awardsResponse = await fetch(`/api/awards?year=${year}&week=${weekToCheck}&isAdmin=${isAdmin}`);
               if (awardsResponse.ok) {
                 const awardsData = await awardsResponse.json();
                 // If week is complete and has awards, use this week
@@ -178,9 +197,14 @@ const Awards = () => {
           
           // If no completed weeks found, default to most recent week
           if (!mostRecentCompletedWeek) {
-            mostRecentCompletedWeek = standingsData.availableWeeks[standingsData.availableWeeks.length - 1];
-            // Still try to fetch awards for UI feedback
-            await fetchAwards(year, mostRecentCompletedWeek);
+            if (weeksToCheck.length > 0) {
+              mostRecentCompletedWeek = weeksToCheck[weeksToCheck.length - 1];
+              // Still try to fetch awards for UI feedback
+              await fetchAwards(year, mostRecentCompletedWeek);
+            } else {
+              // No weeks available for this user type
+              mostRecentCompletedWeek = null;
+            }
           }
         }
 
@@ -209,7 +233,8 @@ const Awards = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/awards?year=${year}&week=${week}`);
+      const isAdmin = currentUser?.role === 'admin';
+      const response = await fetch(`/api/awards?year=${year}&week=${week}&isAdmin=${isAdmin}`);
       if (!response.ok) {
         throw new Error('Failed to fetch awards');
       }
@@ -420,6 +445,73 @@ const Awards = () => {
     }
   };
 
+  // Publishing system functions
+  const fetchPublishedStatus = async (year) => {
+    try {
+      const response = await fetch(`/api/awards/published-status?year=${year}`);
+      if (!response.ok) throw new Error('Failed to fetch published status');
+      const data = await response.json();
+      setPublishedWeeks(data.publishedWeeks || {});
+    } catch (err) {
+      console.error('Error fetching published status:', err);
+    }
+  };
+
+  const handlePublishWeek = async () => {
+    if (!activeYear || !selectedWeek) return;
+    
+    setPublishingLoading(true);
+    setPublishingError(null);
+    try {
+      const response = await fetch('/api/awards/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: activeYear,
+          week: selectedWeek,
+          publishedBy: currentUser?.firebaseUid
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to publish week');
+      
+      // Refresh published status
+      await fetchPublishedStatus(activeYear);
+    } catch (err) {
+      console.error('Error publishing week:', err);
+      setPublishingError(err.message);
+    } finally {
+      setPublishingLoading(false);
+    }
+  };
+
+  const handleUnpublishWeek = async () => {
+    if (!activeYear || !selectedWeek) return;
+    
+    setPublishingLoading(true);
+    setPublishingError(null);
+    try {
+      const response = await fetch('/api/awards/unpublish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: activeYear,
+          week: selectedWeek
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to unpublish week');
+      
+      // Refresh published status
+      await fetchPublishedStatus(activeYear);
+    } catch (err) {
+      console.error('Error unpublishing week:', err);
+      setPublishingError(err.message);
+    } finally {
+      setPublishingLoading(false);
+    }
+  };
+
   // Sorting is now handled directly via setSortConfig calls in the UI components
 
   // Reset filters function - following established pattern
@@ -519,7 +611,7 @@ const Awards = () => {
         {/* Left side - Info, Toggle, and Export */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 md:gap-4">
           <span className="text-sm md:text-base text-gray-700 font-medium">
-            Admin Only
+            {currentUser?.role === 'admin' ? 'Admin Controls' : 'Awards'}
           </span>
           <div className="flex flex-wrap gap-2">
             <button
@@ -543,7 +635,7 @@ const Awards = () => {
                 <span className="md:hidden">Export</span>
               </button>
             )}
-            {weekComplete && !showSummary && (
+            {weekComplete && !showSummary && currentUser?.role === 'admin' && (
               <button
                 onClick={handleManualAwardToggle}
                 className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
@@ -554,6 +646,30 @@ const Awards = () => {
               >
                 <span className="hidden md:inline">{showManualAwardSelector ? 'Hide' : 'Select'} Unusual Lock</span>
                 <span className="md:hidden">{showManualAwardSelector ? 'Hide' : 'Select'}</span>
+              </button>
+            )}
+            {currentUser?.role === 'admin' && !showSummary && selectedWeek && (
+              <button
+                onClick={publishedWeeks[selectedWeek] ? handleUnpublishWeek : handlePublishWeek}
+                disabled={publishingLoading || (!weekComplete && !publishedWeeks[selectedWeek])}
+                className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  publishedWeeks[selectedWeek] 
+                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
+              >
+                <span className="hidden md:inline">
+                  {publishingLoading 
+                    ? (publishedWeeks[selectedWeek] ? 'Unpublishing...' : 'Publishing...') 
+                    : (publishedWeeks[selectedWeek] ? 'Unpublish' : 'Publish')
+                  }
+                </span>
+                <span className="md:hidden">
+                  {publishingLoading 
+                    ? (publishedWeeks[selectedWeek] ? 'Unpublishing...' : 'Publishing...') 
+                    : (publishedWeeks[selectedWeek] ? 'Unpublish' : 'Publish')
+                  }
+                </span>
               </button>
             )}
           </div>
@@ -569,16 +685,29 @@ const Awards = () => {
                 value={selectedWeek || ''}
                 onChange={e => setSelectedWeek(e.target.value)}
                 className="border border-gray-300 rounded-lg px-2 py-1 md:px-3 md:py-2 text-xs md:text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200 min-w-0"
-                disabled={availableWeeks.length === 0}
+                disabled={(() => {
+                  let weeksToShow = availableWeeks;
+                  if (currentUser?.role !== 'admin') {
+                    weeksToShow = availableWeeks.filter(week => publishedWeeks[week]);
+                  }
+                  return weeksToShow.length === 0;
+                })()}
               >
                 {(() => {
-                  const reversedWeeks = availableWeeks.slice().reverse();
+                  // Filter weeks based on user role and published status
+                  let weeksToShow = availableWeeks;
+                  if (currentUser?.role !== 'admin') {
+                    weeksToShow = availableWeeks.filter(week => publishedWeeks[week]);
+                  }
+                  
+                  const reversedWeeks = weeksToShow.slice().reverse();
                   return reversedWeeks.map((week, reversedIndex) => {
                     const parts = week.split('_');
                     // parts[1] is year, parts[2] is month, parts[3] is day
                     const date = new Date(parts[1], parts[2] - 1, parts[3]);
                     const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
-                    const originalIndex = availableWeeks.length - 1 - reversedIndex;
+                    // Find the original index in the full availableWeeks array
+                    const originalIndex = availableWeeks.indexOf(week);
                     const isCurrentWeek = reversedIndex === 0; // First item after reverse is most recent
                     
                     return [
@@ -603,8 +732,15 @@ const Awards = () => {
         )}
       </div>
 
+      {/* Publishing Error Display */}
+      {publishingError && currentUser?.role === 'admin' && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {publishingError}
+        </div>
+      )}
+
       {/* Manual Award Selector */}
-      {showManualAwardSelector && !showSummary && (
+      {showManualAwardSelector && !showSummary && currentUser?.role === 'admin' && (
         <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
           <h3 className="text-lg font-bold text-purple-800 mb-3">Select Unusual Lock Winner</h3>
           
@@ -677,6 +813,7 @@ const Awards = () => {
           )}
         </div>
       )}
+
 
       {/* Main Content Area */}
       {showSummary ? (
@@ -1009,6 +1146,16 @@ const Awards = () => {
                 <>
                   Awards will be calculated after all games in the week have concluded.<br/>
                   The week ends at 4am Tuesday Eastern Time.
+                </>
+              ) : currentUser?.role !== 'admin' && weekMessage?.includes('not been published') ? (
+                <>
+                  This week has not been published yet.<br/>
+                  Only published weeks are visible to non-admin users.
+                </>
+              ) : currentUser?.role !== 'admin' && availableWeeks.length > 0 && Object.keys(publishedWeeks).length === 0 ? (
+                <>
+                  No weeks have been published yet.<br/>
+                  Awards will become available once an administrator publishes completed weeks.
                 </>
               ) : (
                 'Awards are calculated after games are completed and results are processed.'

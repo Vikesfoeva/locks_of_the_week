@@ -70,7 +70,7 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/awards" element={
-            <PrivateRoute adminOnly>
+            <PrivateRoute>
               <ProfileSetupGuard>
                 <Awards />
               </ProfileSetupGuard>

@@ -19,8 +19,10 @@ export default function Layout() {
   const [error, setError] = useState('')
 
   const adminNav = currentUser?.role === 'admin'
-    ? [{ name: 'Admin', href: '/admin' }, { name: 'Awards', href: '/awards' }]
+    ? [{ name: 'Admin', href: '/admin' }]
     : [];
+
+  const awardsNav = [{ name: 'Awards', href: '/awards' }];
 
   async function handleLogout() {
     setError('')
@@ -44,7 +46,7 @@ export default function Layout() {
                     <span className="text-2xl font-bold text-primary-600">Locks of the Week</span>
                   </div>
                   <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    {[...navigation, ...adminNav].map((item) => {
+                    {[...navigation, ...awardsNav, ...adminNav].map((item) => {
                       const isActive = location.pathname === item.href || (item.href !== '/' && location.pathname.startsWith(item.href));
                       return (
                         <Link
@@ -122,7 +124,7 @@ export default function Layout() {
 
             <Disclosure.Panel className="sm:hidden">
               <div className="space-y-1 pb-3 pt-2">
-                {[...navigation, ...adminNav].map((item) => {
+                {[...navigation, ...awardsNav, ...adminNav].map((item) => {
                   const isActive = location.pathname === item.href || (item.href !== '/' && location.pathname.startsWith(item.href));
                   return (
                     <Disclosure.Button
