@@ -8,8 +8,8 @@ npm run build
 echo "Deploying frontend to Firebase..."
 firebase deploy --only hosting
 
-# Deploy backend to Google Cloud Run with secrets
-echo "Deploying backend to Google Cloud Run with secrets..."
+# Deploy backend to Google Cloud Run
+echo "Deploying backend to Google Cloud Run..."
 cd backend
 gcloud run deploy locks-backend \
   --source . \
@@ -17,6 +17,6 @@ gcloud run deploy locks-backend \
   --region us-east1 \
   --allow-unauthenticated \
   --port 5001 \
-  --set-secrets FIREBASE_PROJECT_ID=firebase-project-id:latest,FIREBASE_CLIENT_EMAIL=FIREBASE_CLIENT_EMAIL:latest,FIREBASE_PRIVATE_KEY=FIREBASE_PRIVATE_KEY:latest
+  --set-env-vars FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY"
 
 echo "Deployment complete!"

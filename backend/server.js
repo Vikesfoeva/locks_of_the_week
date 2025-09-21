@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
+const admin = require('firebase-admin');
 
 // Utility function to ensure Venmo handle starts with @
 function formatVenmoHandle(venmoHandle) {
@@ -59,6 +60,32 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  // Try to use service account file first, then fall back to environment variables
+  try {
+    const serviceAccount = require('./firebase-service-account.json');
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin SDK initialized with service account file');
+  } catch (error) {
+    // Fall back to environment variables
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          project_id: process.env.FIREBASE_PROJECT_ID,
+          client_email: process.env.FIREBASE_CLIENT_EMAIL,
+          private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+        })
+      });
+      console.log('Firebase Admin SDK initialized with environment variables');
+    } else {
+      console.log('Firebase Admin SDK not configured - secure endpoints will be disabled');
+    }
+  }
+}
+
 const app = express();
 
 // Use Helmet to set various security headers
@@ -72,6 +99,30 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
+
+// Authentication middleware for secure endpoints
+const authenticateUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    console.log('Auth header:', authHeader ? 'Present' : 'Missing');
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('No valid authorization header found');
+      return res.status(401).json({ error: 'No valid authorization header found' });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    console.log('ID Token length:', idToken ? idToken.length : 'No token');
+    
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log('Token verified for user:', decodedToken.uid);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error.message);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -3140,5 +3191,120 @@ app.post('/api/awards/unpublish', async (req, res) => {
   } catch (err) {
     console.error('Error unpublishing week:', err);
     res.status(500).json({ error: 'Failed to unpublish week', details: err.message });
+  }
+});
+
+// Secure endpoint to check if current user has completed all 3 picks for a specific week
+app.get('/api/picks/check-completion', authenticateUser, async (req, res) => {
+  try {
+    const { collectionName, year } = req.query;
+    const firebaseUid = req.user.uid; // Get from authenticated user
+
+    if (!collectionName || !year) {
+      return res.status(400).json({ error: 'collectionName and year are required' });
+    }
+
+    // Validate collectionName format
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    if (!oddsPattern.test(collectionName)) {
+      return res.status(400).json({ error: 'Invalid collectionName format.' });
+    }
+
+    const mainDb = await connectToDb();
+    const picksCollection = getPicksCollectionName(year);
+    
+    // Check if user has submitted all 3 picks for this week
+    const userPicks = await mainDb.collection(picksCollection).find({
+      userId: firebaseUid,
+      collectionName: collectionName
+    }).toArray();
+
+    const hasCompletePicks = userPicks.length >= 3;
+    
+    res.json({ 
+      hasCompletePicks,
+      picksCount: userPicks.length,
+      requiredPicks: 3
+    });
+  } catch (err) {
+    console.error('Error checking picks completion:', err);
+    res.status(500).json({ error: 'Failed to check picks completion', details: err.message });
+  }
+});
+
+// Secure endpoint to fetch another user's picks (only if current user has completed all picks)
+app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
+  try {
+    const { targetUserFirebaseUid, collectionName, year } = req.query;
+    const currentUserFirebaseUid = req.user.uid; // Get from authenticated user
+
+    if (!targetUserFirebaseUid || !collectionName || !year) {
+      return res.status(400).json({ error: 'targetUserFirebaseUid, collectionName, and year are required' });
+    }
+
+    // Validate collectionName format
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    if (!oddsPattern.test(collectionName)) {
+      return res.status(400).json({ error: 'Invalid collectionName format.' });
+    }
+
+    const mainDb = await connectToDb();
+    const picksCollection = getPicksCollectionName(year);
+    
+    // First, verify that the current user has completed all 3 picks for this week
+    const currentUserPicks = await mainDb.collection(picksCollection).find({
+      userId: currentUserFirebaseUid,
+      collectionName: collectionName
+    }).toArray();
+
+    if (currentUserPicks.length < 3) {
+      return res.status(403).json({ 
+        error: 'Access denied: You must complete all 3 picks for this week before viewing other users\' picks',
+        hasCompletePicks: false,
+        picksCount: currentUserPicks.length,
+        requiredPicks: 3
+      });
+    }
+
+    // If current user has completed picks, fetch the target user's picks
+    const targetUserPicks = await mainDb.collection(picksCollection).find({
+      userId: targetUserFirebaseUid,
+      collectionName: collectionName
+    }).toArray();
+
+    // Fetch games for this collection to enrich the picks
+    const dbName = `cy_${year}`;
+    const dbClient = await client.connect();
+    const db = dbClient.db(dbName);
+    const games = await db.collection(collectionName).find({}).toArray();
+    
+    // Build a map for quick lookup using the game's MongoDB _id
+    const gameMap = {};
+    for (const game of games) {
+      if (game._id) {
+        gameMap[game._id.toString()] = game;
+      }
+    }
+
+    // Attach game details to each pick
+    const enrichedPicks = targetUserPicks.map(pick => {
+      const game = pick.gameId ? gameMap[pick.gameId] : null;
+      return {
+        ...pick,
+        gameDetails: game, 
+        homeScore: game ? game.homeScore : null,
+        awayScore: game ? game.awayScore : null,
+        status: game ? game.status : null,
+      };
+    });
+
+    res.json({
+      picks: enrichedPicks,
+      hasCompletePicks: true,
+      currentUserPicksCount: currentUserPicks.length
+    });
+  } catch (err) {
+    console.error('Error fetching secure user picks:', err);
+    res.status(500).json({ error: 'Failed to fetch user picks', details: err.message });
   }
 });
