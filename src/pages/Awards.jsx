@@ -19,6 +19,8 @@ const Awards = () => {
   const [awardsSummary, setAwardsSummary] = useState({});
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
+  const [summaryViewMode, setSummaryViewMode] = useState('table'); // 'table' or 'cards'
+  const [isMobile, setIsMobile] = useState(false);
   const isInitialMount = useRef(true);
 
   // Sorting state - using established pattern
@@ -110,6 +112,24 @@ const Awards = () => {
     'Diff': 'Diff',
     'Total': 'Total'
   };
+
+  // Mobile detection effect
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768; // md breakpoint
+      setIsMobile(mobile);
+      if (mobile) {
+        setSummaryViewMode('cards');
+      }
+    };
+
+    // Check on mount
+    checkMobile();
+
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -483,7 +503,7 @@ const Awards = () => {
   if (error) return <div className="text-center p-8 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="mx-auto px-1 py-2 md:px-2 md:py-3">
+    <div className="mx-auto px-2 py-2 md:px-4 md:py-3">
       {/* Title and Description */}
       <div className="text-center mb-3 md:mb-4">
         <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1">
@@ -494,47 +514,49 @@ const Awards = () => {
         </p>
       </div>
 
-      {/* Controls Row */}
-      <div className="flex flex-row items-center justify-between mb-3 md:mb-4 gap-2 md:gap-4">
+      {/* Controls Row - Responsive Layout */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 md:mb-4 gap-3 md:gap-4">
         {/* Left side - Info, Toggle, and Export */}
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 md:gap-4">
           <span className="text-sm md:text-base text-gray-700 font-medium">
             Admin Only
           </span>
-          <button
-            onClick={toggleSummaryView}
-            className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
-              showSummary 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-            }`}
-          >
-            <span className="hidden md:inline">{showSummary ? 'Show Weekly View' : 'Show Summary Table'}</span>
-            <span className="md:hidden">{showSummary ? 'Weekly' : 'Summary'}</span>
-          </button>
-          {Object.keys(awards).length > 0 && weekComplete && !showSummary && (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={exportToExcel}
-              className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200"
-            >
-              <ArrowDownTrayIcon className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden md:inline">Export to Excel</span>
-              <span className="md:hidden">Export</span>
-            </button>
-          )}
-          {weekComplete && !showSummary && (
-            <button
-              onClick={handleManualAwardToggle}
+              onClick={toggleSummaryView}
               className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
-                showManualAwardSelector 
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                  : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                showSummary 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
               }`}
             >
-              <span className="hidden md:inline">{showManualAwardSelector ? 'Hide' : 'Select'} Unusual Lock</span>
-              <span className="md:hidden">{showManualAwardSelector ? 'Hide' : 'Select'}</span>
+              <span className="hidden md:inline">{showSummary ? 'Show Weekly View' : 'Show Summary Table'}</span>
+              <span className="md:hidden">{showSummary ? 'Weekly' : 'Summary'}</span>
             </button>
-          )}
+            {Object.keys(awards).length > 0 && weekComplete && !showSummary && (
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200"
+              >
+                <ArrowDownTrayIcon className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden md:inline">Export to Excel</span>
+                <span className="md:hidden">Export</span>
+              </button>
+            )}
+            {weekComplete && !showSummary && (
+              <button
+                onClick={handleManualAwardToggle}
+                className={`flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 ${
+                  showManualAwardSelector 
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                    : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                }`}
+              >
+                <span className="hidden md:inline">{showManualAwardSelector ? 'Hide' : 'Select'} Unusual Lock</span>
+                <span className="md:hidden">{showManualAwardSelector ? 'Hide' : 'Select'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right side - Week Selector */}
@@ -542,42 +564,42 @@ const Awards = () => {
           <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
             <div className="flex items-center gap-1">
               <label htmlFor="week-select" className="text-xs md:text-sm font-medium text-gray-700 whitespace-nowrap">Week:</label>
-            <select
-              id="week-select"
-              value={selectedWeek || ''}
-              onChange={e => setSelectedWeek(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 md:px-3 md:py-2 text-xs md:text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200 min-w-0"
-              disabled={availableWeeks.length === 0}
-            >
-              {(() => {
-                const reversedWeeks = availableWeeks.slice().reverse();
-                return reversedWeeks.map((week, reversedIndex) => {
-                  const parts = week.split('_');
-                  // parts[1] is year, parts[2] is month, parts[3] is day
-                  const date = new Date(parts[1], parts[2] - 1, parts[3]);
-                  const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
-                  const originalIndex = availableWeeks.length - 1 - reversedIndex;
-                  const isCurrentWeek = reversedIndex === 0; // First item after reverse is most recent
-                  
-                  return [
-                    // Add separator after current week
-                    reversedIndex === 1 && <option key="separator" disabled style={{ borderTop: '1px solid #d1d5db', color: '#6b7280', fontStyle: 'italic' }}>— Previous Weeks —</option>,
-                    <option 
-                      key={week} 
-                      value={week}
-                      style={{
-                        color: isCurrentWeek ? '#111827' : '#6b7280',
-                        fontWeight: isCurrentWeek ? '600' : '400'
-                      }}
-                    >
-                      Week {originalIndex + 1} - {formattedDate}
-                    </option>
-                  ].filter(Boolean);
-                }).flat();
-              })()}
-            </select>
+              <select
+                id="week-select"
+                value={selectedWeek || ''}
+                onChange={e => setSelectedWeek(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 md:px-3 md:py-2 text-xs md:text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors duration-200 min-w-0"
+                disabled={availableWeeks.length === 0}
+              >
+                {(() => {
+                  const reversedWeeks = availableWeeks.slice().reverse();
+                  return reversedWeeks.map((week, reversedIndex) => {
+                    const parts = week.split('_');
+                    // parts[1] is year, parts[2] is month, parts[3] is day
+                    const date = new Date(parts[1], parts[2] - 1, parts[3]);
+                    const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
+                    const originalIndex = availableWeeks.length - 1 - reversedIndex;
+                    const isCurrentWeek = reversedIndex === 0; // First item after reverse is most recent
+                    
+                    return [
+                      // Add separator after current week
+                      reversedIndex === 1 && <option key="separator" disabled style={{ borderTop: '1px solid #d1d5db', color: '#6b7280', fontStyle: 'italic' }}>— Previous Weeks —</option>,
+                      <option 
+                        key={week} 
+                        value={week}
+                        style={{
+                          color: isCurrentWeek ? '#111827' : '#6b7280',
+                          fontWeight: isCurrentWeek ? '600' : '400'
+                        }}
+                      >
+                        Week {originalIndex + 1} - {formattedDate}
+                      </option>
+                    ].filter(Boolean);
+                  }).flat();
+                })()}
+              </select>
+            </div>
           </div>
-        </div>
         )}
       </div>
 
@@ -670,17 +692,48 @@ const Awards = () => {
             </div>
           ) : (
             <>
-              <div className="p-3 pb-0 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-800">Awards Summary - Total Wins by Player</h3>
-                <button
-                  onClick={handleResetFilters}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-1"
-                >
-                  Reset Filters
-                </button>
+              <div className="p-3 md:p-4 pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 className="text-base md:text-lg font-bold text-gray-800">Awards Summary - Total Wins by Player</h3>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* View Mode Toggle - Hidden on mobile */}
+                  {!isMobile && (
+                    <div className="flex bg-gray-100 rounded-lg p-0.5">
+                      <button
+                        className={`px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200 ${
+                          summaryViewMode === 'table'
+                            ? 'bg-white text-blue-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                        onClick={() => setSummaryViewMode('table')}
+                      >
+                        Table View
+                      </button>
+                      <button
+                        className={`px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200 ${
+                          summaryViewMode === 'cards'
+                            ? 'bg-white text-blue-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                        onClick={() => setSummaryViewMode('cards')}
+                      >
+                        Card View
+                      </button>
+                    </div>
+                  )}
+                  {/* Reset Filters - Hidden on mobile */}
+                  {!isMobile && (
+                    <button
+                      onClick={handleResetFilters}
+                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-1 self-start sm:self-auto"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="w-full max-h-[70vh] overflow-y-auto overflow-x-hidden">
-                <table className="w-full table-fixed border-collapse">
+                {summaryViewMode === 'table' ? (
+                  <table className="w-full table-fixed border-collapse">
                   <thead className="sticky top-0 z-20">
                     <tr className="bg-gray-50">
                       <th className="px-2 py-2 text-left text-sm font-semibold text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-30 w-auto">
@@ -845,6 +898,101 @@ const Awards = () => {
                     }
                   </tbody>
                 </table>
+                ) : (
+                  /* Card View for Mobile */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+                    {getSortedData.map((userName, userIndex) => {
+                      const userData = awardsSummary;
+                      const individualAwards = Object.keys(awardsSummary).filter(awardName => 
+                        !['Total Good', 'Total Bad', 'Diff', 'Total'].includes(awardName)
+                      );
+                      const summaryAwards = ['Total Good', 'Total Bad', 'Diff', 'Total'];
+                      
+                      return (
+                        <div key={userName} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-bold text-gray-800 text-base">{userName}</h3>
+                            <div className="flex items-center gap-2">
+                              {/* Total Badge */}
+                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${
+                                (userData['Total']?.[userName] || 0) > 0 
+                                  ? 'bg-indigo-100 text-indigo-800' 
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                Total: {userData['Total']?.[userName] || 0}
+                              </span>
+                              {/* Diff Badge */}
+                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${
+                                (userData['Diff']?.[userName] || 0) > 0 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : (userData['Diff']?.[userName] || 0) < 0 
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                Diff: {userData['Diff']?.[userName] > 0 ? `+${userData['Diff'][userName]}` : userData['Diff']?.[userName] || 0}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Individual Awards */}
+                          <div className="mb-3">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Individual Awards</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              {individualAwards.map(awardName => {
+                                const value = userData[awardName]?.[userName] || 0;
+                                return (
+                                  <div key={awardName} className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-600 truncate" title={awardName}>
+                                      {awardAbbreviations[awardName] || awardName}:
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                      value > 0 
+                                        ? 'bg-blue-100 text-blue-800' 
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {value}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Summary Awards */}
+                          <div className="pt-2 border-t border-gray-200">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Summary</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              {summaryAwards.map(awardName => {
+                                const value = userData[awardName]?.[userName] || 0;
+                                const isDiff = awardName === 'Diff';
+                                const isTotalGood = awardName === 'Total Good';
+                                const isTotalBad = awardName === 'Total Bad';
+                                const isTotal = awardName === 'Total';
+                                
+                                return (
+                                  <div key={awardName} className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-600">{awardAbbreviations[awardName]}:</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                                      isDiff 
+                                        ? value > 0 ? 'bg-green-100 text-green-800' : value < 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500'
+                                        : isTotalGood
+                                        ? value > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'
+                                        : isTotalBad
+                                        ? value > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500'
+                                        : value > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {isDiff && value > 0 ? `+${value}` : value}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -869,8 +1017,8 @@ const Awards = () => {
           </div>
         ) : (
         <div className="shadow-lg rounded-xl border border-gray-200 overflow-x-auto">
-          {/* Awards Cards Layout - Better for mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+          {/* Awards Cards Layout - Optimized for mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 p-3 md:p-4">
             {Object.entries(awardDefinitions)
               .filter(([awardName]) => awardName !== 'Pack' && !['Total Good', 'Total Bad', 'Diff', 'Total'].includes(awardName)) // Remove Pack and summary columns from cards
               .sort(([awardNameA], [awardNameB]) => {
@@ -904,12 +1052,12 @@ const Awards = () => {
               const isRightColumn = index % 3 === 2; // Third column in 3-column grid
               
               return (
-                <div key={awardName} className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 text-sm">{awardName}</h3>
-                    <div className="group relative">
+                <div key={awardName} className="bg-white rounded-lg border border-gray-200 p-3 md:p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="font-bold text-gray-800 text-sm md:text-base leading-tight">{awardName}</h3>
+                    <div className="group relative flex-shrink-0">
                       <QuestionMarkCircleIcon className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                      <div className={`absolute top-full mt-2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-normal w-72 z-[9999] pointer-events-none ${
+                      <div className={`absolute top-full mt-2 px-3 py-2 bg-gray-900 text-white text-xs md:text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-normal w-64 md:w-72 z-[9999] pointer-events-none ${
                         isLeftColumn ? 'left-0' : isRightColumn ? 'right-0' : 'left-1/2 transform -translate-x-1/2'
                       }`}>
                         <div className={`absolute -top-1 w-2 h-2 bg-gray-900 rotate-45 ${
@@ -921,16 +1069,16 @@ const Awards = () => {
                   </div>
                   
                   {awardWinners.length === 0 ? (
-                    <div className="text-gray-400 text-sm italic">No winners this week</div>
+                    <div className="text-gray-400 text-sm md:text-base italic">No winners this week</div>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2 md:space-y-1.5">
                       {displayedWinners.map((gameGroup, index) => (
-                        <div key={index} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-md p-2.5 border border-purple-200">
-                          <div className="font-semibold text-purple-800 text-sm mb-1.5">
+                        <div key={index} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-md p-3 md:p-2.5 border border-purple-200">
+                          <div className="font-semibold text-purple-800 text-sm md:text-sm mb-2 md:mb-1.5 leading-tight">
                             {gameGroup.gameDetails} - {gameGroup.pickDetails}
                           </div>
                           {gameGroup.score && (
-                            <div className="text-xs text-gray-700 mt-1 font-medium">
+                            <div className="text-xs md:text-xs text-gray-700 mt-1 font-medium">
                               Final Score: {gameGroup.score}
                             </div>
                           )}
@@ -961,13 +1109,13 @@ const Awards = () => {
                           )}
                           
                           {/* Winners List */}
-                          <div className="mt-1.5 pt-1.5 border-t border-purple-200">
-                            <div className="text-xs text-gray-600 mb-1">Winners:</div>
+                          <div className="mt-2 md:mt-1.5 pt-2 md:pt-1.5 border-t border-purple-200">
+                            <div className="text-xs text-gray-600 mb-1.5 md:mb-1">Winners:</div>
                             <div className="flex flex-wrap gap-1">
                               {gameGroup.winners
                                 .sort((a, b) => a.userName.localeCompare(b.userName))
                                 .map((winner, winnerIndex) => (
-                                  <span key={winnerIndex} className="inline-block bg-white px-1.5 py-0.5 rounded text-xs text-purple-700 border border-purple-300">
+                                  <span key={winnerIndex} className="inline-block bg-white px-2 py-1 md:px-1.5 md:py-0.5 rounded text-xs text-purple-700 border border-purple-300">
                                     {winner.userName}
                                   </span>
                                 ))}
@@ -976,13 +1124,13 @@ const Awards = () => {
 
                           {/* Pack Members - Show after winners */}
                           {gameGroup.packMembers && gameGroup.packMembers.length > 0 && (
-                            <div className="mt-1.5 pt-1.5 border-t border-red-200">
-                              <div className="text-xs text-gray-600 mb-1">Pack:</div>
+                            <div className="mt-2 md:mt-1.5 pt-2 md:pt-1.5 border-t border-red-200">
+                              <div className="text-xs text-gray-600 mb-1.5 md:mb-1">Pack:</div>
                               <div className="flex flex-wrap gap-1">
                                 {gameGroup.packMembers
                                   .sort((a, b) => a.userName.localeCompare(b.userName))
                                   .map((packMember, packIndex) => (
-                                    <span key={packIndex} className="inline-block bg-red-50 px-1.5 py-0.5 rounded text-xs text-red-700 border border-red-200" title={packMember.pickDetails}>
+                                    <span key={packIndex} className="inline-block bg-red-50 px-2 py-1 md:px-1.5 md:py-0.5 rounded text-xs text-red-700 border border-red-200" title={packMember.pickDetails}>
                                       {packMember.userName}
                                     </span>
                                   ))}
@@ -995,7 +1143,7 @@ const Awards = () => {
                       {hasMore && (
                         <button
                           onClick={() => toggleExpanded(awardName)}
-                          className="w-full mt-1.5 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors duration-200 flex items-center justify-center gap-1"
+                          className="w-full mt-2 md:mt-1.5 px-3 py-2 md:px-2 md:py-1.5 text-xs md:text-xs text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors duration-200 flex items-center justify-center gap-1"
                         >
                           {isExpanded ? (
                             <>
