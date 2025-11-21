@@ -10,17 +10,17 @@ function formatVenmoHandle(venmoHandle) {
   if (!venmoHandle || typeof venmoHandle !== 'string') {
     return '';
   }
-  
+
   const trimmed = venmoHandle.trim();
   if (!trimmed) {
     return '';
   }
-  
+
   // If it already starts with @, return as is
   if (trimmed.startsWith('@')) {
     return trimmed;
   }
-  
+
   // Otherwise, add @ prefix
   return `@${trimmed}`;
 }
@@ -39,12 +39,12 @@ const allowedOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
-  'http://localhost:5177', 
-  'http://localhost:5178', 
+  'http://localhost:5177',
+  'http://localhost:5178',
 ];
 
 
-const corsOptions = { 
+const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
@@ -105,7 +105,7 @@ const authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     console.log('Auth header:', authHeader ? 'Present' : 'Missing');
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log('No valid authorization header found');
       return res.status(401).json({ error: 'No valid authorization header found' });
@@ -113,7 +113,7 @@ const authenticateUser = async (req, res, next) => {
 
     const idToken = authHeader.split('Bearer ')[1];
     console.log('ID Token length:', idToken ? idToken.length : 'No token');
-    
+
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     console.log('Token verified for user:', decodedToken.uid);
     req.user = decodedToken;
@@ -204,10 +204,10 @@ app.get('/api/debug/users', async (req, res) => {
   try {
     const db = await connectToDb();
     const users = await db.collection('users').find({}).toArray();
-    res.json({ 
+    res.json({
       message: 'Database connection successful',
       userCount: users.length,
-      users: users 
+      users: users
     });
   } catch (err) {
     console.error('[Backend] Debug error:', err);
@@ -227,7 +227,7 @@ app.get('/api/users', async (req, res) => {
     } else if (firebaseUid) {
       query = { firebaseUid };
     }
-    
+
     // If a specific user is requested, find one. Otherwise, find all.
     if (email || firebaseUid) {
       const user = await db.collection('users').findOne(query);
@@ -261,18 +261,18 @@ app.put('/api/users/:id', async (req, res) => {
     const db = await connectToDb();
     const { id } = req.params;
     const updates = req.body;
-    
+
     // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Invalid user ID format' });
     }
-    
+
     // Remove any fields that shouldn't be updated
     delete updates._id;
     delete updates.email; // Email should not be editable
     delete updates.firebaseUid; // Firebase UID should not be editable
     delete updates.createdAt; // Created timestamp should not be editable
-    
+
     // Validate cell phone number if being updated
     if (updates.cellPhone && updates.cellPhone.trim()) {
       const phoneRegex = /^\d{10}$/;
@@ -283,24 +283,24 @@ app.put('/api/users/:id', async (req, res) => {
       // Store the cleaned phone number
       updates.cellPhone = cleanPhone;
     }
-    
+
     // Format Venmo handle to ensure it starts with @ if being updated
     if (updates.venmoHandle !== undefined) {
       updates.venmoHandle = formatVenmoHandle(updates.venmoHandle);
     }
-    
+
     // Add updatedAt timestamp
     updates.updatedAt = new Date();
-    
+
     const result = await db.collection('users').updateOne(
       { _id: new ObjectId(id) },
       { $set: updates }
     );
-    
+
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({ message: 'User updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -312,20 +312,20 @@ app.delete('/api/users/:id', async (req, res) => {
   try {
     const db = await connectToDb();
     const { id } = req.params;
-    
+
     // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Invalid user ID format' });
     }
-    
+
     const result = await db.collection('users').deleteOne(
       { _id: new ObjectId(id) }
     );
-    
+
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -337,25 +337,25 @@ app.post('/api/whitelist', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
-    
+
     // Normalize email to lowercase for consistent storage
     const normalizedEmail = email.toLowerCase();
-    
+
     // Check if email already exists in whitelist (case-insensitive)
     const existing = await db.collection('whitelist').findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ error: 'Email already whitelisted' });
     }
-    
+
     await db.collection('whitelist').insertOne({
       email: normalizedEmail,
       createdAt: new Date()
     });
-    
+
     res.json({ message: 'Email added to whitelist successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -396,24 +396,24 @@ app.post('/api/users/check-whitelist', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ allowed: false, error: 'Email is required' });
     }
-    
+
     // Normalize email to lowercase for case-insensitive comparison
     const normalizedEmail = email.toLowerCase();
     const exists = await db.collection('whitelist').findOne({ email: normalizedEmail });
     if (!exists) {
       return res.status(403).json({ allowed: false, error: 'Email is not whitelisted' });
     }
-    
+
     // Check if user already exists (case-insensitive)
     const existingUser = await db.collection('users').findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(200).json({ allowed: true, userExists: true });
     }
-    
+
     res.json({ allowed: true, userExists: false });
   } catch (err) {
     console.error('Error in check-whitelist:', err);
@@ -432,7 +432,7 @@ app.post('/api/users', async (req, res) => {
     if (!firebaseUid) {
       return res.status(400).json({ error: 'Firebase UID is required' });
     }
-    
+
     // Validate cell phone number if provided
     let cleanPhone = '';
     if (cellPhone && cellPhone.trim()) {
@@ -442,12 +442,12 @@ app.post('/api/users', async (req, res) => {
         return res.status(400).json({ error: 'Cell phone number must be a valid 10-digit number' });
       }
     }
-    
+
     // Allow creation without Venmo ID - users will be redirected to setup if missing
     // The frontend will handle the requirement and redirect appropriately
     // Normalize email to lowercase for consistent storage and comparison
     const normalizedEmail = email.toLowerCase();
-    
+
     // Check if user already exists (case-insensitive)
     const existing = await db.collection('users').findOne({ email: normalizedEmail });
     if (existing) {
@@ -484,13 +484,13 @@ app.delete('/api/whitelist/:email', async (req, res) => {
   try {
     const db = await connectToDb();
     const { email } = req.params;
-    
+
     const result = await db.collection('whitelist').deleteOne({ email });
-    
+
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Email not found in whitelist' });
     }
-    
+
     res.json({ message: 'Email removed from whitelist successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -582,7 +582,7 @@ app.post('/api/picks', async (req, res) => {
     const picksCollection = getPicksCollectionName(year);
 
     // Check how many picks the user already has for this collectionName
-    const existingPicks = await mainDb.collection(picksCollection).find({ 
+    const existingPicks = await mainDb.collection(picksCollection).find({
       userId: userId,
       collectionName: collectionName
     }).toArray();
@@ -601,22 +601,22 @@ app.post('/api/picks', async (req, res) => {
     }));
 
     await mainDb.collection(picksCollection).insertMany(picksToInsert);
-    
+
     // Send data to Google Apps Script
     try {
       // Get user details for the Google Apps Script
       const user = await mainDb.collection('users').findOne({ firebaseUid: userId });
-      const username = user && user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      const username = user && user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user?.displayName || 'Unknown User';
       const email = user?.email || '';
-      
+
       // Get detailed pick information including game details
       const dbName = `cy_${year}`;
       const dbClient = await client.connect();
       const db = dbClient.db(dbName);
       const games = await db.collection(collectionName).find({}).toArray();
-      
+
       // Build a map for quick lookup
       const gameMap = {};
       for (const game of games) {
@@ -624,7 +624,7 @@ app.post('/api/picks', async (req, res) => {
           gameMap[game._id.toString()] = game;
         }
       }
-      
+
       const detailedPicks = picksToInsert.map(pick => {
         const game = pick.gameId ? gameMap[pick.gameId] : null;
         return {
@@ -644,7 +644,7 @@ app.post('/api/picks', async (req, res) => {
           threeOEligible: pick.threeOEligible
         };
       });
-      
+
       // Format week name for locksWebhook (same format as standings page)
       const formatWeekForLocksWebhook = (collectionName, year) => {
         const parts = collectionName.split('_');
@@ -654,7 +654,7 @@ app.post('/api/picks', async (req, res) => {
           const day = parseInt(parts[3], 10);
           const date = new Date(year, month, day);
           const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
-          
+
           // Get week number by finding position in sorted available weeks
           const yearDbName = `cy_${year}`;
           const yearDb = client.db(yearDbName);
@@ -669,10 +669,10 @@ app.post('/api/picks', async (req, res) => {
                 if (!dateA || !dateB) return a.localeCompare(b);
                 return dateA - dateB;
               });
-            
+
             const weekIndex = availableWeeks.indexOf(collectionName);
             const weekNumber = weekIndex >= 0 ? weekIndex + 1 : '?';
-            
+
             return `Week ${weekNumber} - ${formattedDate}`;
           });
         }
@@ -684,20 +684,20 @@ app.post('/api/picks', async (req, res) => {
       const axios = require('axios');
       await axios.post('https://script.google.com/macros/s/AKfycbxDXkwPsH5yPjpFCiIa3Cv5Xd3HTb_fj9A5s9DJQMKRfmQlMVLNGyGQkXtVOsZL-I_GQw/exec'
         , {
-        picks: detailedPicks,
-        username: username,
-        email: email,
-        collectionName: collectionName,
-        currentLocksWeek: currentLocksWeek,
-        userMessage: userMessage || '',
-        submissionTime: new Date().toISOString()
-      });
+          picks: detailedPicks,
+          username: username,
+          email: email,
+          collectionName: collectionName,
+          currentLocksWeek: currentLocksWeek,
+          userMessage: userMessage || '',
+          submissionTime: new Date().toISOString()
+        });
     } catch (googleScriptError) {
       console.error('Failed to send data to Google Apps Script:', googleScriptError);
       // Don't fail the entire submission if Google Apps Script fails
       // Just log the error and continue
     }
-    
+
     res.status(201).json({ message: 'Picks submitted successfully', submittedPicks: picksToInsert });
   } catch (err) {
     console.error("Error submitting picks:", err);
@@ -736,7 +736,7 @@ app.get('/api/picks', async (req, res) => {
     const dbClient = await client.connect();
     const db = dbClient.db(dbName);
     const games = await db.collection(collectionName).find({}).toArray();
-    
+
     // Build a map for quick lookup using the game's MongoDB _id
     const gameMap = {};
     for (const game of games) {
@@ -752,7 +752,7 @@ app.get('/api/picks', async (req, res) => {
       return {
         ...pick,
         // Embed the full game object for the frontend to use
-        gameDetails: game, 
+        gameDetails: game,
         // Also keep direct access for convenience
         homeScore: game ? game.homeScore : null,
         awayScore: game ? game.awayScore : null,
@@ -852,12 +852,12 @@ const calculateThreeOEligible = (collectionName, submissionTime) => {
       // DST typically runs from 2nd Sunday in March to 1st Sunday in November
       const march = new Date(year, 2, 1);
       const november = new Date(year, 10, 1);
-      
+
       // Find second Sunday in March
       const marchSecondSunday = new Date(year, 2, 8 + (7 - march.getDay()) % 7);
       // Find first Sunday in November  
       const novemberFirstSunday = new Date(year, 10, 1 + (7 - november.getDay()) % 7);
-      
+
       return date >= marchSecondSunday && date < novemberFirstSunday;
     };
 
@@ -876,7 +876,7 @@ const calculateThreeOEligible = (collectionName, submissionTime) => {
 
     // Compare submission time against deadline
     const submissionUTC = new Date(submissionTime);
-    
+
     return submissionUTC <= deadlineUTC;
   } catch (error) {
     console.error('Error calculating threeOEligible:', error);
@@ -904,12 +904,12 @@ const isWeekComplete = (collectionName) => {
       // DST typically runs from 2nd Sunday in March to 1st Sunday in November
       const march = new Date(year, 2, 1);
       const november = new Date(year, 10, 1);
-      
+
       // Find second Sunday in March
       const marchSecondSunday = new Date(year, 2, 8 + (7 - march.getDay()) % 7);
       // Find first Sunday in November  
       const novemberFirstSunday = new Date(year, 10, 1 + (7 - november.getDay()) % 7);
-      
+
       return date >= marchSecondSunday && date < novemberFirstSunday;
     };
 
@@ -928,7 +928,7 @@ const isWeekComplete = (collectionName) => {
 
     // Compare current time against week end time
     const nowUTC = new Date();
-    
+
     return nowUTC >= weekEndUTC;
   } catch (error) {
     console.error('Error checking if week is complete:', error);
@@ -961,7 +961,7 @@ app.get('/api/standings', async (req, res) => {
     let availableGameWeeks = collections
       .map(col => col.name)
       .filter(name => oddsPattern.test(name));
-    
+
     const users = await mainDb.collection('users').find({}).toArray();
 
     if (availableGameWeeks.length === 0) {
@@ -975,7 +975,7 @@ app.get('/api/standings', async (req, res) => {
       }));
       return res.json({ standings: emptyStandings, availableWeeks: [], selectedWeek: null });
     }
-    
+
     availableGameWeeks.sort((a, b) => {
       const dateA = parseCollectionNameToDate(a);
       const dateB = parseCollectionNameToDate(b);
@@ -991,8 +991,8 @@ app.get('/api/standings', async (req, res) => {
     const previousGameWeek = selectedWeekIndex > 0 ? availableGameWeeks[selectedWeekIndex - 1] : null;
 
     // 4. Fetch all relevant picks
-    const picksToProcess = await picksCollection.find({ 
-      collectionName: { $in: availableGameWeeks.slice(0, selectedWeekIndex + 1) } 
+    const picksToProcess = await picksCollection.find({
+      collectionName: { $in: availableGameWeeks.slice(0, selectedWeekIndex + 1) }
     }).toArray();
 
     // 5. Calculate standings
@@ -1018,7 +1018,7 @@ app.get('/api/standings', async (req, res) => {
       const isWin = result === 'WIN';
       const isLoss = result === 'LOSS';
       const isTie = result === 'TIE';
-      
+
       stats.total.wins += isWin ? 1 : 0;
       stats.total.losses += isLoss ? 1 : 0;
       stats.total.ties += isTie ? 1 : 0;
@@ -1038,32 +1038,32 @@ app.get('/api/standings', async (req, res) => {
 
     // 6. Rank calculation
     const rankingFn = (a, b) => b.wins - a.wins || a.losses - b.losses || a.ties - b.ties;
-    
+
     const calculateRanks = (statsDict, key) => {
       const sorted = Object.values(statsDict).sort((a, b) => rankingFn(a[key], b[key]));
       const ranks = {};
       let currentRank = 1;
-      
+
       for (let i = 0; i < sorted.length; i++) {
         const currentUser = sorted[i];
-        
+
         if (i > 0) {
           const prevUser = sorted[i - 1];
           // Check if current user has different stats than previous user
           const currentStats = currentUser[key];
           const prevStats = prevUser[key];
-          
-          if (currentStats.wins !== prevStats.wins || 
-              currentStats.ties !== prevStats.ties || 
-              currentStats.losses !== prevStats.losses) {
+
+          if (currentStats.wins !== prevStats.wins ||
+            currentStats.ties !== prevStats.ties ||
+            currentStats.losses !== prevStats.losses) {
             currentRank = i + 1; // Move to next available rank
           }
           // If stats are the same, keep the same rank (tie)
         }
-        
+
         ranks[currentUser._id] = currentRank;
       }
-      
+
       return ranks;
     };
 
@@ -1086,7 +1086,7 @@ app.get('/api/standings', async (req, res) => {
           payout: 0, gamesBack: '-'
         };
       }
-      
+
       const rank = currentRanks[stats._id];
       const prevRank = previousRanks ? previousRanks[stats._id] : null;
       const rankChange = (prevRank && rank) ? prevRank - rank : 0;
@@ -1100,31 +1100,31 @@ app.get('/api/standings', async (req, res) => {
         gamesBack: 0 // Will be calculated after sorting
       };
     });
-    
-    combinedStandings.sort((a,b) => {
-        if (a.rank === '-') return 1;
-        if (b.rank === '-') return -1;
-        return a.rank - b.rank;
+
+    combinedStandings.sort((a, b) => {
+      if (a.rank === '-') return 1;
+      if (b.rank === '-') return -1;
+      return a.rank - b.rank;
     });
 
     // 9. Calculate payouts and games back based on final rankings
     const totalUsers = combinedStandings.filter(user => user.rank !== '-').length;
     const leader = combinedStandings.find(user => user.rank === 1);
-    
+
     // First, calculate games back for all users
     combinedStandings.forEach((user, index) => {
       if (user.rank === '-') {
         user.gamesBack = '-';
         return;
       }
-      
+
       // Calculate games back from leader
       if (leader && user.rank > 1) {
         const leaderWins = leader.wins;
         const leaderLosses = leader.losses;
         const userWins = user.wins;
         const userLosses = user.losses;
-        
+
         // Games back = leader wins - user wins (showing full games back)
         const gamesBack = leaderWins - userWins;
         user.gamesBack = gamesBack > 0 ? gamesBack.toFixed(1) : '0.0';
@@ -1151,7 +1151,7 @@ app.get('/api/standings', async (req, res) => {
       const rank = parseInt(rankStr);
       const usersAtRank = rankGroups[rank];
       let totalPrize = 0;
-      
+
       // Determine what prizes this rank group should split
       if (rank === 1) {
         totalPrize += payouts.first || 0;
@@ -1204,14 +1204,14 @@ app.get('/api/standings', async (req, res) => {
       } else if (rank === 5) {
         totalPrize += payouts.fifth || 0;
       }
-      
+
       // Special handling for last place when there are ties
       // Check if this rank group includes the last place
       const maxRank = Math.max(...combinedStandings.filter(u => u.rank !== '-').map(u => u.rank));
       if (rank === maxRank) {
         totalPrize += payouts.last || 0;
       }
-      
+
       // Split the total prize among all users at this rank
       const prizePerUser = usersAtRank.length > 0 ? totalPrize / usersAtRank.length : 0;
       usersAtRank.forEach(user => {
@@ -1239,7 +1239,7 @@ app.get('/api/payout-settings', async (req, res) => {
   try {
     const db = await connectToDb();
     const settings = await db.collection('league_configurations').findOne({ key: 'payout_settings' });
-    
+
     if (!settings) {
       // Return default settings if none exist
       const defaultSettings = {
@@ -1252,7 +1252,7 @@ app.get('/api/payout-settings', async (req, res) => {
       };
       return res.json(defaultSettings);
     }
-    
+
     res.json(settings.value);
   } catch (err) {
     console.error('Error fetching payout settings:', err);
@@ -1265,7 +1265,7 @@ app.post('/api/payout-settings', async (req, res) => {
   try {
     const db = await connectToDb();
     const { first, second, third, fourth, fifth, last } = req.body;
-    
+
     // Validate input
     const payouts = { first, second, third, fourth, fifth, last };
     for (const [place, amount] of Object.entries(payouts)) {
@@ -1273,11 +1273,11 @@ app.post('/api/payout-settings', async (req, res) => {
         return res.status(400).json({ error: `Invalid payout amount for ${place} place` });
       }
     }
-    
+
     await db.collection('league_configurations').updateOne(
       { key: 'payout_settings' },
-      { 
-        $set: { 
+      {
+        $set: {
           key: 'payout_settings',
           value: payouts,
           updatedAt: new Date()
@@ -1285,7 +1285,7 @@ app.post('/api/payout-settings', async (req, res) => {
       },
       { upsert: true }
     );
-    
+
     res.json({ message: 'Payout settings updated successfully', settings: payouts });
   } catch (err) {
     console.error('Error updating payout settings:', err);
@@ -1298,11 +1298,11 @@ app.get('/api/announcements', async (req, res) => {
   try {
     const db = await connectToDb();
     const announcement = await db.collection('league_configurations').findOne({ key: 'announcement' });
-    
+
     if (!announcement) {
       return res.json({ message: '', active: false });
     }
-    
+
     res.json({
       message: announcement.value.message || '',
       active: announcement.value.active || false,
@@ -1319,20 +1319,20 @@ app.post('/api/announcements', async (req, res) => {
   try {
     const db = await connectToDb();
     const { message, active } = req.body;
-    
+
     // Validate input
     if (typeof message !== 'string') {
       return res.status(400).json({ error: 'Message must be a string' });
     }
-    
+
     if (typeof active !== 'boolean') {
       return res.status(400).json({ error: 'Active must be a boolean' });
     }
-    
+
     await db.collection('league_configurations').updateOne(
       { key: 'announcement' },
-      { 
-        $set: { 
+      {
+        $set: {
           key: 'announcement',
           value: {
             message: message.trim(),
@@ -1343,9 +1343,9 @@ app.post('/api/announcements', async (req, res) => {
       },
       { upsert: true }
     );
-    
-    res.json({ 
-      message: 'Announcement updated successfully', 
+
+    res.json({
+      message: 'Announcement updated successfully',
       announcement: {
         message: message.trim(),
         active: active,
@@ -1363,11 +1363,11 @@ app.get('/api/three-zero-prize-pool', async (req, res) => {
   try {
     const db = await connectToDb();
     const settings = await db.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
-    
+
     if (!settings) {
       return res.json({ prizePool: 0 });
     }
-    
+
     res.json({ prizePool: settings.value || 0 });
   } catch (err) {
     console.error('Error fetching 3-0 prize pool:', err);
@@ -1380,16 +1380,16 @@ app.post('/api/three-zero-prize-pool', async (req, res) => {
   try {
     const db = await connectToDb();
     const { prizePool } = req.body;
-    
+
     // Validate input
     if (typeof prizePool !== 'number' || prizePool < 0) {
       return res.status(400).json({ error: 'Prize pool must be a non-negative number' });
     }
-    
+
     await db.collection('league_configurations').updateOne(
       { key: 'three_zero_prize_pool' },
-      { 
-        $set: { 
+      {
+        $set: {
           key: 'three_zero_prize_pool',
           value: prizePool,
           updatedAt: new Date()
@@ -1397,7 +1397,7 @@ app.post('/api/three-zero-prize-pool', async (req, res) => {
       },
       { upsert: true }
     );
-    
+
     res.json({ message: '3-0 week prize pool updated successfully', prizePool });
   } catch (err) {
     console.error('Error updating 3-0 prize pool:', err);
@@ -1430,7 +1430,7 @@ app.get('/api/three-zero-standings', async (req, res) => {
     let availableGameWeeks = collections
       .map(col => col.name)
       .filter(name => oddsPattern.test(name));
-    
+
     const users = await mainDb.collection('users').find({}).toArray();
 
     if (availableGameWeeks.length === 0) {
@@ -1443,7 +1443,7 @@ app.get('/api/three-zero-standings', async (req, res) => {
       }));
       return res.json({ standings: emptyStandings, totalThreeZeroWeeks: 0, prizePool: 0 });
     }
-    
+
     availableGameWeeks.sort((a, b) => {
       const dateA = parseCollectionNameToDate(a);
       const dateB = parseCollectionNameToDate(b);
@@ -1452,8 +1452,8 @@ app.get('/api/three-zero-standings', async (req, res) => {
     });
 
     // 3. Fetch all picks for all weeks
-    const allPicks = await picksCollection.find({ 
-      collectionName: { $in: availableGameWeeks } 
+    const allPicks = await picksCollection.find({
+      collectionName: { $in: availableGameWeeks }
     }).toArray();
 
     // 4. Calculate 3-0 weeks for each user
@@ -1491,7 +1491,7 @@ app.get('/api/three-zero-standings', async (req, res) => {
           // Check if all 3 picks are eligible for 3-0 consideration (threeOEligible must be true)
           // Handle legacy data by defaulting to true if threeOEligible is undefined
           const allEligible = weekPicks.every(pick => pick.threeOEligible !== false);
-          
+
           if (allWins && allEligible && userThreeZeroWeeks[userId]) {
             userThreeZeroWeeks[userId].threeZeroWeeks++;
           }
@@ -1501,7 +1501,7 @@ app.get('/api/three-zero-standings', async (req, res) => {
 
     // 5. Calculate total 3-0 weeks and prize pool distribution
     const totalThreeZeroWeeks = Object.values(userThreeZeroWeeks).reduce((sum, user) => sum + user.threeZeroWeeks, 0);
-    
+
     // Get prize pool setting
     const prizePoolSettings = await mainDb.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
     const prizePool = prizePoolSettings ? prizePoolSettings.value : 0;
@@ -1534,9 +1534,9 @@ app.get('/api/three-zero-standings', async (req, res) => {
       standings[i].rank = currentRank;
     }
 
-    res.json({ 
-      standings, 
-      totalThreeZeroWeeks, 
+    res.json({
+      standings,
+      totalThreeZeroWeeks,
       prizePool: prizePool || 0,
       availableWeeks: availableGameWeeks
     });
@@ -1582,13 +1582,13 @@ app.get('/api/awards-summary', async (req, res) => {
       .map(col => col.name)
       .filter(name => name.startsWith('odds_'))
       .sort();
-    
+
 
     // Initialize awards summary
     const awardNames = [
       'Flop of the Week',
       'Lone Wolf',
-      'Pack', 
+      'Pack',
       'Lock of the Week',
       'Close Call',
       'Sore Loser',
@@ -1621,7 +1621,7 @@ app.get('/api/awards-summary', async (req, res) => {
 
     const awardsSummary = {};
     const userNames = Object.values(userMap).map(user => user.name).sort();
-    
+
     // Initialize summary structure
     awardNames.forEach(awardName => {
       awardsSummary[awardName] = {};
@@ -1635,7 +1635,7 @@ app.get('/api/awards-summary', async (req, res) => {
     awardsSummary['Total Bad'] = {};
     awardsSummary['Diff'] = {};
     awardsSummary['Total'] = {};
-    
+
     userNames.forEach(userName => {
       awardsSummary['Total Good'][userName] = 0;
       awardsSummary['Total Bad'][userName] = 0;
@@ -1650,8 +1650,8 @@ app.get('/api/awards-summary', async (req, res) => {
       try {
         // Fetch awards for this week using internal logic
         const weekAwards = await getWeeklyAwards(year, week, userMap, mainDb);
-        
-        
+
+
         // Count awards for each user
         Object.entries(weekAwards).forEach(([awardName, gameGroups]) => {
           if (awardsSummary[awardName]) {
@@ -1661,7 +1661,7 @@ app.get('/api/awards-summary', async (req, res) => {
                   awardsSummary[awardName][winner.userName]++;
                 }
               });
-              
+
               // Handle Pack members (opposite of Lone Wolf)
               if (awardName === 'Lone Wolf' && gameGroup.packMembers) {
                 gameGroup.packMembers.forEach(packMember => {
@@ -1709,8 +1709,8 @@ app.get('/api/awards-summary', async (req, res) => {
       awardsSummary['Total'][userName] = total;
     });
 
-    res.json({ 
-      awardsSummary, 
+    res.json({
+      awardsSummary,
       year,
       weeksProcessed: availableWeeks.filter(week => isWeekComplete(week)).length,
       totalWeeks: availableWeeks.length
@@ -1727,8 +1727,8 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
   const picksCollection = mainDb.collection(picksCollectionName);
 
   // Fetch all picks for the selected week
-  const weekPicks = await picksCollection.find({ 
-    collectionName: selectedGameWeek 
+  const weekPicks = await picksCollection.find({
+    collectionName: selectedGameWeek
   }).toArray();
 
   if (weekPicks.length === 0) {
@@ -1739,7 +1739,7 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
   const yearDbName = `cy_${year}`;
   const yearDb = client.db(yearDbName);
   const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
-  
+
   // Build game map
   const gameMap = {};
   games.forEach(game => {
@@ -1752,7 +1752,7 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
   const enrichedPicks = weekPicks.map(pick => {
     const game = gameMap[pick.gameId];
     const user = userMap[pick.userId];
-    
+
     if (!game || !user) return null;
 
     let margin = null;
@@ -1768,7 +1768,7 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
       if (pick.pickType === 'spread') {
         const pickedSpread = parseFloat(pick.line) || 0;
         const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
-        
+
         if (pickedSpread < 0) {
           if (pickedHome) {
             margin = scoreDiff - Math.abs(pickedSpread);
@@ -1804,7 +1804,7 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
         const totalScore = homeScore + awayScore;
         const pickedTotal = parseFloat(pick.line) || 0;
         const isOverPick = pick.pickSide === 'OVER';
-        
+
         if (isOverPick) {
           margin = totalScore - pickedTotal;
         } else {
@@ -1826,10 +1826,10 @@ async function getWeeklyAwards(year, selectedGameWeek, userMap, mainDb) {
 
   // Calculate awards using existing function
   const awards = calculateWeeklyAwards(enrichedPicks);
-  
+
   // Get manual awards for this week
   const manualAwards = await getManualAwards(year, selectedGameWeek, mainDb);
-  
+
   // Merge manual awards with calculated awards
   Object.entries(manualAwards).forEach(([awardName, awardData]) => {
     awards[awardName] = awardData;
@@ -1858,8 +1858,8 @@ app.get('/api/awards', async (req, res) => {
 
     // 2. Check if the week has concluded before calculating awards
     if (!isWeekComplete(selectedGameWeek)) {
-      return res.json({ 
-        awards: {}, 
+      return res.json({
+        awards: {},
         message: 'Awards will be calculated after the week concludes (4am Tuesday Eastern Time)',
         weekComplete: false
       });
@@ -1874,8 +1874,8 @@ app.get('/api/awards', async (req, res) => {
       });
 
       if (!publishedWeek) {
-        return res.json({ 
-          awards: {}, 
+        return res.json({
+          awards: {},
           message: 'This week has not been published yet. Only published weeks are visible to non-admin users.',
           weekComplete: true,
           published: false
@@ -1900,8 +1900,8 @@ app.get('/api/awards', async (req, res) => {
     });
 
     // 3. Fetch all picks for the selected week
-    const weekPicks = await picksCollection.find({ 
-      collectionName: selectedGameWeek 
+    const weekPicks = await picksCollection.find({
+      collectionName: selectedGameWeek
     }).toArray();
 
     if (weekPicks.length === 0) {
@@ -1912,7 +1912,7 @@ app.get('/api/awards', async (req, res) => {
     const yearDbName = `cy_${year}`;
     const yearDb = client.db(yearDbName);
     const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
-    
+
     // Build game map
     const gameMap = {};
     games.forEach(game => {
@@ -1925,7 +1925,7 @@ app.get('/api/awards', async (req, res) => {
     const enrichedPicks = weekPicks.map(pick => {
       const game = gameMap[pick.gameId];
       const user = userMap[pick.userId];
-      
+
       if (!game || !user) return null;
 
       let margin = null;
@@ -1941,10 +1941,10 @@ app.get('/api/awards', async (req, res) => {
         if (pick.pickType === 'spread') {
           // For spread picks, calculate margin of victory/defeat relative to the spread
           const pickedSpread = parseFloat(pick.line) || 0;
-          
+
           // Determine which team was picked based on pickSide
           const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
-          
+
           // Calculate the margin relative to what was needed to cover the spread
           // Determine if the picked team is favorite or underdog based on the spread sign
           if (pickedSpread < 0) {
@@ -2002,7 +2002,7 @@ app.get('/api/awards', async (req, res) => {
           const totalScore = homeScore + awayScore;
           const pickedTotal = parseFloat(pick.line) || 0;
           const isOverPick = pick.pickSide === 'OVER';
-          
+
           if (isOverPick) {
             // Over pick: margin = actual total - picked total
             // Example: Over 45.5, game total 52: 52 - 45.5 = 6.5 margin of victory
@@ -2031,7 +2031,7 @@ app.get('/api/awards', async (req, res) => {
 
     // 7. Get manual awards for this week
     const manualAwards = await getManualAwards(year, selectedGameWeek, mainDb);
-    
+
     // 8. Merge manual awards with calculated awards
     Object.entries(manualAwards).forEach(([awardName, awardData]) => {
       awards[awardName] = awardData;
@@ -2049,7 +2049,7 @@ function calculateWeeklyAwards(picks) {
   const awards = {};
   const awardNames = [
     'Flop of the Week',
-    'Lone Wolf', 
+    'Lone Wolf',
     'Lock of the Week',
     'Close Call',
     'Sore Loser',
@@ -2082,7 +2082,7 @@ function calculateWeeklyAwards(picks) {
     incorrectPickCounts[key].count++;
     incorrectPickCounts[key].picks.push(pick);
   });
-  
+
   let maxIncorrectCount = 0;
   let flopPickGroups = [];
   Object.values(incorrectPickCounts).forEach(({ count, picks }) => {
@@ -2093,10 +2093,10 @@ function calculateWeeklyAwards(picks) {
       flopPickGroups.push(picks);
     }
   });
-  
+
   // Flatten all picks from groups that tied for the most incorrect
   const allFlopPicks = flopPickGroups.flat();
-  
+
   // Group by game
   const flopGameGroups = {};
   allFlopPicks.forEach(pick => {
@@ -2115,12 +2115,12 @@ function calculateWeeklyAwards(picks) {
       userName: pick.user.name
     });
   });
-  
+
   awards['Flop of the Week'] = Object.values(flopGameGroups);
 
   // 2. Lone Wolf - correct pick by one person countered by 2+ others on the SAME GAME
   const gamePickAnalysis = {};
-  
+
   // Group all picks by game and pick type (spread vs total)
   picks.forEach(pick => {
     const gameKey = `${pick.gameId}_${pick.pickType}`;
@@ -2131,7 +2131,7 @@ function calculateWeeklyAwards(picks) {
   });
 
 
-  
+
   Object.entries(gamePickAnalysis).forEach(([gameKey, { allPicks, game }]) => {
     // Group picks by their specific choice (side + line)
     const choiceGroups = {};
@@ -2141,27 +2141,37 @@ function calculateWeeklyAwards(picks) {
         choiceGroups[choiceKey] = { picks: [], correct: 0, incorrect: 0 };
       }
       choiceGroups[choiceKey].picks.push(pick);
-      
+
       if (pick.result && pick.result.toUpperCase() === 'WIN') {
         choiceGroups[choiceKey].correct++;
       } else if (pick.result && pick.result.toUpperCase() === 'LOSS') {
         choiceGroups[choiceKey].incorrect++;
       }
     });
-    
 
-    
+
+
+    // Calculate total correct picks for this game and pick type
+    // We need to count wins for this specific gameId AND pick type from the global 'picks' array
+    // The 'choiceGroups' are already grouped by pick type in the outer loop (gamePickAnalysis keys are gameId_pickType)
+    // So 'allPicks' (from the outer loop scope) contains all picks for this Game + Type.
+
+    const typeTotalCorrect = allPicks.filter(p => p.result && p.result.toUpperCase() === 'WIN').length;
+
     // Look for Lone Wolf scenarios in this game
     Object.entries(choiceGroups).forEach(([choice, { picks, correct, incorrect }]) => {
-      if (correct === 1) {
+      // Lone Wolf requires:
+      // 1. Only 1 person won this specific choice (correct === 1)
+      // 2. No one else won ANY other bet on this same pick type (typeTotalCorrect === 1)
+      if (correct === 1 && typeTotalCorrect === 1) {
         // Found someone who was correct alone, now check if 2+ others were wrong on opposing picks
         const otherIncorrectCount = Object.entries(choiceGroups)
           .filter(([otherChoice]) => otherChoice !== choice)
           .reduce((sum, [, { incorrect: otherIncorrect }]) => sum + otherIncorrect, 0);
-        
+
         if (otherIncorrectCount >= 2) {
           const loneWolfPick = picks.find(p => p.result && p.result.toUpperCase() === 'WIN');
-          
+
           // Get the pack members (people who made incorrect opposing picks)
           const packMembers = [];
           Object.entries(choiceGroups)
@@ -2177,11 +2187,17 @@ function calculateWeeklyAwards(picks) {
                   });
                 });
             });
-          
+
           // Find existing game group or create new one
           const gameKey = `${loneWolfPick.game.away_team_abbrev} @ ${loneWolfPick.game.home_team_abbrev}`;
-          let existingGameAward = awards['Lone Wolf'].find(award => award.gameDetails === gameKey);
-          
+          const pickDetailStr = formatPickDetails(loneWolfPick);
+
+          // Check for existing award for this specific game AND pick
+          // This ensures Spread and Total are treated as separate awards even for the same game
+          let existingGameAward = awards['Lone Wolf'].find(award =>
+            award.gameDetails === gameKey && award.pickDetails === pickDetailStr
+          );
+
           if (!existingGameAward) {
             existingGameAward = {
               gameDetails: gameKey,
@@ -2193,7 +2209,7 @@ function calculateWeeklyAwards(picks) {
             };
             awards['Lone Wolf'].push(existingGameAward);
           }
-          
+
           existingGameAward.winners.push({
             userId: loneWolfPick.user.firebaseUid,
             userName: loneWolfPick.user.name
@@ -2208,7 +2224,7 @@ function calculateWeeklyAwards(picks) {
   if (correctPicksWithMargin.length > 0) {
     const maxAbsMargin = Math.max(...correctPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const lockPicks = correctPicksWithMargin.filter(pick => Math.abs(pick.margin) === maxAbsMargin);
-    
+
     // Group by game
     const lockGameGroups = {};
     lockPicks.forEach(pick => {
@@ -2227,7 +2243,7 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Lock of the Week'] = Object.values(lockGameGroups);
   }
 
@@ -2235,7 +2251,7 @@ function calculateWeeklyAwards(picks) {
   if (correctPicksWithMargin.length > 0) {
     const minAbsMargin = Math.min(...correctPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const closeCallPicks = correctPicksWithMargin.filter(pick => Math.abs(pick.margin) === minAbsMargin);
-    
+
     // Group by game
     const closeCallGameGroups = {};
     closeCallPicks.forEach(pick => {
@@ -2254,7 +2270,7 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Close Call'] = Object.values(closeCallGameGroups);
   }
 
@@ -2264,7 +2280,7 @@ function calculateWeeklyAwards(picks) {
     // For incorrect picks, we want the one with the smallest absolute margin (closest to 0)
     const minAbsMargin = Math.min(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const soreLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === minAbsMargin);
-    
+
     // Group by game
     const soreLoserGameGroups = {};
     soreLoserPicks.forEach(pick => {
@@ -2283,7 +2299,7 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Sore Loser'] = Object.values(soreLoserGameGroups);
   }
 
@@ -2291,7 +2307,7 @@ function calculateWeeklyAwards(picks) {
   if (incorrectPicksWithMargin.length > 0) {
     const maxAbsMargin = Math.max(...incorrectPicksWithMargin.map(pick => Math.abs(pick.margin)));
     const biggestLoserPicks = incorrectPicksWithMargin.filter(pick => Math.abs(pick.margin) === maxAbsMargin);
-    
+
     // Group by game
     const biggestLoserGameGroups = {};
     biggestLoserPicks.forEach(pick => {
@@ -2310,12 +2326,12 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Biggest Loser'] = Object.values(biggestLoserGameGroups);
   }
 
   // 7. Boldest Favorite - correct spread pick with largest spread by favorite (most negative line)
-  const correctSpreadPicks = correctPicks.filter(pick => 
+  const correctSpreadPicks = correctPicks.filter(pick =>
     pick.pickType === 'spread' && pick.actualSpread !== null
   );
   if (correctSpreadPicks.length > 0) {
@@ -2324,7 +2340,7 @@ function calculateWeeklyAwards(picks) {
     if (favoritePicks.length > 0) {
       const largestFavoriteSpread = Math.min(...favoritePicks.map(pick => parseFloat(pick.line))); // Most negative line
       const boldestFavoritePicks = favoritePicks.filter(pick => parseFloat(pick.line) === largestFavoriteSpread);
-      
+
       // Group by game
       const boldestFavoriteGameGroups = {};
       boldestFavoritePicks.forEach(pick => {
@@ -2343,7 +2359,7 @@ function calculateWeeklyAwards(picks) {
           userName: pick.user.name
         });
       });
-      
+
       awards['Boldest Favorite'] = Object.values(boldestFavoriteGameGroups);
     }
   }
@@ -2355,7 +2371,7 @@ function calculateWeeklyAwards(picks) {
     if (underdogPicks.length > 0) {
       const largestUnderdogSpread = Math.max(...underdogPicks.map(pick => parseFloat(pick.line))); // Most positive line
       const bigDawgPicks = underdogPicks.filter(pick => parseFloat(pick.line) === largestUnderdogSpread);
-      
+
       // Group by game
       const bigDawgGameGroups = {};
       bigDawgPicks.forEach(pick => {
@@ -2374,21 +2390,21 @@ function calculateWeeklyAwards(picks) {
           userName: pick.user.name
         });
       });
-      
+
       awards['Big Dawg'] = Object.values(bigDawgGameGroups);
     }
   }
 
   // 9. Big Kahuna - correct over pick with highest total
-  const correctOverPicks = correctPicks.filter(pick => 
-    pick.pickType === 'total' && 
-    pick.pickSide === 'OVER' && 
+  const correctOverPicks = correctPicks.filter(pick =>
+    pick.pickType === 'total' &&
+    pick.pickSide === 'OVER' &&
     pick.actualTotal !== null
   );
   if (correctOverPicks.length > 0) {
     const highestTotal = Math.max(...correctOverPicks.map(pick => pick.actualTotal));
     const bigKahunaPicks = correctOverPicks.filter(pick => pick.actualTotal === highestTotal);
-    
+
     // Group by game
     const bigKahunaGameGroups = {};
     bigKahunaPicks.forEach(pick => {
@@ -2407,20 +2423,20 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Big Kahuna'] = Object.values(bigKahunaGameGroups);
   }
 
   // 10. Tinkerbell - correct under pick with smallest total
-  const correctUnderPicks = correctPicks.filter(pick => 
-    pick.pickType === 'total' && 
-    pick.pickSide === 'UNDER' && 
+  const correctUnderPicks = correctPicks.filter(pick =>
+    pick.pickType === 'total' &&
+    pick.pickSide === 'UNDER' &&
     pick.actualTotal !== null
   );
   if (correctUnderPicks.length > 0) {
     const lowestTotal = Math.min(...correctUnderPicks.map(pick => pick.actualTotal));
     const tinkerbellPicks = correctUnderPicks.filter(pick => pick.actualTotal === lowestTotal);
-    
+
     // Group by game
     const tinkerbellGameGroups = {};
     tinkerbellPicks.forEach(pick => {
@@ -2439,7 +2455,7 @@ function calculateWeeklyAwards(picks) {
         userName: pick.user.name
       });
     });
-    
+
     awards['Tinkerbell'] = Object.values(tinkerbellGameGroups);
   }
 
@@ -2498,8 +2514,8 @@ app.get('/api/snydermetrics', async (req, res) => {
     }
 
     // 4. Fetch picks for selected weeks
-    const allPicks = await picksCollection.find({ 
-      collectionName: { $in: weeksToQuery } 
+    const allPicks = await picksCollection.find({
+      collectionName: { $in: weeksToQuery }
     }).toArray();
 
     // 5. Fetch all games for enrichment
@@ -2545,8 +2561,8 @@ app.get('/api/snydermetrics', async (req, res) => {
         // Handle both single letter and full word formats
         if (!['WIN', 'LOSS', 'TIE', 'W', 'L', 'T'].includes(result)) return;
 
-        const resultKey = (result === 'WIN' || result === 'W') ? 'W' : 
-                         (result === 'LOSS' || result === 'L') ? 'L' : 'T';
+        const resultKey = (result === 'WIN' || result === 'W') ? 'W' :
+          (result === 'LOSS' || result === 'L') ? 'L' : 'T';
 
         // Over/Under classification
         if (pick.pickType === 'total') {
@@ -2560,7 +2576,7 @@ app.get('/api/snydermetrics', async (req, res) => {
         // Line (Home/Away) classification - for spread picks only
         if (pick.pickType === 'spread') {
           const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
-          
+
           if (pickedHome) {
             stats['Line (H)'][resultKey]++;
           } else {
@@ -2570,7 +2586,7 @@ app.get('/api/snydermetrics', async (req, res) => {
           // Favorite/Dog classification based on line sign
           const line = parseFloat(pick.line) || 0;
           const isFavorite = line < 0;
-          
+
           if (isFavorite) {
             stats.Fav[resultKey]++;
             if (pickedHome) {
@@ -2593,13 +2609,13 @@ app.get('/api/snydermetrics', async (req, res) => {
     };
 
     // 7. Calculate stats by league
-    const cfbPicks = enrichedPicks.filter(pick => 
-      pick.gameDetails.league === 'CFB' || 
+    const cfbPicks = enrichedPicks.filter(pick =>
+      pick.gameDetails.league === 'CFB' ||
       pick.gameDetails.league === 'NCAAF' ||
       (pick.gameDetails.sportKey && pick.gameDetails.sportKey.includes('ncaaf'))
     );
-    
-    const nflPicks = enrichedPicks.filter(pick => 
+
+    const nflPicks = enrichedPicks.filter(pick =>
       pick.gameDetails.league === 'NFL' ||
       (pick.gameDetails.sportKey && pick.gameDetails.sportKey.includes('nfl'))
     );
@@ -2611,13 +2627,13 @@ app.get('/api/snydermetrics', async (req, res) => {
     // 8. Format response with percentages
     const formatStatsSection = (stats) => {
       const result = {};
-      
+
       Object.keys(stats).forEach(category => {
         const { W, L, T } = stats[category];
         const total = W + L + T;
         // Correct formula: (1*W + 0.5*T + 0*L) / (W + T + L)
         const percentage = total > 0 ? ((W + 0.5 * T) / total) : 0;
-        
+
         result[category] = {
           W,
           L,
@@ -2651,12 +2667,12 @@ app.get('/api/snydermetrics', async (req, res) => {
     // 9. Format response as consolidated table
     const consolidatedData = {};
     const categories = ['O', 'U', 'Line (H)', 'Line (A)', 'Fav', 'Dog', 'Fav (H)', 'Dog (H)', 'Fav (A)', 'Dog (A)'];
-    
+
     categories.forEach(category => {
       const cfbData = cfbStats[category] || { W: 0, L: 0, T: 0 };
       const nflData = nflStats[category] || { W: 0, L: 0, T: 0 };
       const totalData = totalStats[category] || { W: 0, L: 0, T: 0 };
-      
+
       consolidatedData[category] = {
         cfb: {
           W: cfbData.W,
@@ -2737,11 +2753,11 @@ async function getManualAwards(year, week, mainDb) {
       year: year,
       week: week
     });
-    
+
     if (!manualAward) {
       return {};
     }
-    
+
     return {
       'Unusual Lock': [{
         gameDetails: manualAward.gameDetails,
@@ -2780,8 +2796,8 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
 
     // Check if the week has concluded
     if (!isWeekComplete(selectedGameWeek)) {
-      return res.json({ 
-        picks: [], 
+      return res.json({
+        picks: [],
         message: 'Manual awards can only be selected after the week concludes',
         weekComplete: false
       });
@@ -2803,7 +2819,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
     // Get all winning picks for this week
     const picksCollectionName = `cy_${year}_picks`;
     const picksCollection = mainDb.collection(picksCollectionName);
-    const weekPicks = await picksCollection.find({ 
+    const weekPicks = await picksCollection.find({
       collectionName: selectedGameWeek,
       result: 'WIN'
     }).toArray();
@@ -2812,7 +2828,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
     const yearDbName = `cy_${year}`;
     const yearDb = client.db(yearDbName);
     const games = await yearDb.collection(selectedGameWeek).find({}).toArray();
-    
+
     // Build game map
     const gameMap = {};
     games.forEach(game => {
@@ -2825,7 +2841,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
     const enrichedPicks = weekPicks.map(pick => {
       const game = gameMap[pick.gameId];
       const user = userMap[pick.userId];
-      
+
       if (!game || !user) return null;
 
       // Calculate margin
@@ -2838,7 +2854,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
         if (pick.pickType === 'spread') {
           const pickedSpread = parseFloat(pick.line) || 0;
           const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
-          
+
           if (pickedSpread < 0) {
             if (pickedHome) {
               margin = scoreDiff - Math.abs(pickedSpread);
@@ -2873,7 +2889,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
           const totalScore = homeScore + awayScore;
           const pickedTotal = parseFloat(pick.line) || 0;
           const isOverPick = pick.pickSide === 'OVER';
-          
+
           if (isOverPick) {
             margin = totalScore - pickedTotal;
           } else {
@@ -2889,7 +2905,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
         userName: user.name,
         gameDetails: `${game.away_team_abbrev} @ ${game.home_team_abbrev}`,
         pickDetails: formatPickDetails(pick),
-        score: game.homeScore !== null && game.awayScore !== null ? 
+        score: game.homeScore !== null && game.awayScore !== null ?
           `${game.away_team_abbrev} ${game.awayScore} - ${game.home_team_abbrev} ${game.homeScore}` : null,
         margin: margin,
         pickType: pick.pickType,
@@ -2904,7 +2920,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
       week: selectedGameWeek
     });
 
-    res.json({ 
+    res.json({
       picks: enrichedPicks,
       existingAward: existingAward ? {
         pickId: existingAward.pickId,
@@ -2936,7 +2952,7 @@ app.post('/api/manual-awards', async (req, res) => {
     // Get the specific pick
     const picksCollectionName = `cy_${year}_picks`;
     const picksCollection = mainDb.collection(picksCollectionName);
-    const pick = await picksCollection.findOne({ 
+    const pick = await picksCollection.findOne({
       _id: new ObjectId(pickId),
       collectionName: week,
       result: 'WIN'
@@ -2970,7 +2986,7 @@ app.post('/api/manual-awards', async (req, res) => {
       if (pick.pickType === 'spread') {
         const pickedSpread = parseFloat(pick.line) || 0;
         const pickedHome = pick.pickSide === game.home_team_abbrev || pick.pickSide === game.home_team_full;
-        
+
         if (pickedSpread < 0) {
           if (pickedHome) {
             margin = scoreDiff - Math.abs(pickedSpread);
@@ -3005,7 +3021,7 @@ app.post('/api/manual-awards', async (req, res) => {
         const totalScore = homeScore + awayScore;
         const pickedTotal = parseFloat(pick.line) || 0;
         const isOverPick = pick.pickSide === 'OVER';
-        
+
         if (isOverPick) {
           margin = totalScore - pickedTotal;
         } else {
@@ -3024,7 +3040,7 @@ app.post('/api/manual-awards', async (req, res) => {
       winnerFirebaseUid: user.firebaseUid,
       gameDetails: `${game.away_team_abbrev} @ ${game.home_team_abbrev}`,
       pickDetails: formatPickDetails(pick),
-      score: game.homeScore !== null && game.awayScore !== null ? 
+      score: game.homeScore !== null && game.awayScore !== null ?
         `${game.away_team_abbrev} ${game.awayScore} - ${game.home_team_abbrev} ${game.homeScore}` : null,
       margin: margin,
       createdAt: new Date(),
@@ -3124,15 +3140,15 @@ app.post('/api/awards/publish', async (req, res) => {
     });
 
     const now = new Date();
-    
+
     if (existingWeek) {
       // Update existing record
       await mainDb.collection('awardsData').updateOne(
         { year: parseInt(year), week: week },
-        { 
-          $set: { 
-            published: true, 
-            publishedAt: now, 
+        {
+          $set: {
+            published: true,
+            publishedAt: now,
             publishedBy: publishedBy,
             updatedAt: now
           }
@@ -3151,7 +3167,7 @@ app.post('/api/awards/publish', async (req, res) => {
       });
     }
 
-    res.json({ 
+    res.json({
       message: 'Week published successfully',
       publishedAt: now,
       publishedBy: publishedBy
@@ -3174,9 +3190,9 @@ app.post('/api/awards/unpublish', async (req, res) => {
 
     const result = await mainDb.collection('awardsData').updateOne(
       { year: parseInt(year), week: week },
-      { 
-        $set: { 
-          published: false, 
+      {
+        $set: {
+          published: false,
           unpublishedAt: new Date(),
           updatedAt: new Date()
         }
@@ -3212,7 +3228,7 @@ app.get('/api/picks/check-completion', authenticateUser, async (req, res) => {
 
     const mainDb = await connectToDb();
     const picksCollection = getPicksCollectionName(year);
-    
+
     // Check if user has submitted all 3 picks for this week
     const userPicks = await mainDb.collection(picksCollection).find({
       userId: firebaseUid,
@@ -3220,8 +3236,8 @@ app.get('/api/picks/check-completion', authenticateUser, async (req, res) => {
     }).toArray();
 
     const hasCompletePicks = userPicks.length >= 3;
-    
-    res.json({ 
+
+    res.json({
       hasCompletePicks,
       picksCount: userPicks.length,
       requiredPicks: 3
@@ -3250,7 +3266,7 @@ app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
 
     const mainDb = await connectToDb();
     const picksCollection = getPicksCollectionName(year);
-    
+
     // First, verify that the current user has completed all 3 picks for this week
     const currentUserPicks = await mainDb.collection(picksCollection).find({
       userId: currentUserFirebaseUid,
@@ -3258,7 +3274,7 @@ app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
     }).toArray();
 
     if (currentUserPicks.length < 3) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Access denied: You must complete all 3 picks for this week before viewing other users\' picks',
         hasCompletePicks: false,
         picksCount: currentUserPicks.length,
@@ -3277,7 +3293,7 @@ app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
     const dbClient = await client.connect();
     const db = dbClient.db(dbName);
     const games = await db.collection(collectionName).find({}).toArray();
-    
+
     // Build a map for quick lookup using the game's MongoDB _id
     const gameMap = {};
     for (const game of games) {
@@ -3291,7 +3307,7 @@ app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
       const game = pick.gameId ? gameMap[pick.gameId] : null;
       return {
         ...pick,
-        gameDetails: game, 
+        gameDetails: game,
         homeScore: game ? game.homeScore : null,
         awayScore: game ? game.awayScore : null,
         status: game ? game.status : null,
