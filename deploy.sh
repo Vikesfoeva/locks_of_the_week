@@ -15,6 +15,7 @@ gcloud run deploy locks-backend \
   --source . \
   --platform managed \
   --region us-east1 \
+  --project locks-of-the-week \
   --allow-unauthenticated \
   --port 5001 \
   --set-secrets FIREBASE_PROJECT_ID=firebase-project-id:latest,FIREBASE_CLIENT_EMAIL=FIREBASE_CLIENT_EMAIL:latest,FIREBASE_PRIVATE_KEY=FIREBASE_PRIVATE_KEY:latest
