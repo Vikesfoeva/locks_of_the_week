@@ -115,9 +115,16 @@ export default function AdminDashboard() {
         if (!collectionsRes.ok) throw new Error('Failed to fetch collections');
         const collections = await collectionsRes.json();
         
-        // Filter collections for the active year and sort by date (most recent first)
+        // Filter collections for the active year and the next year (to include late-season games) and sort by date (most recent first)
         const currentYearCollections = collections
-          .filter(name => name.includes(`odds_${activeYear}_`))
+          .filter(name => {
+            const parts = name.split('_');
+            if (parts.length === 4 && parts[0] === 'odds') {
+              const year = parseInt(parts[1], 10);
+              return year === activeYear || year === activeYear + 1;
+            }
+            return false;
+          })
           .filter(name => parseCollectionNameToDate(name) !== null)
           .sort((a, b) => {
             const dateA = parseCollectionNameToDate(a);

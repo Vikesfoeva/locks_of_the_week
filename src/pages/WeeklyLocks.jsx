@@ -541,10 +541,14 @@ const WeeklyLocks = () => {
           return;
         }
 
-        // Only show collections for the active year
+        // Only show collections for the active year and the next year (to include late-season games)
         let filteredCollections = fetchedCollections.filter(name => {
           const parts = name.split('_');
-          return parts.length === 4 && parts[0] === 'odds' && parseInt(parts[1], 10) === activeYear;
+          if (parts.length === 4 && parts[0] === 'odds') {
+            const year = parseInt(parts[1], 10);
+            return year === activeYear || year === activeYear + 1;
+          }
+          return false;
         });
 
         filteredCollections = filteredCollections.filter(name => parseCollectionNameToDate(name) !== null);
