@@ -110,9 +110,16 @@ export default function Dashboard() {
         const collectionsRes = await axios.get(`${API_URL}/collections`)
         const collections = collectionsRes.data || []
         
-        // Filter and sort collections for current year
+        // Filter and sort collections for current year and the next year (to include late-season games)
         const currentYearCollections = collections
-          .filter(name => name.includes(`odds_${activeYear}_`))
+          .filter(name => {
+            const parts = name.split('_');
+            if (parts.length === 4 && parts[0] === 'odds') {
+              const year = parseInt(parts[1], 10);
+              return year === activeYear || year === activeYear + 1;
+            }
+            return false;
+          })
           .sort((a, b) => {
             // Sort by date (most recent first)
             const dateA = new Date(a.replace('odds_', '').replace(/_/g, '-'))
