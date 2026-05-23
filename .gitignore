@@ -45,3 +45,5 @@ Thumbs.db
 .env
 .env.local 
 node_modules
+gcp-sa-key.json
+locks-of-the-week-firebase-adminsdk-duhdh-c451f57ea6.json
