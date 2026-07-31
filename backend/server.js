@@ -272,6 +272,9 @@ app.put('/api/users/:id', async (req, res) => {
     delete updates.email; // Email should not be editable
     delete updates.firebaseUid; // Firebase UID should not be editable
     delete updates.createdAt; // Created timestamp should not be editable
+    delete updates.seasons; // Per-season data is only writable via seasonUpdate below
+    delete updates.duesPaid; // Legacy top-level dues fields were migrated into
+    delete updates.dateDuesPaid; // seasons.<key>; strip so old clients can't recreate them
 
     // Validate cell phone number if being updated
     if (updates.cellPhone && updates.cellPhone.trim()) {
@@ -289,12 +292,29 @@ app.put('/api/users/:id', async (req, res) => {
       updates.venmoHandle = formatVenmoHandle(updates.venmoHandle);
     }
 
+    // Per-season membership/dues: translate seasonUpdate into dot-notation so
+    // one season's edit can never clobber another season's entry. Map keys are
+    // always String(normalizeSeasonKey(season)).
+    const seasonUpdate = updates.seasonUpdate;
+    delete updates.seasonUpdate;
+    const seasonSet = {};
+    if (seasonUpdate && typeof seasonUpdate === 'object') {
+      const seasonKey = normalizeSeasonKey(seasonUpdate.season);
+      if (seasonKey === null) {
+        return res.status(400).json({ error: 'Invalid season in seasonUpdate' });
+      }
+      const prefix = `seasons.${String(seasonKey)}`;
+      if (typeof seasonUpdate.active === 'boolean') seasonSet[`${prefix}.active`] = seasonUpdate.active;
+      if (typeof seasonUpdate.duesPaid === 'boolean') seasonSet[`${prefix}.duesPaid`] = seasonUpdate.duesPaid;
+      if (typeof seasonUpdate.dateDuesPaid === 'string') seasonSet[`${prefix}.dateDuesPaid`] = seasonUpdate.dateDuesPaid;
+    }
+
     // Add updatedAt timestamp
     updates.updatedAt = new Date();
 
     const result = await db.collection('users').updateOne(
       { _id: new ObjectId(id) },
-      { $set: updates }
+      { $set: { ...updates, ...seasonSet } }
     );
 
     if (result.matchedCount === 0) {
@@ -425,7 +445,7 @@ app.post('/api/users/check-whitelist', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const db = await connectToDb();
-    const { email, firebaseUid, firstName, lastName, role, venmoHandle, cellPhone, duesPaid, dateDuesPaid, createdAt, updatedAt } = req.body;
+    const { email, firebaseUid, firstName, lastName, role, venmoHandle, cellPhone, createdAt, updatedAt } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
@@ -459,6 +479,7 @@ app.post('/api/users', async (req, res) => {
       return res.status(403).json({ error: 'This email is not authorized for account creation. Please contact an administrator.' });
     }
     const now = new Date();
+    const activeSeason = await resolveActiveSeason(db);
     const userDoc = {
       email: normalizedEmail, // Store normalized email
       firebaseUid: firebaseUid,
@@ -467,8 +488,12 @@ app.post('/api/users', async (req, res) => {
       role: role || 'user',
       venmoHandle: formatVenmoHandle(venmoHandle || ''),
       cellPhone: cleanPhone,
-      duesPaid: duesPaid || false,
-      dateDuesPaid: dateDuesPaid || '',
+      // Membership/dues are per-season, keyed by String(seasonKey). New users
+      // join the current active season; with no active season set they belong
+      // to none until an admin (or the migration script) adds one.
+      seasons: activeSeason !== null
+        ? { [String(activeSeason)]: { active: true, duesPaid: false, dateDuesPaid: '' } }
+        : {},
       createdAt: createdAt ? new Date(createdAt) : now,
       updatedAt: updatedAt ? new Date(updatedAt) : now,
     };
@@ -585,8 +610,11 @@ async function resolveActiveSeason(mainDb) {
   return config && config.value !== undefined ? config.value : null;
 }
 
-// Look up a league_configurations doc scoped to a season, falling back to the
-// legacy unscoped doc (no `season` field) shared by seasons without their own.
+// Look up a league_configurations doc scoped to a season. The legacy unscoped
+// docs (no `season` field) were stamped with season: 2025 by
+// migrate_2026_season_scoping.js; the fallback is retained defensively (covers
+// the pre-migration deploy window and backup restores). Returning null means
+// the route serves its empty defaults — the intended fresh-season behavior.
 async function getSeasonConfig(mainDb, key, seasonKey) {
   if (seasonKey !== null && seasonKey !== undefined) {
     const scoped = await mainDb.collection('league_configurations').findOne({ key, season: seasonKey });

@@ -77,6 +77,12 @@ export default function AdminDashboard() {
     return null;
   };
 
+  // A user's membership/dues entry for the active season. Map keys are always
+  // String(seasonKey); users without an entry are inactive/unpaid.
+  const getSeasonEntry = (user) =>
+    (activeYear !== '' && user.seasons?.[String(activeYear)]) ||
+    { active: false, duesPaid: false, dateDuesPaid: '' };
+
   // Fetch available years and active year on mount
   useEffect(() => {
     const fetchYearsAndActive = async () => {
@@ -267,31 +273,6 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  // Handlers for user management
-  const handleUserChange = async (index, field, value) => {
-    try {
-      const user = users[index];
-      const updates = { ...user, [field]: value };
-      
-      const response = await fetch(`${API_URL}/users/${user._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update user');
-      }
-      
-      // Update local state after successful API call
-      const updated = [...users];
-      updated[index] = { ...updated[index], [field]: value };
-      setUsers(updated);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   // Handler for initiating user deletion
   const initiateDeleteUser = (user) => {
     if (user.role === 'admin') {
@@ -397,14 +378,19 @@ export default function AdminDashboard() {
 
   // Handler for starting edit mode
   const startEditing = (user) => {
+    const entry = getSeasonEntry(user);
     setEditingUser(user._id);
     setEditFormData({
       firstName: user.firstName || '',
       lastName: user.lastName || '',
       venmoHandle: user.venmoHandle || '',
       cellPhone: user.cellPhone ? formatPhoneNumber(user.cellPhone) : '',
-      duesPaid: user.duesPaid || false,
-      dateDuesPaid: user.dateDuesPaid || ''
+      // Captured at edit start so a mid-edit season switch still saves to the
+      // season the form was opened for
+      season: activeYear,
+      seasonActive: entry.active,
+      duesPaid: entry.duesPaid,
+      dateDuesPaid: entry.dateDuesPaid || ''
     });
     setSaveStatus({});
   };
@@ -423,36 +409,49 @@ export default function AdminDashboard() {
     setIsSubmitting(true);
     try {
       setSaveStatus({ loading: true });
-      const user = users.find(u => u._id === editingUser);
+      const { season, seasonActive, duesPaid, dateDuesPaid, ...profile } = editFormData;
       const updates = {
-        ...editFormData,
+        ...profile,
         updatedAt: new Date()
       };
-      
+
       // Clean phone number if it's being updated
       if (updates.cellPhone) {
         updates.cellPhone = getCleanPhoneNumber(updates.cellPhone);
       }
-      
+
       // Format Venmo handle if it's being updated
       if (updates.venmoHandle !== undefined) {
         updates.venmoHandle = formatVenmoHandle(updates.venmoHandle);
       }
-      
+
+      // Membership/dues are per-season; the server translates seasonUpdate
+      // into a targeted update of seasons.<key>
+      if (season !== '' && season !== undefined) {
+        updates.seasonUpdate = { season, active: seasonActive, duesPaid, dateDuesPaid };
+      }
+
       const response = await fetch(`${API_URL}/users/${editingUser}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to update user');
       }
-      
-      // Update local state
-      setUsers(users.map(u => 
-        u._id === editingUser 
-          ? { ...u, ...updates }
+
+      // Update local state, mirroring the normalized values actually persisted
+      const { seasonUpdate: savedSeasonUpdate, ...savedProfile } = updates;
+      setUsers(users.map(u =>
+        u._id === editingUser
+          ? {
+              ...u,
+              ...savedProfile,
+              ...(savedSeasonUpdate
+                ? { seasons: { ...(u.seasons || {}), [String(season)]: { active: seasonActive, duesPaid, dateDuesPaid } } }
+                : {})
+            }
           : u
       ));
       
@@ -844,8 +843,30 @@ export default function AdminDashboard() {
                 <th className="px-2 py-1 border">Role</th>
                 <th className="px-2 py-1 border">Venmo</th>
                 <th className="px-2 py-1 border">Cell Phone</th>
-                <th className="px-2 py-1 border">Dues Paid</th>
-                <th className="px-2 py-1 border">Date Paid</th>
+                <th className="px-2 py-1 border">
+                  Member
+                  {activeYear !== '' && (
+                    <div className="text-xs text-gray-500 font-normal">
+                      {formatSeasonLabel(activeYear)}
+                    </div>
+                  )}
+                </th>
+                <th className="px-2 py-1 border">
+                  Dues Paid
+                  {activeYear !== '' && (
+                    <div className="text-xs text-gray-500 font-normal">
+                      {formatSeasonLabel(activeYear)}
+                    </div>
+                  )}
+                </th>
+                <th className="px-2 py-1 border">
+                  Date Paid
+                  {activeYear !== '' && (
+                    <div className="text-xs text-gray-500 font-normal">
+                      {formatSeasonLabel(activeYear)}
+                    </div>
+                  )}
+                </th>
                 <th className="px-2 py-1 border">
                   Locks Made
                   {mostRecentWeek && (
@@ -922,17 +943,39 @@ export default function AdminDashboard() {
                     {editingUser === user._id ? (
                       <input
                         type="checkbox"
-                        checked={editFormData.duesPaid}
-                        onChange={e => setEditFormData(prev => ({ ...prev, duesPaid: e.target.checked }))}
+                        checked={editFormData.seasonActive}
+                        onChange={e => setEditFormData(prev => ({ ...prev, seasonActive: e.target.checked }))}
                         className="h-4 w-4"
+                        disabled={editFormData.season === ''}
+                        title={editFormData.season === '' ? 'No season resolved — membership cannot be edited' : undefined}
                       />
                     ) : (
                       <span className={`px-2 py-1 rounded-full text-xs ${
-                        user.duesPaid 
-                          ? 'bg-green-100 text-green-800' 
+                        getSeasonEntry(user).active
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getSeasonEntry(user).active ? 'Active' : 'Inactive'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="border px-2 py-1 text-center">
+                    {editingUser === user._id ? (
+                      <input
+                        type="checkbox"
+                        checked={editFormData.duesPaid}
+                        onChange={e => setEditFormData(prev => ({ ...prev, duesPaid: e.target.checked }))}
+                        className="h-4 w-4"
+                        disabled={editFormData.season === ''}
+                        title={editFormData.season === '' ? 'No season resolved — dues cannot be edited' : undefined}
+                      />
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        getSeasonEntry(user).duesPaid
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {user.duesPaid ? 'Paid' : 'Unpaid'}
+                        {getSeasonEntry(user).duesPaid ? 'Paid' : 'Unpaid'}
                       </span>
                     )}
                   </td>
@@ -943,10 +986,10 @@ export default function AdminDashboard() {
                         type="date"
                         value={editFormData.dateDuesPaid}
                         onChange={e => setEditFormData(prev => ({ ...prev, dateDuesPaid: e.target.value }))}
-                        disabled={!editFormData.duesPaid}
+                        disabled={!editFormData.duesPaid || editFormData.season === ''}
                       />
                     ) : (
-                      <span>{user.dateDuesPaid || '-'}</span>
+                      <span>{getSeasonEntry(user).dateDuesPaid || '-'}</span>
                     )}
                   </td>
                   <td className="border px-2 py-1 text-center">
