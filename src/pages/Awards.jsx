@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 import FilterModal from '../components/FilterModal';
 import { useAuth } from '../contexts/AuthContext';
+import { formatSeasonLabel } from '../utils/seasonFormatter';
 
 const Awards = () => {
   const { currentUser } = useAuth();
@@ -599,7 +600,7 @@ const Awards = () => {
       {/* Title and Description */}
       <div className="text-center mb-3 md:mb-4">
         <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1">
-          Weekly Awards - {activeYear}
+          Weekly Awards - {formatSeasonLabel(activeYear)}
         </h1>
         <p className="text-sm md:text-base text-gray-600">
           Recognition for standout locks and performances

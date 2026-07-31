@@ -2,6 +2,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { API_URL } from '../config'
+import { seasonBaseYear } from '../utils/seasonFormatter'
 
 export default function Dashboard() {
   const { currentUser } = useAuth()
@@ -116,7 +117,8 @@ export default function Dashboard() {
             const parts = name.split('_');
             if (parts.length === 4 && parts[0] === 'odds') {
               const year = parseInt(parts[1], 10);
-              return year === activeYear || year === activeYear + 1;
+              const baseYear = seasonBaseYear(activeYear);
+              return year === baseYear || year === baseYear + 1;
             }
             return false;
           })

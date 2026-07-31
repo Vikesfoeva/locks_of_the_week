@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { formatPhoneNumber, getCleanPhoneNumber } from '../utils/phoneFormatter';
 import { formatVenmoHandle } from '../utils/venmoFormatter';
+import { formatSeasonLabel, seasonBaseYear } from '../utils/seasonFormatter';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();
@@ -116,12 +117,13 @@ export default function AdminDashboard() {
         const collections = await collectionsRes.json();
         
         // Filter collections for the active year and the next year (to include late-season games) and sort by date (most recent first)
+        const baseYear = seasonBaseYear(activeYear);
         const currentYearCollections = collections
           .filter(name => {
             const parts = name.split('_');
             if (parts.length === 4 && parts[0] === 'odds') {
               const year = parseInt(parts[1], 10);
-              return year === activeYear || year === activeYear + 1;
+              return year === baseYear || year === baseYear + 1;
             }
             return false;
           })
@@ -170,64 +172,69 @@ export default function AdminDashboard() {
     fetchUserPicksForRecentWeek();
   }, [mostRecentWeek, activeYear]);
 
+  // These three settings are season-scoped server-side; they're fetched on
+  // mount and refetched after the active season changes.
+  const fetchPayoutSettings = async () => {
+    setPayoutLoading(true);
+    setPayoutError(null);
+    try {
+      const response = await fetch(`${API_URL}/payout-settings`);
+      if (!response.ok) throw new Error('Failed to fetch payout settings');
+      const settings = await response.json();
+      setPayoutSettings(settings);
+    } catch (err) {
+      setPayoutError(err.message);
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const fetchAnnouncement = async () => {
+    setAnnouncementLoading(true);
+    setAnnouncementError(null);
+    try {
+      const response = await fetch(`${API_URL}/announcements`);
+      if (!response.ok) throw new Error('Failed to fetch announcement');
+      const data = await response.json();
+      setAnnouncement({
+        message: data.message || '',
+        active: data.active || false
+      });
+    } catch (err) {
+      setAnnouncementError(err.message);
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const fetchThreeZeroPrizePool = async () => {
+    setThreeZeroPrizePoolLoading(true);
+    setThreeZeroPrizePoolError(null);
+    try {
+      const response = await fetch(`${API_URL}/three-zero-prize-pool`);
+      if (!response.ok) throw new Error('Failed to fetch 3-0 week prize pool');
+      const data = await response.json();
+      setThreeZeroPrizePool(data.prizePool);
+    } catch (err) {
+      console.error('Error fetching 3-0 week prize pool:', err);
+      setThreeZeroPrizePoolError(err.message);
+    } finally {
+      setThreeZeroPrizePoolLoading(false);
+    }
+  };
+
   // Fetch payout settings on mount
   useEffect(() => {
-    const fetchPayoutSettings = async () => {
-      setPayoutLoading(true);
-      setPayoutError(null);
-      try {
-        const response = await fetch(`${API_URL}/payout-settings`);
-        if (!response.ok) throw new Error('Failed to fetch payout settings');
-        const settings = await response.json();
-        setPayoutSettings(settings);
-      } catch (err) {
-        setPayoutError(err.message);
-      } finally {
-        setPayoutLoading(false);
-      }
-    };
     fetchPayoutSettings();
   }, []);
 
   // Fetch announcement on mount
   useEffect(() => {
-    const fetchAnnouncement = async () => {
-      setAnnouncementLoading(true);
-      setAnnouncementError(null);
-      try {
-        const response = await fetch(`${API_URL}/announcements`);
-        if (!response.ok) throw new Error('Failed to fetch announcement');
-        const data = await response.json();
-        setAnnouncement({
-          message: data.message || '',
-          active: data.active || false
-        });
-      } catch (err) {
-        setAnnouncementError(err.message);
-      } finally {
-        setAnnouncementLoading(false);
-      }
-    };
     fetchAnnouncement();
   }, []);
 
   // Fetch 3-0 week prize pool on mount
   useEffect(() => {
-    const fetchThreeZeroPrizePool = async () => {
-      setThreeZeroPrizePoolLoading(true);
-      setThreeZeroPrizePoolError(null);
-      try {
-        const response = await fetch(`${API_URL}/three-zero-prize-pool`);
-        if (!response.ok) throw new Error('Failed to fetch 3-0 week prize pool');
-        const data = await response.json();
-        setThreeZeroPrizePool(data.prizePool);
-      } catch (err) {
-        console.error('Error fetching 3-0 week prize pool:', err);
-        setThreeZeroPrizePoolError(err.message);
-      } finally {
-        setThreeZeroPrizePoolLoading(false);
-      }
-    };
     fetchThreeZeroPrizePool();
   }, []);
 
@@ -466,8 +473,10 @@ export default function AdminDashboard() {
   const [savingYear, setSavingYear] = useState(false);
   const [saveYearError, setSaveYearError] = useState(null);
   const handleSetActiveYear = async (e) => {
-    const newYear = parseInt(e.target.value, 10);
-    setActiveYear(newYear);
+    // DOM option values are always strings; recover the typed key
+    // (number for plain years, string for keys like '2026_preseason')
+    const raw = e.target.value;
+    const newYear = years.find(y => String(y) === raw) ?? raw;
     setSavingYear(true);
     setSaveYearError(null);
     try {
@@ -477,6 +486,14 @@ export default function AdminDashboard() {
         body: JSON.stringify({ year: newYear })
       });
       if (!res.ok) throw new Error('Failed to set active year');
+      // Update state only after the server has switched: the most-recent-week
+      // effect and the season-labeled cards must not run against the old
+      // server-side season, and a failed switch must not relabel the UI.
+      setActiveYear(newYear);
+      // Settings are season-scoped server-side; reload them for the new season
+      fetchPayoutSettings();
+      fetchAnnouncement();
+      fetchThreeZeroPrizePool();
     } catch (err) {
       setSaveYearError(err.message);
     } finally {
@@ -507,7 +524,8 @@ export default function AdminDashboard() {
       const response = await fetch(`${API_URL}/payout-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payoutSettings)
+        // Declare which season this form was editing (JSON.stringify drops undefined)
+        body: JSON.stringify({ ...payoutSettings, season: activeYear === '' ? undefined : activeYear })
       });
       if (!response.ok) throw new Error('Failed to save payout settings');
       // Success message could be added here
@@ -540,7 +558,7 @@ export default function AdminDashboard() {
       const response = await fetch(`${API_URL}/announcements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(announcement)
+        body: JSON.stringify({ ...announcement, season: activeYear === '' ? undefined : activeYear })
       });
       if (!response.ok) throw new Error('Failed to save announcement');
       // Success message could be added here
@@ -570,7 +588,7 @@ export default function AdminDashboard() {
       const response = await fetch(`${API_URL}/three-zero-prize-pool`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prizePool: threeZeroPrizePool })
+        body: JSON.stringify({ prizePool: threeZeroPrizePool, season: activeYear === '' ? undefined : activeYear })
       });
       if (!response.ok) throw new Error('Failed to save 3-0 week prize pool');
     } catch (err) {
@@ -1069,7 +1087,7 @@ export default function AdminDashboard() {
 
       {/* Payout Settings */}
       <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Prizepool Payout Settings</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Prizepool Payout Settings{activeYear !== '' && ` (${formatSeasonLabel(activeYear)})`}</h3>
         <p className="text-sm text-gray-600 mb-4">
           Set the payout amounts for 1st, 2nd, 3rd, 4th, 5th, and last place. Enter 0 to disable payout for any position.
         </p>
@@ -1130,7 +1148,7 @@ export default function AdminDashboard() {
 
       {/* Announcement Management */}
       <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Dashboard Announcement</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Dashboard Announcement{activeYear !== '' && ` (${formatSeasonLabel(activeYear)})`}</h3>
         <p className="text-sm text-gray-600 mb-4">
           Set an announcement message that will be displayed on the main dashboard. Users will see this message prominently displayed.
         </p>
@@ -1189,7 +1207,7 @@ export default function AdminDashboard() {
 
       {/* 3-0 Week Prize Pool Settings */}
       <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">3-0 Week Prize Pool</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">3-0 Week Prize Pool{activeYear !== '' && ` (${formatSeasonLabel(activeYear)})`}</h3>
         <p className="text-sm text-gray-600 mb-4">
           Set the total prize pool for users who achieve perfect 3-0 weeks. Users earn a percentage of this pool based on their share of total 3-0 weeks.
         </p>
@@ -1238,14 +1256,14 @@ export default function AdminDashboard() {
 
       {/* Active Year Selection - at bottom */}
       <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Active Year</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Active Season</h3>
         {yearsLoading ? (
           <div className="text-gray-500">Loading years...</div>
         ) : yearsError ? (
           <div className="text-red-600">Error: {yearsError}</div>
         ) : (
           <div className="flex items-center gap-2">
-            <label htmlFor="active-year-select" className="font-medium">Set Active Year:</label>
+            <label htmlFor="active-year-select" className="font-medium">Set Active Season:</label>
             <select
               id="active-year-select"
               value={activeYear}
@@ -1254,7 +1272,7 @@ export default function AdminDashboard() {
               disabled={savingYear}
             >
               {years.map(year => (
-                <option key={year} value={year}>{year}</option>
+                <option key={year} value={year}>{formatSeasonLabel(year)}</option>
               ))}
             </select>
             {savingYear && <span className="text-xs text-gray-500 ml-2">Saving...</span>}

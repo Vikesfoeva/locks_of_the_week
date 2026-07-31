@@ -6,6 +6,7 @@ import FilterModal from '../components/FilterModal';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuth } from 'firebase/auth';
+import { formatSeasonLabel } from '../utils/seasonFormatter';
 
 // Component for user name buttons with conditional clickability
 const UserNameButton = ({ user, isTopFive, onPicksClick, checkPicksComplete, currentUserFirebaseUid, selectedWeek, activeYear }) => {
@@ -633,7 +634,7 @@ const Standings = () => {
       {/* Title and Description */}
       <div className="text-center mb-4 md:mb-6">
         <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1 md:mb-2">
-          {viewMode === 'regular' ? 'Overall Standings' : '3-0 Week Standings'} - {activeYear}
+          {viewMode === 'regular' ? 'Overall Standings' : '3-0 Week Standings'} - {formatSeasonLabel(activeYear)}
         </h1>
         {/* <p className="text-sm md:text-base text-gray-600">
           {viewMode === 'regular' 

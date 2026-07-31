@@ -7,6 +7,7 @@ import { LockOpenIcon } from '@heroicons/react/24/solid';
 // import { AuthContext } from '../contexts/AuthContext'; // Uncomment if you have AuthContext
 import { useAuth } from '../contexts/AuthContext'; // Using useAuth hook
 import { API_URL } from '../config';
+import { seasonBaseYear } from '../utils/seasonFormatter';
 import ConfirmModal from '../components/ConfirmModal';
 import FilterModal from '../components/FilterModal';
 import { useFilterModal, createFilterButtonProps, createFilterModalProps } from '../hooks/useFilterModal';
@@ -237,7 +238,8 @@ const Locks = () => {
           const parts = name.split('_');
           if (parts.length === 4 && parts[0] === 'odds') {
             const year = parseInt(parts[1], 10);
-            return year === activeYear || year === activeYear + 1;
+            const baseYear = seasonBaseYear(activeYear);
+            return year === baseYear || year === baseYear + 1;
           }
           return false;
         });

@@ -4,70 +4,112 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-"Locks of the Week" — a weekly sports picking contest. Users sign in (Firebase Auth, email/password or Google), pick 1–3 games per week from a curated slate, and are ranked on a season-long leaderboard with payouts. Two separately deployed pieces: a Vite/React frontend on Firebase Hosting and a Node/Express backend on Google Cloud Run.
+"Locks of the Week" — a weekly sports picking contest. Whitelisted users sign in (Firebase Auth, email/password or Google), pick up to 3 games per week from a curated slate, and are ranked on a season-long leaderboard with payouts, weekly awards, and a separate 3-0 prize pool. Two separately deployed pieces: a Vite/React frontend on Firebase Hosting and a Node/Express backend on Google Cloud Run.
 
 ## Commands
 
 ### Frontend (project root)
 - `npm run dev` — Vite dev server on `http://localhost:5173`. Proxies `/api/*` to `http://localhost:5001` (the local backend).
-- `npm run build` — production build to `dist/`.
-- `npm run lint` — ESLint with `--max-warnings 0`; CI/scripts assume zero warnings.
+- `npm run build` — production build to `dist/`. Verified working; emits a >500 kB chunk warning (single bundle, no code splitting).
 - `npm run preview` — serve the built `dist/` locally.
+- `npm run lint` — **currently broken.** The script runs ESLint 8 but there is no `.eslintrc*` in the repo, so it exits with "ESLint couldn't find a configuration file." The `eslint-plugin-react*` devDependencies are installed but unused. Don't cite lint as a passing gate; if you need linting, a config has to be added first.
 
 ### Backend (`backend/`)
-- `npm start` (or `node server.js`) — starts Express on `PORT` (default 5001).
-- Requires `MONGO_URI` (process exits if missing) and `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` (Firebase Admin token verification is disabled gracefully if missing).
+- `npm start` (or `node server.js`) — Express on `PORT` (default 5001).
+- `MONGO_URI` is required — the process exits immediately without it.
+- Firebase Admin init order: `backend/firebase-service-account.json` if present, else `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY`. If neither is available it logs a warning and continues; the two token-protected endpoints then reject all requests.
+- `node backend/debug_games.js` — standalone script that connects to Mongo, resolves the active year, and dumps `odds_*` collections. Useful for inspecting slate data without the server.
 
 ### Deploy
-- `./deploy.sh` — production. Runs `npm run build`, deploys frontend via `firebase deploy --only hosting`, then deploys backend to Cloud Run (`locks-backend`, region `us-east1`, project `locks-of-the-week`) wiring secrets from Google Secret Manager.
-- `./deploy-dev.sh` — dev variant that passes secrets as `--set-env-vars` from the local shell instead of Secret Manager.
+Pushing to `main` **auto-deploys both halves** via GitHub Actions:
+- `.github/workflows/deploy-frontend.yml` — `npm ci && npm run build` (injecting `VITE_*` from repo secrets), then `FirebaseExtended/action-hosting-deploy` to the live channel of project `locks-of-the-week`.
+- `.github/workflows/deploy-backend.yml` — `gcloud run deploy locks-backend --source ./backend` to `us-east1`.
 
-There are no automated tests in this project. GitHub Actions workflows under `.github/workflows/` are `.disabled`.
+Manual equivalents: `./deploy.sh` (production; secrets from Google Secret Manager) and `./deploy-dev.sh` (same, but passes secrets as `--set-env-vars` from your shell).
+
+Note: **no deploy path sets `MONGO_URI`.** All four only wire the three Firebase secrets, so `MONGO_URI` must already exist as an env var on the Cloud Run service and survives redeploys. A fresh service will crash-loop until it's set.
+
+There are no automated tests. `backend/package.json`'s `test` script is the npm default stub that exits 1.
 
 ## Architecture
 
 ### Split deployment, single origin
-The frontend is served from Firebase Hosting; `firebase.json` rewrites `/api/**` to the `locks-backend` Cloud Run service in `us-east1`. The frontend therefore calls a relative `/api/...` path in all environments (`API_URL` in `src/config.js`). In local dev, Vite proxies that same `/api` prefix to `localhost:5001`. **Do not hardcode backend URLs in frontend code** — use `API_URL` from `src/config.js`.
+The frontend is served from Firebase Hosting; `firebase.json` rewrites `/api/**` to the `locks-backend` Cloud Run service in `us-east1` and everything else to `/index.html`. The frontend therefore calls a relative `/api/...` path in every environment — `src/config.js` is literally `export const API_URL = '/api'`. In local dev, Vite proxies that same prefix to `localhost:5001`. **Do not hardcode backend URLs in frontend code** — use `API_URL`.
+
+`VITE_API_URL` in `.env.development`/`.env.production` is dead config: nothing imports it, and the production value points at a stale `…-uc.a.run.app` (us-central1) host. Ignore it; don't "fix" it by wiring it up.
+
+Both Vite's dev server and the Express app set `Cross-Origin-Opener-Policy: same-origin-allow-popups` (also set in `firebase.json`) — required for the Google sign-in popup. Don't tighten it.
 
 ### Auth: Firebase + MongoDB user bridge
-`src/contexts/AuthContext.jsx` is the source of truth for the logged-in user. The flow:
-1. Firebase Auth handles credentials (email/password or Google popup).
-2. On `onAuthStateChanged`, the context calls `GET /api/users?firebaseUid=…` to look up the user's MongoDB record.
-3. For new users it first checks `GET /api/whitelist/check`; if allowed, it creates the MongoDB record via `POST /api/users`.
-4. `currentUser` exposed by the context is a **merged object**: Firebase user fields + MongoDB fields including `_id`, `role`, `venmoHandle`, `cellPhone`. Treat `currentUser.role === 'admin'` as the admin check.
-5. `<ProfileSetupGuard>` forces new users through `/setup-profile` until `venmoHandle` and `cellPhone` are set.
+`src/contexts/AuthContext.jsx` is the source of truth for the logged-in user. On `onAuthStateChanged`:
+1. `GET /api/users?firebaseUid=…` looks up the MongoDB record.
+2. On 404, `GET /api/whitelist/check?email=…` gates creation; if allowed, `POST /api/users` creates the record, then it re-fetches (with a 500 ms sleep, plus an `?email=` fallback fetch). If not whitelisted, it signs the user out with an error.
+3. `currentUser` is a **merged object**: Firebase user fields spread with MongoDB fields (`_id`, `role`, `venmoHandle`, `cellPhone`, `duesPaid`, …). Admin check is `currentUser.role === 'admin'`.
+4. Registration stashes first/last name, Venmo handle, and cell phone in `localStorage` (`pendingFirstName`, `pendingVenmoId`, …) because the DB record is created later, from the auth-state callback rather than the signup call. Google users have none of these and get routed to profile setup.
 
-Route gating is in `src/App.jsx` via `<PrivateRoute>` (requires login) and `<PrivateRoute adminOnly>` (requires admin role).
+Route gating lives in `src/App.jsx`: `<PrivateRoute>` (login required), `<PrivateRoute adminOnly>` (admin role), and `<ProfileSetupGuard>` which forces users to `/setup-profile` until `venmoHandle` and `cellPhone` are set. Routes: `/`, `/locks`, `/weekly`, `/standings`, `/awards`, `/snydermetrics`, `/settings`, `/admin`.
 
-### Backend is a single Express file
-`backend/server.js` (~3,300 lines) holds every route. Middleware: Helmet, CORS (whitelist of localhost:5173–5178 plus the production Firebase domain), JSON parser. Auth middleware `authenticateUser()` validates Firebase ID tokens from the `Authorization: Bearer …` header via the Firebase Admin SDK. **Heads-up:** admin-only endpoints (`/api/payout-settings`, `/api/announcements`, `/api/three-zero-prize-pool`) are not currently behind `authenticateUser`.
+### Authorization is almost entirely client-side — know this before touching routes
+`backend/server.js` defines `authenticateUser()` (verifies a Firebase ID token from `Authorization: Bearer …`), but it is applied to exactly **two** routes: `GET /api/picks/check-completion` and `GET /api/picks/secure-user-picks`. Everything else — user CRUD, whitelist management, pick submission, active-year switching, payout settings, announcements, prize pool, awards publish/unpublish, manual awards — is unauthenticated. Correspondingly, `Standings.jsx` is the only frontend file that attaches a bearer token.
+
+`GET /api/awards` accepts `isAdmin` as a **query parameter** to bypass the published-week gate, so unpublished awards are readable by anyone who sets `?isAdmin=true`.
+
+Treat this as the current state, not a design goal. Adding `authenticateUser` to a route is a breaking change for every caller — the frontend sends no token on those paths — so any hardening pass has to update both sides together.
+
+### Data lives in Mongo but is *produced* elsewhere
+Nothing in this repo writes game scores or grades picks. `POST /api/picks` `insertMany`s pick documents and never updates them again; `pick.result` (`'WIN'`/`'LOSS'`/`'TIE'`) and game `homeScore`/`awayScore`/`status` arrive from an out-of-band pipeline that also creates the `odds_*` collections. Standings, awards, and Snydermetrics are all pure read-time aggregations over that externally-written data. If results look wrong, the bug is usually upstream of this codebase.
 
 ### MongoDB layout (two-tier)
-- **`locks_data`** (main DB): `users`, `whitelist`, `league_configurations` (key/value: `active_year`, `payout_settings`, `announcement`, `three_zero_prize_pool`), and per-year `cy_{year}_picks` collections (e.g., `cy_2025_picks`).
-- **`cy_{year}`** (per-season DBs): one per active year, containing `odds_YYYY_MM_DD` collections — one per game slate/week. Game documents carry team abbreviations, spreads, totals, scores, status, and league.
+- **`locks_data`** (main DB, `dbName` constant): `users`, `whitelist`, `league_configurations` (key/value docs: `active_year`, `payout_settings`, `announcement`, `three_zero_prize_pool`), `awardsData` (per-week publish state), `manual_awards` (admin overrides), and per-season `cy_{seasonKey}_picks` collections.
+- **`cy_{seasonKey}`** (one DB per season, reached via `client.db(...)`, not the pooled `db`): `odds_YYYY_MM_DD` collections, one per weekly slate.
 
-To switch the active year, write to `league_configurations` via `POST /api/active-year`. Most reads use `GET /api/active-year` first, then query the corresponding `cy_{year}` DB.
+**Season keys** are either a plain year (`2025`, stored/compared as a **number**) or a lowercase `YYYY_suffix` string (`2026_preseason` → DB `cy_2026_preseason`, picks `cy_2026_preseason_picks`) — validated by `SEASON_SUFFIX_RE` and canonicalized by `normalizeSeasonKey()` in `server.js` (numeric strings from query params collapse back to numbers so existing numeric-year docs in `awardsData`/`manual_awards` still match; never `parseInt` a season key directly). `GET /api/years` lists both forms from `listDatabases()` (empty DBs don't appear); the admin "Active Season" dropdown switches via `POST /api/active-year`. Frontend: `src/utils/seasonFormatter.js` has `formatSeasonLabel()` ('2026_preseason' → "2026 Preseason") and `seasonBaseYear()` (use this, never `activeYear + 1` arithmetic). `backend/seed_preseason.js` seeds a fake `cy_2026_preseason` slate for testing.
+
+**`payout_settings`, `announcement`, and `three_zero_prize_pool` are season-scoped**: docs carry a `season` field; reads try `{key, season}` then fall back to the legacy unscoped doc (`season: {$exists: false}`) via `getSeasonConfig()`. Writes upsert with a `{key, season}` filter and must never drop the `season` field from the filter — a bare `{key}` filter would match and convert the legacy doc, breaking the fallback for every other season. The admin POSTs send the season they were editing in the body; the server falls back to the active season if absent.
+
+**Picks join users by `firebaseUid`, not Mongo `_id`.** `pick.userId` holds the Firebase UID, so every aggregation keys its user map on `user.firebaseUid` and silently skips users without one.
+
+**Game documents are snake_case** (`away_team_abbrev`, `home_team_full`, `away_spread`, `home_spread`, `total`, `commence_time`, `league`) except the externally-added `homeScore`/`awayScore`/`status`, which are camelCase. `GET /api/games` returns raw documents; pages like `Locks.jsx` normalize to camelCase client-side. Keep that mapping in sync when adding fields.
+
+**Pick documents** are `{ userId (firebaseUid), collectionName, gameId, pickType: 'spread'|'total', pickSide: <teamAbbrev>|'OVER'|'UNDER', line, price, submittedAt, threeOEligible }` plus `result` written externally.
+
+### The week is a Tuesday date, and deadlines are hand-rolled Eastern Time
+Collection names encode the **Tuesday** the slate opens; `parseCollectionNameToDate()` parses `odds_YYYY_MM_DD`, and week ordering/numbering everywhere is "sort the `odds_*` collection names by that date, then index into the array." Two derived rules in `server.js`:
+- `calculateThreeOEligible(collectionName, submissionTime)` — stamped onto each pick at submission. True if submitted by **Saturday 11:59:59 AM ET** (Tuesday + 4 days). Gates the 3-0 prize pool.
+- `isWeekComplete(collectionName)` — true after **4:00 AM ET the following Tuesday**. Gates awards calculation and publishing.
+
+Both compute the ET offset with a local `isDST()` helper (2nd Sunday in March → 1st Sunday in November) rather than a timezone library, and both are duplicated inline. Server timezone is assumed to be irrelevant because the result is built in UTC — verify that assumption before changing either.
+
+Pick limit (3 per week) is enforced server-side in `POST /api/picks`. Kickoff cutoffs are **not**: `Locks.jsx` only hides/greys games whose `commenceTime` has passed, so the backend will accept a pick on a started game.
+
+### Awards flow
+`GET /api/awards` returns `{}` with an explanatory message until `isWeekComplete()`; after that, non-admin callers also need a `published: true` doc in `awardsData` for that `{year, week}`. Admins publish via `POST /api/awards/publish` (rejects incomplete weeks) and `POST /api/awards/unpublish`. `calculateWeeklyAwards()` derives ten named awards — Flop of the Week, Lone Wolf, Lock of the Week, Close Call, Sore Loser, Biggest Loser, Boldest Favorite, Big Dawg, Big Kahuna, Tinkerbell — from picks + game details; `manual_awards` lets an admin override a category for a week.
 
 ### Pick submission side effect
-`POST /api/picks` writes to MongoDB **and** fires a webhook to a hardcoded Google Apps Script URL (server.js ~line 685) for spreadsheet logging. If you refactor pick submission, preserve or intentionally remove this — silent breakage hits an external sheet, not the app.
+`POST /api/picks` writes to MongoDB **and** POSTs to a hardcoded Google Apps Script URL (`server.js` ~line 685) with enriched pick details, username, email, formatted week label, and the user's optional message — for external spreadsheet logging. It's wrapped in its own try/catch so failures don't fail the submission (they only log). If you refactor pick submission, preserve or intentionally remove this: silent breakage lands in an external sheet, not the app.
+
+### Backend is one file
+`backend/server.js` is ~3,300 lines holding every route, helper, and aggregation. Middleware: Helmet, CORS (allow-list of `localhost:5173`–`5178`, `https://locks-of-the-week.web.app`, and `FRONTEND_URL`), JSON parser, COOP header. Two structural quirks worth knowing: the error-handling middleware is registered *before* all routes (so it never catches route errors — each handler try/catches itself), and `connectToDb()` retries 5×/5 s with a ping-based liveness check before `app.listen`, so the process won't serve traffic until Mongo is reachable.
 
 ### Frontend API pattern
-Pages call the backend directly with `axios` (some places use `fetch`) against `${API_URL}/...`. There is no central API client. Match the surrounding file's style when adding new calls.
+There is no central API client. Most pages use `fetch` (`AdminDashboard`, `Awards`, `Standings`, `AuthContext`, `Snydermetrics`, `Register`); `Dashboard`, `Locks`, and `WeeklyLocks` use `axios`. Match the surrounding file's style when adding calls. Page sizes are large (`Standings.jsx` ~1,600 lines, `Locks.jsx` ~1,550, `WeeklyLocks.jsx` ~1,490, `Awards.jsx` ~1,350, `AdminDashboard.jsx` ~1,270) — expect to work inside long files rather than across many.
+
+`WeeklyLocks.jsx` exports the week's picks to `.xlsx` via SheetJS, pinned to a CDN tarball (`xlsx@0.20.3` from `cdn.sheetjs.com`, not npm) — don't "fix" that dependency spec to a registry version.
 
 ### Styling
-Tailwind with a custom `primary` color palette (sky-blue scale 50–900) in `tailwind.config.js`. Headless UI + Heroicons for interactive primitives. Shared component classes (`.btn`, `.btn-primary`, `.btn-secondary`, `.input`, `.card`) live in `src/index.css`.
+Tailwind with a custom `primary` palette (sky-blue 50–900) in `tailwind.config.js`. Headless UI + Heroicons for interactive primitives. Shared component classes (`.btn`, `.btn-primary`, `.btn-secondary`, `.input`, `.card`) are `@apply` definitions in `src/index.css`.
 
-### Static team logos
-`cfb_images/` (~217 PNGs, CFB team logos) and `nfl_images/` (~7 PNGs, NFL logos) sit at the repo root. Confirm how they're served before changing the layout — they are not under `public/` or `src/`.
+## Repo debris — don't mistake these for live code
 
-### `src/examples/`
-Reference code (e.g., `ImprovedFilterExample.jsx` demonstrating the `useFilterModal` hook). Not imported by the app — treat it as documentation, not production.
+- `cfb_images/` (183 files) and `nfl_images/` (32 files) are committed team logos referenced by **nothing** in `src/`, and they're outside `public/`, so they aren't built or deployed. The app renders team abbreviations, not logos.
+- `requirements.txt` lists Flask/pytest/black/flake8 but the repo contains zero `.py` files.
+- `build/` holds a stale hosting artifact from before `firebase.json` pointed at `dist/`.
+- `backend/README.md` is outdated (claims port 4000, references a nonexistent `.env.example`, documents one endpoint).
+- `src/examples/ImprovedFilterExample.jsx` demonstrates the `useFilterModal` hook and is not imported by the app — documentation, not production.
+- `.gitignore` is a Python template with Node entries appended; `dist/` and `build/` are ignored via its Python section.
 
 ## Environment variables
 
-Frontend (Vite, prefix `VITE_`):
-- `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`
-- `VITE_API_URL` exists in `.env.development` / `.env.production` but production frontend code uses the relative `/api` path from `src/config.js` (the Firebase Hosting rewrite handles routing).
+Frontend (Vite, `VITE_` prefix, consumed only in `AuthContext.jsx`): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`. Local values live in the gitignored root `.env`; CI injects them from GitHub secrets.
 
-Backend:
-- `MONGO_URI` (required), `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (newlines escaped as `\n`), `PORT`, `NODE_ENV`, `FRONTEND_URL`.
+Backend: `MONGO_URI` (required), `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (literal `\n` sequences, un-escaped at init), `PORT`, `NODE_ENV` (`development` surfaces error details in responses), `FRONTEND_URL` (appended to the CORS allow-list).

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
+import { seasonBaseYear } from '../utils/seasonFormatter';
 import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
@@ -546,7 +547,8 @@ const WeeklyLocks = () => {
           const parts = name.split('_');
           if (parts.length === 4 && parts[0] === 'odds') {
             const year = parseInt(parts[1], 10);
-            return year === activeYear || year === activeYear + 1;
+            const baseYear = seasonBaseYear(activeYear);
+            return year === baseYear || year === baseYear + 1;
           }
           return false;
         });

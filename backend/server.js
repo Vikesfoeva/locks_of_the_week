@@ -563,6 +563,38 @@ function getPicksCollectionName(year) {
   return `cy_${year}_picks`;
 }
 
+// A season key is either a plain year (2025) or 'YYYY_suffix' ('2026_preseason').
+// Lowercase only: the key is interpolated into case-sensitive Mongo DB names.
+const SEASON_SUFFIX_RE = /^\d{4}_[a-z0-9]+$/;
+
+function normalizeSeasonKey(year) {
+  if (typeof year === 'number' && Number.isInteger(year)) return year;
+  if (typeof year === 'string') {
+    if (/^\d+$/.test(year)) return parseInt(year, 10);
+    if (SEASON_SUFFIX_RE.test(year)) return year;
+  }
+  return null;
+}
+
+// Resolve the currently active season key from league_configurations
+async function resolveActiveSeason(mainDb) {
+  const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+  // A missing value must come back as null, never undefined: an undefined
+  // season in an updateOne filter serializes to BSON null, which matches the
+  // legacy unscoped config docs and would convert them.
+  return config && config.value !== undefined ? config.value : null;
+}
+
+// Look up a league_configurations doc scoped to a season, falling back to the
+// legacy unscoped doc (no `season` field) shared by seasons without their own.
+async function getSeasonConfig(mainDb, key, seasonKey) {
+  if (seasonKey !== null && seasonKey !== undefined) {
+    const scoped = await mainDb.collection('league_configurations').findOne({ key, season: seasonKey });
+    if (scoped) return scoped;
+  }
+  return mainDb.collection('league_configurations').findOne({ key, season: { $exists: false } });
+}
+
 // Submit picks for a user
 app.post('/api/picks', async (req, res) => {
   try {
@@ -649,13 +681,15 @@ app.post('/api/picks', async (req, res) => {
       const formatWeekForLocksWebhook = (collectionName, year) => {
         const parts = collectionName.split('_');
         if (parts.length === 4 && parts[0] === 'odds') {
-          const year = parseInt(parts[1], 10);
+          const collYear = parseInt(parts[1], 10);
           const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS Date
           const day = parseInt(parts[3], 10);
-          const date = new Date(year, month, day);
+          const date = new Date(collYear, month, day);
           const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear().toString().slice(2)}`;
 
           // Get week number by finding position in sorted available weeks
+          // (the season DB, not the collection-name year — they differ for
+          // suffixed seasons and January slates)
           const yearDbName = `cy_${year}`;
           const yearDb = client.db(yearDbName);
           return yearDb.listCollections().toArray().then(collections => {
@@ -773,12 +807,20 @@ app.get('/api/years', async (req, res) => {
     const dbClient = await client.connect();
     const adminDb = dbClient.db().admin();
     const dbs = await adminDb.listDatabases();
-    const yearPattern = /^cy_(\d{4})$/;
+    // Season DBs are cy_YYYY (plain year) or cy_YYYY_suffix (e.g. cy_2026_preseason)
+    const seasonPattern = /^cy_(\d{4})(?:_([a-z0-9]+))?$/i;
     const years = dbs.databases
-      .map(db => db.name)
-      .filter(name => yearPattern.test(name))
-      .map(name => parseInt(name.split('_')[1], 10))
-      .sort((a, b) => b - a); // Descending order
+      .map(db => db.name.match(seasonPattern))
+      .filter(m => m && m[2] !== 'picks')
+      .map(m => (m[2] ? `${m[1]}_${m[2]}` : parseInt(m[1], 10)))
+      .sort((a, b) => {
+        const baseA = parseInt(a, 10);
+        const baseB = parseInt(b, 10);
+        if (baseA !== baseB) return baseB - baseA; // Base year descending
+        if (typeof a === 'number') return -1; // Plain year before its suffixed variants
+        if (typeof b === 'number') return 1;
+        return String(a).localeCompare(String(b));
+      });
     res.json(years);
   } catch (err) {
     console.error('Error fetching years:', err);
@@ -803,8 +845,11 @@ app.post('/api/active-year', async (req, res) => {
   try {
     const db = await connectToDb();
     const { year } = req.body;
-    if (!year || typeof year !== 'number') {
-      return res.status(400).json({ error: 'Year must be provided as a number' });
+    const isValidSeasonKey =
+      (typeof year === 'number' && Number.isInteger(year)) ||
+      (typeof year === 'string' && SEASON_SUFFIX_RE.test(year));
+    if (!year || !isValidSeasonKey) {
+      return res.status(400).json({ error: 'Year must be a number or a season key like "2026_preseason"' });
     }
     await db.collection('league_configurations').updateOne(
       { key: 'active_year' },
@@ -947,7 +992,10 @@ app.get('/api/standings', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     const picksCollectionName = `cy_${year}_picks`;
@@ -1070,8 +1118,8 @@ app.get('/api/standings', async (req, res) => {
     const currentRanks = calculateRanks(userStatsByFirebaseUid, 'total');
     const previousRanks = previousGameWeek ? calculateRanks(userStatsByFirebaseUid, 'previousTotal') : null;
 
-    // 7. Get payout settings
-    const payoutSettings = await mainDb.collection('league_configurations').findOne({ key: 'payout_settings' });
+    // 7. Get payout settings (season-scoped, legacy global doc as fallback)
+    const payoutSettings = await getSeasonConfig(mainDb, 'payout_settings', year);
     const payouts = payoutSettings ? payoutSettings.value : {
       first: 0, second: 0, third: 0, fourth: 0, fifth: 0, last: 0
     };
@@ -1238,7 +1286,8 @@ app.get('/api/standings', async (req, res) => {
 app.get('/api/payout-settings', async (req, res) => {
   try {
     const db = await connectToDb();
-    const settings = await db.collection('league_configurations').findOne({ key: 'payout_settings' });
+    const season = await resolveActiveSeason(db);
+    const settings = await getSeasonConfig(db, 'payout_settings', season);
 
     if (!settings) {
       // Return default settings if none exist
@@ -1274,11 +1323,29 @@ app.post('/api/payout-settings', async (req, res) => {
       }
     }
 
+    // Prefer the season the client was editing (guards against the active
+    // season changing between form render and save); fall back to the
+    // currently active season for callers that don't send one.
+    let season;
+    if (req.body.season !== undefined) {
+      season = normalizeSeasonKey(req.body.season);
+      if (season === null) {
+        return res.status(400).json({ error: 'Invalid season' });
+      }
+    } else {
+      season = await resolveActiveSeason(db);
+      if (season === null) {
+        return res.status(400).json({ error: 'Active year is not set.' });
+      }
+    }
+
+    // Filter must include `season` so the legacy unscoped doc is never converted
     await db.collection('league_configurations').updateOne(
-      { key: 'payout_settings' },
+      { key: 'payout_settings', season: season },
       {
         $set: {
           key: 'payout_settings',
+          season: season,
           value: payouts,
           updatedAt: new Date()
         }
@@ -1297,7 +1364,8 @@ app.post('/api/payout-settings', async (req, res) => {
 app.get('/api/announcements', async (req, res) => {
   try {
     const db = await connectToDb();
-    const announcement = await db.collection('league_configurations').findOne({ key: 'announcement' });
+    const season = await resolveActiveSeason(db);
+    const announcement = await getSeasonConfig(db, 'announcement', season);
 
     if (!announcement) {
       return res.json({ message: '', active: false });
@@ -1329,11 +1397,29 @@ app.post('/api/announcements', async (req, res) => {
       return res.status(400).json({ error: 'Active must be a boolean' });
     }
 
+    // Prefer the season the client was editing (guards against the active
+    // season changing between form render and save); fall back to the
+    // currently active season for callers that don't send one.
+    let season;
+    if (req.body.season !== undefined) {
+      season = normalizeSeasonKey(req.body.season);
+      if (season === null) {
+        return res.status(400).json({ error: 'Invalid season' });
+      }
+    } else {
+      season = await resolveActiveSeason(db);
+      if (season === null) {
+        return res.status(400).json({ error: 'Active year is not set.' });
+      }
+    }
+
+    // Filter must include `season` so the legacy unscoped doc is never converted
     await db.collection('league_configurations').updateOne(
-      { key: 'announcement' },
+      { key: 'announcement', season: season },
       {
         $set: {
           key: 'announcement',
+          season: season,
           value: {
             message: message.trim(),
             active: active,
@@ -1362,7 +1448,8 @@ app.post('/api/announcements', async (req, res) => {
 app.get('/api/three-zero-prize-pool', async (req, res) => {
   try {
     const db = await connectToDb();
-    const settings = await db.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
+    const season = await resolveActiveSeason(db);
+    const settings = await getSeasonConfig(db, 'three_zero_prize_pool', season);
 
     if (!settings) {
       return res.json({ prizePool: 0 });
@@ -1386,11 +1473,29 @@ app.post('/api/three-zero-prize-pool', async (req, res) => {
       return res.status(400).json({ error: 'Prize pool must be a non-negative number' });
     }
 
+    // Prefer the season the client was editing (guards against the active
+    // season changing between form render and save); fall back to the
+    // currently active season for callers that don't send one.
+    let season;
+    if (req.body.season !== undefined) {
+      season = normalizeSeasonKey(req.body.season);
+      if (season === null) {
+        return res.status(400).json({ error: 'Invalid season' });
+      }
+    } else {
+      season = await resolveActiveSeason(db);
+      if (season === null) {
+        return res.status(400).json({ error: 'Active year is not set.' });
+      }
+    }
+
+    // Filter must include `season` so the legacy unscoped doc is never converted
     await db.collection('league_configurations').updateOne(
-      { key: 'three_zero_prize_pool' },
+      { key: 'three_zero_prize_pool', season: season },
       {
         $set: {
           key: 'three_zero_prize_pool',
+          season: season,
           value: prizePool,
           updatedAt: new Date()
         }
@@ -1416,7 +1521,10 @@ app.get('/api/three-zero-standings', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     const picksCollectionName = `cy_${year}_picks`;
@@ -1502,8 +1610,8 @@ app.get('/api/three-zero-standings', async (req, res) => {
     // 5. Calculate total 3-0 weeks and prize pool distribution
     const totalThreeZeroWeeks = Object.values(userThreeZeroWeeks).reduce((sum, user) => sum + user.threeZeroWeeks, 0);
 
-    // Get prize pool setting
-    const prizePoolSettings = await mainDb.collection('league_configurations').findOne({ key: 'three_zero_prize_pool' });
+    // Get prize pool setting (season-scoped, legacy global doc as fallback)
+    const prizePoolSettings = await getSeasonConfig(mainDb, 'three_zero_prize_pool', year);
     const prizePool = prizePoolSettings ? prizePoolSettings.value : 0;
 
     // 6. Create standings with payouts
@@ -1558,7 +1666,10 @@ app.get('/api/awards-summary', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     // Get all users
@@ -1849,7 +1960,10 @@ app.get('/api/awards', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     if (!selectedGameWeek) {
@@ -1868,7 +1982,7 @@ app.get('/api/awards', async (req, res) => {
     // 3. For non-admin users, check if the week is published
     if (isAdmin !== 'true') {
       const publishedWeek = await mainDb.collection('awardsData').findOne({
-        year: parseInt(year),
+        year: year,
         week: selectedGameWeek,
         published: true
       });
@@ -2473,7 +2587,10 @@ app.get('/api/snydermetrics', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     const picksCollectionName = `cy_${year}_picks`;
@@ -2617,6 +2734,7 @@ app.get('/api/snydermetrics', async (req, res) => {
 
     const nflPicks = enrichedPicks.filter(pick =>
       pick.gameDetails.league === 'NFL' ||
+      pick.gameDetails.league === 'NFL Preseason' ||
       (pick.gameDetails.sportKey && pick.gameDetails.sportKey.includes('nfl'))
     );
 
@@ -2750,7 +2868,7 @@ function formatPickDetails(pick) {
 async function getManualAwards(year, week, mainDb) {
   try {
     const manualAward = await mainDb.collection('manual_awards').findOne({
-      year: year,
+      year: normalizeSeasonKey(year),
       week: week
     });
 
@@ -2787,7 +2905,10 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
       const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
       year = config ? config.value : new Date().getFullYear();
     } else {
-      year = parseInt(year);
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
     }
 
     if (!selectedGameWeek) {
@@ -2938,10 +3059,14 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
 app.post('/api/manual-awards', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { year, week, pickId } = req.body;
+    let { year, week, pickId } = req.body;
 
     if (!year || !week || !pickId) {
       return res.status(400).json({ error: 'Year, week, and pickId are required' });
+    }
+    year = normalizeSeasonKey(year);
+    if (year === null) {
+      return res.status(400).json({ error: 'Invalid year' });
     }
 
     // Check if the week has concluded
@@ -3032,7 +3157,7 @@ app.post('/api/manual-awards', async (req, res) => {
 
     // Create manual award document
     const manualAward = {
-      year: parseInt(year),
+      year: year,
       week: week,
       pickId: pickId,
       userId: pick.userId,
@@ -3049,7 +3174,7 @@ app.post('/api/manual-awards', async (req, res) => {
 
     // Upsert the manual award (replace if exists)
     await mainDb.collection('manual_awards').updateOne(
-      { year: parseInt(year), week: week },
+      { year: year, week: week },
       { $set: manualAward },
       { upsert: true }
     );
@@ -3065,14 +3190,18 @@ app.post('/api/manual-awards', async (req, res) => {
 app.delete('/api/manual-awards', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { year, week } = req.query;
+    let { year, week } = req.query;
 
     if (!year || !week) {
       return res.status(400).json({ error: 'Year and week are required' });
     }
+    year = normalizeSeasonKey(year);
+    if (year === null) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
 
     const result = await mainDb.collection('manual_awards').deleteOne({
-      year: parseInt(year),
+      year: year,
       week: week
     });
 
@@ -3091,14 +3220,18 @@ app.delete('/api/manual-awards', async (req, res) => {
 app.get('/api/awards/published-status', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { year } = req.query;
+    let { year } = req.query;
 
     if (!year) {
       return res.status(400).json({ error: 'Year is required' });
     }
+    year = normalizeSeasonKey(year);
+    if (year === null) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
 
     const publishedWeeks = await mainDb.collection('awardsData').find({
-      year: parseInt(year),
+      year: year,
       published: true
     }).toArray();
 
@@ -3122,10 +3255,14 @@ app.get('/api/awards/published-status', async (req, res) => {
 app.post('/api/awards/publish', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { year, week, publishedBy } = req.body;
+    let { year, week, publishedBy } = req.body;
 
     if (!year || !week || !publishedBy) {
       return res.status(400).json({ error: 'Year, week, and publishedBy are required' });
+    }
+    year = normalizeSeasonKey(year);
+    if (year === null) {
+      return res.status(400).json({ error: 'Invalid year' });
     }
 
     // Check if the week has concluded
@@ -3135,7 +3272,7 @@ app.post('/api/awards/publish', async (req, res) => {
 
     // Check if week already exists in awardsData
     const existingWeek = await mainDb.collection('awardsData').findOne({
-      year: parseInt(year),
+      year: year,
       week: week
     });
 
@@ -3144,7 +3281,7 @@ app.post('/api/awards/publish', async (req, res) => {
     if (existingWeek) {
       // Update existing record
       await mainDb.collection('awardsData').updateOne(
-        { year: parseInt(year), week: week },
+        { year: year, week: week },
         {
           $set: {
             published: true,
@@ -3157,7 +3294,7 @@ app.post('/api/awards/publish', async (req, res) => {
     } else {
       // Create new record
       await mainDb.collection('awardsData').insertOne({
-        year: parseInt(year),
+        year: year,
         week: week,
         published: true,
         publishedAt: now,
@@ -3182,14 +3319,18 @@ app.post('/api/awards/publish', async (req, res) => {
 app.post('/api/awards/unpublish', async (req, res) => {
   try {
     const mainDb = await connectToDb();
-    const { year, week } = req.body;
+    let { year, week } = req.body;
 
     if (!year || !week) {
       return res.status(400).json({ error: 'Year and week are required' });
     }
+    year = normalizeSeasonKey(year);
+    if (year === null) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
 
     const result = await mainDb.collection('awardsData').updateOne(
-      { year: parseInt(year), week: week },
+      { year: year, week: week },
       {
         $set: {
           published: false,
