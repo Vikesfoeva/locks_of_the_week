@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import axios from 'axios';
-import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, CheckIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, LockClosedIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { LockOpenIcon } from '@heroicons/react/24/solid';

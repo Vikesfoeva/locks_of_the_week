@@ -3,7 +3,6 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { seasonBaseYear } from '../utils/seasonFormatter';
-import { Popover, Portal } from '@headlessui/react';
 import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import PopularLocksModal from '../components/PopularLocksModal';

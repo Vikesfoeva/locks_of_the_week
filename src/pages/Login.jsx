@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'; // Import useEffect
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {

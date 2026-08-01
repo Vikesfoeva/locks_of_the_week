@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router'
 import { AuthProvider } from './contexts/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import ProfileSetupGuard from './components/ProfileSetupGuard'
