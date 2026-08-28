@@ -327,31 +327,6 @@ app.put('/api/users/:id', async (req, res) => {
   }
 });
 
-// Delete a user
-app.delete('/api/users/:id', async (req, res) => {
-  try {
-    const db = await connectToDb();
-    const { id } = req.params;
-
-    // Validate ObjectId format
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid user ID format' });
-    }
-
-    const result = await db.collection('users').deleteOne(
-      { _id: new ObjectId(id) }
-    );
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ message: 'User deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Add a whitelisted email
 app.post('/api/whitelist', async (req, res) => {
   try {
@@ -608,6 +583,14 @@ async function resolveActiveSeason(mainDb) {
   // season in an updateOne filter serializes to BSON null, which matches the
   // legacy unscoped config docs and would convert them.
   return config && config.value !== undefined ? config.value : null;
+}
+
+// Users an admin explicitly untoggled for a season are hidden from that
+// season's standings/awards. A missing entry counts as a member (2024 has
+// none by design; pre-migration users have none) so history never shifts.
+// Mirrored on the frontend by isSeasonMember() in src/utils/seasonFormatter.js.
+function seasonMembersQuery(seasonKey) {
+  return { [`seasons.${String(seasonKey)}.active`]: { $ne: false } };
 }
 
 // Look up a league_configurations doc scoped to a season. The legacy unscoped
@@ -1038,7 +1021,7 @@ app.get('/api/standings', async (req, res) => {
       .map(col => col.name)
       .filter(name => oddsPattern.test(name));
 
-    const users = await mainDb.collection('users').find({}).toArray();
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
 
     if (availableGameWeeks.length === 0) {
       const emptyStandings = users.map(user => ({
@@ -1567,7 +1550,7 @@ app.get('/api/three-zero-standings', async (req, res) => {
       .map(col => col.name)
       .filter(name => oddsPattern.test(name));
 
-    const users = await mainDb.collection('users').find({}).toArray();
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
 
     if (availableGameWeeks.length === 0) {
       const emptyStandings = users.map(user => ({
@@ -1701,7 +1684,7 @@ app.get('/api/awards-summary', async (req, res) => {
     }
 
     // Get all users
-    const users = await mainDb.collection('users').find({}).toArray();
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
     const userMap = {};
     users.forEach(user => {
       if (user.firebaseUid) {
@@ -2029,7 +2012,7 @@ app.get('/api/awards', async (req, res) => {
     const picksCollection = mainDb.collection(picksCollectionName);
 
     // 2. Get all users
-    const users = await mainDb.collection('users').find({}).toArray();
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
     const userMap = {};
     users.forEach(user => {
       if (user.firebaseUid) {
@@ -2953,7 +2936,7 @@ app.get('/api/manual-awards/winning-picks', async (req, res) => {
     }
 
     // Get all users
-    const users = await mainDb.collection('users').find({}).toArray();
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
     const userMap = {};
     users.forEach(user => {
       if (user.firebaseUid) {
