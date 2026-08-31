@@ -25,3 +25,12 @@ export function isSeasonMember(user, seasonKey) {
   const entry = user?.seasons?.[String(seasonKey)];
   return !(entry && entry.active === false);
 }
+
+// Stricter than isSeasonMember(): requires an explicit active: true entry.
+// Gates app access for the ACTIVE season only (SeasonAccessGuard) — do NOT
+// use it for standings/awards history, which keeps the missing-entry-counts-
+// as-member rule above. Mirrored server-side by the POST /api/picks
+// membership gate in backend/server.js.
+export function isActiveSeasonParticipant(user, seasonKey) {
+  return user?.seasons?.[String(seasonKey)]?.active === true;
+}

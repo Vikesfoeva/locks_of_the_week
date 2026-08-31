@@ -622,6 +622,21 @@ app.post('/api/picks', async (req, res) => {
       return res.status(400).json({ error: 'Invalid collectionName format.' });
     }
 
+    // Season-membership gate: only users explicitly active for the submitted
+    // season may submit picks (admins exempt). Deliberately stricter than
+    // seasonMembersQuery() — that keeps "missing entry counts as member" for
+    // read-time history and must not change. Mirrors
+    // isActiveSeasonParticipant() in src/utils/seasonFormatter.js.
+    const seasonKey = normalizeSeasonKey(year);
+    if (seasonKey === null) {
+      return res.status(400).json({ error: 'Invalid year/season key.' });
+    }
+    const submittingUser = await mainDb.collection('users').findOne({ firebaseUid: userId });
+    const seasonEntry = submittingUser?.seasons?.[String(seasonKey)];
+    if (!submittingUser || (submittingUser.role !== 'admin' && !(seasonEntry && seasonEntry.active === true))) {
+      return res.status(403).json({ error: `You are not active for the ${seasonKey} season. Contact an admin.` });
+    }
+
     const picksCollection = getPicksCollectionName(year);
 
     // Check how many picks the user already has for this collectionName
@@ -647,8 +662,9 @@ app.post('/api/picks', async (req, res) => {
 
     // Send data to Google Apps Script
     try {
-      // Get user details for the Google Apps Script
-      const user = await mainDb.collection('users').findOne({ firebaseUid: userId });
+      // User details for the Google Apps Script (already fetched by the
+      // membership gate above)
+      const user = submittingUser;
       const username = user && user.firstName && user.lastName
         ? `${user.firstName} ${user.lastName}`
         : user?.displayName || 'Unknown User';

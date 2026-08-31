@@ -963,7 +963,7 @@ export default function AdminDashboard() {
                               : 'bg-gray-100 text-gray-800'
                         }`}
                         title={!hasSeasonEntry(user)
-                          ? 'No membership entry for this season yet — still counted in standings until explicitly set Inactive'
+                          ? 'No membership entry for this season yet — still counted in past standings, but blocked from using the app until set Active'
                           : undefined}
                       >
                         {!hasSeasonEntry(user) ? 'Not set' : getSeasonEntry(user).active ? 'Active' : 'Inactive'}

@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState('');
+  const [activeSeason, setActiveSeason] = useState(null);
   const processingUserRef = useRef(null); // Track which user we're currently processing
   const isSignupInProgressRef = useRef(false); // Track if we're in the middle of a signup
 
@@ -114,6 +115,23 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Best-effort lookup of the active season key for SeasonAccessGuard. Any
+  // failure resolves to null so the season gate fails open.
+  async function fetchActiveSeason() {
+    try {
+      const res = await fetch(`${API_URL}/active-year`);
+      if (!res.ok) {
+        setActiveSeason(null);
+        return;
+      }
+      const data = await res.json();
+      setActiveSeason(data.year ?? null);
+    } catch (error) {
+      console.error('[AuthContext] fetchActiveSeason error:', error);
+      setActiveSeason(null);
+    }
+  }
+
   // Effect to handle auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -130,6 +148,10 @@ export function AuthProvider({ children }) {
         processingUserRef.current = user.uid;
         
         try {
+          // Resolve the active season first so SeasonAccessGuard has a value
+          // on first render (the provider withholds children until !loading).
+          await fetchActiveSeason();
+
           // 1. Check if user is in our DB
           // Note: 404 is expected for new users during signup - this will trigger user creation
           let response;
@@ -373,6 +395,7 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     loading,
+    activeSeason,
     authError,
     setAuthError,
     signup,

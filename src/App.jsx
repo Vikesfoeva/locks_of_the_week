@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router'
 import { AuthProvider } from './contexts/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import ProfileSetupGuard from './components/ProfileSetupGuard'
+import SeasonAccessGuard from './components/SeasonAccessGuard'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import SetupProfile from './pages/SetupProfile'
@@ -23,64 +24,82 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/setup-profile" element={
           <PrivateRoute>
-            <SetupProfile />
+            <SeasonAccessGuard>
+              <SetupProfile />
+            </SeasonAccessGuard>
           </PrivateRoute>
         } />
         <Route element={<Layout />}>
           <Route path="/" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <Dashboard />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <Dashboard />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/admin" element={
             <PrivateRoute adminOnly>
-              <ProfileSetupGuard>
-                <AdminDashboard />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <AdminDashboard />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/locks" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <Locks />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <Locks />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/weekly" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <WeeklyLocks />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <WeeklyLocks />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/settings" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <UserSettings />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <UserSettings />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/standings" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <Standings />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <Standings />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/awards" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <Awards />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <Awards />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
           <Route path="/snydermetrics" element={
             <PrivateRoute>
-              <ProfileSetupGuard>
-                <Snydermetrics />
-              </ProfileSetupGuard>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <Snydermetrics />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
             </PrivateRoute>
           } />
         </Route>
@@ -89,4 +108,4 @@ function App() {
   )
 }
 
-export default App 
+export default App

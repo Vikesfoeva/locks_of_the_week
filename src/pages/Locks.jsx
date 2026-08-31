@@ -392,7 +392,7 @@ const Locks = () => {
 
     } catch (err) {
       console.error("Failed to submit picks:", err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to submit locks';
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to submit locks';
       setError(errorMessage);
     } finally {
       setSubmitting(false);
