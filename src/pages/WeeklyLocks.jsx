@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
-import { seasonBaseYear } from '../utils/seasonFormatter';
+import { seasonBaseYear, isSeasonMember } from '../utils/seasonFormatter';
 import { FunnelIcon as FunnelIconOutline, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { FunnelIcon as FunnelIconSolid, ChevronUpIcon, ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import PopularLocksModal from '../components/PopularLocksModal';
@@ -30,7 +30,7 @@ const WeeklyLocks = () => {
   const [collections, setCollections] = useState([]); // e.g., weeks
   const [selectedCollection, setSelectedCollection] = useState('');
   const [userPicks, setUserPicks] = useState([]); // Current user's picks for the selected collection
-  const [allPicks, setAllPicks] = useState([]); // All users' picks for the selected collection
+  const [fetchedPicks, setFetchedPicks] = useState([]); // All users' picks for the selected collection, before membership filtering
   const [users, setUsers] = useState([]); // All users
   const [userMap, setUserMap] = useState({}); // firebaseUid -> displayName
   const [loading, setLoading] = useState(false);
@@ -216,6 +216,22 @@ const WeeklyLocks = () => {
   const [activeYearLoading, setActiveYearLoading] = useState(true);
   const [activeYearError, setActiveYearError] = useState(null);
 
+  // Season membership: users an admin explicitly untoggled for the active
+  // season are hidden from every view on this page, matching what the
+  // standings/awards endpoints do server-side. userMap stays unfiltered so a
+  // stray pick from a hidden user would still render a name, not a raw UID.
+  const seasonUsers = useMemo(
+    () => users.filter(user => isSeasonMember(user, activeYear)),
+    [users, activeYear]
+  );
+  const allPicks = useMemo(() => {
+    const hiddenUids = new Set(
+      users.filter(user => !isSeasonMember(user, activeYear)).map(user => user.firebaseUid)
+    );
+    if (hiddenUids.size === 0) return fetchedPicks;
+    return fetchedPicks.filter(pick => !hiddenUids.has(pick.userId));
+  }, [fetchedPicks, users, activeYear]);
+
   // Sorting and Filtering State
   const [sortConfig, setSortConfig] = useState({ key: 'user', direction: 'ascending' });
   
@@ -395,10 +411,10 @@ const WeeklyLocks = () => {
   
   // Get unique user names for traditional view filter
   const uniqueTraditionalUsers = useMemo(() => {
-    return users.map(user => {
+    return seasonUsers.map(user => {
       return (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '') || user.email;
     }).filter(Boolean).sort();
-  }, [users]);
+  }, [seasonUsers]);
   
 
 
@@ -413,7 +429,7 @@ const WeeklyLocks = () => {
   const isTimeFiltered = timeFilter.length > 0 && timeFilter.length < totalUniqueTimes.length;
   
   // Traditional view filter status checks
-  const isTraditionalUserFiltered = traditionalUserFilter.length > 0 && traditionalUserFilter.length < users.length;
+  const isTraditionalUserFiltered = traditionalUserFilter.length > 0 && traditionalUserFilter.length < seasonUsers.length;
 
   const filteredAndSortedPicks = useMemo(() => {
     let filtered = [...allPicks];
@@ -599,14 +615,14 @@ const WeeklyLocks = () => {
         // If user has 3 picks, fetch all users' picks for the collection
         if (userPicksData.length === 3) {
           const allPicksRes = await axios.get(`/api/picks?collectionName=${selectedCollection}&year=${activeYear}`);
-          setAllPicks(Array.isArray(allPicksRes.data) ? allPicksRes.data : []);
+          setFetchedPicks(Array.isArray(allPicksRes.data) ? allPicksRes.data : []);
         } else {
-          setAllPicks([]);
+          setFetchedPicks([]);
         }
       } catch (err) {
         setError('Failed to load locks.');
         setUserPicks([]);
-        setAllPicks([]);
+        setFetchedPicks([]);
       } finally {
         setLoading(false);
       }
@@ -650,14 +666,14 @@ const WeeklyLocks = () => {
   // Filter users for traditional view
   const filteredUsersForTraditionalView = useMemo(() => {
     if (traditionalUserFilter.length === 0) {
-      return users; // No filter applied, return all users
+      return seasonUsers; // No filter applied, return all season members
     }
     
-    return users.filter(user => {
+    return seasonUsers.filter(user => {
       const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '') || user.email;
       return traditionalUserFilter.includes(userName);
     });
-  }, [users, traditionalUserFilter]);
+  }, [seasonUsers, traditionalUserFilter]);
 
   // Helper: calculate weekly W-L-T record for a user
   function calculateWeeklyRecord(userId) {

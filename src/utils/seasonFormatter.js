@@ -17,3 +17,11 @@ export function formatSeasonLabel(seasonKey) {
 export function seasonBaseYear(seasonKey) {
   return parseInt(seasonKey, 10);
 }
+
+// Mirrors seasonMembersQuery() in backend/server.js: only an explicit
+// active: false for the season excludes a user; a missing entry counts as a
+// member so past seasons (2024 has no entries at all) never change.
+export function isSeasonMember(user, seasonKey) {
+  const entry = user?.seasons?.[String(seasonKey)];
+  return !(entry && entry.active === false);
+}

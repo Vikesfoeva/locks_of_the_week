@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config';
 import { formatPhoneNumber, getCleanPhoneNumber } from '../utils/phoneFormatter';
 import { formatVenmoHandle } from '../utils/venmoFormatter';
-import { formatSeasonLabel, seasonBaseYear } from '../utils/seasonFormatter';
+import { formatSeasonLabel, seasonBaseYear, isSeasonMember } from '../utils/seasonFormatter';
 
 export default function AdminDashboard() {
   const { currentUser } = useAuth();
@@ -12,8 +12,8 @@ export default function AdminDashboard() {
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [togglingUserId, setTogglingUserId] = useState(null); // user whose season membership is being toggled
+  const [showInactiveUsers, setShowInactiveUsers] = useState(false); // reveal users inactive for the selected season
   const [deleteWhitelistModalOpen, setDeleteWhitelistModalOpen] = useState(false);
   const [whitelistEmailToDelete, setWhitelistEmailToDelete] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
@@ -82,6 +82,12 @@ export default function AdminDashboard() {
   const getSeasonEntry = (user) =>
     (activeYear !== '' && user.seasons?.[String(activeYear)]) ||
     { active: false, duesPaid: false, dateDuesPaid: '' };
+  // Whether the user has an explicit entry for the active season. Standings
+  // and awards only exclude an explicit active: false (see isSeasonMember in
+  // utils/seasonFormatter.js), so a missing entry is shown as "Not set"
+  // rather than "Inactive".
+  const hasSeasonEntry = (user) =>
+    activeYear !== '' && user.seasons?.[String(activeYear)] !== undefined;
 
   // Fetch available years and active year on mount
   useEffect(() => {
@@ -273,46 +279,36 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  // Handler for initiating user deletion
-  const initiateDeleteUser = (user) => {
-    if (user.role === 'admin') {
-      return;
-    }
-    setUserToDelete(user);
-    setDeleteModalOpen(true);
-  };
-
-  // Handler for confirming user deletion
-  const confirmDeleteUser = async () => {
-    if (!userToDelete) return;
-    
+  // Toggle a user's membership for the currently selected season. Uses the
+  // same seasonUpdate PUT contract as the edit form, so only this season's
+  // entry is touched and dues fields are carried over unchanged. An explicit
+  // active: false is what hides a user from that season's standings/awards
+  // (see isSeasonMember); their picks and other seasons are never affected.
+  // Users with no entry count as members, so their first toggle sets inactive.
+  const toggleSeasonActive = async (user) => {
+    if (activeYear === '' || activeYear === undefined || togglingUserId) return;
+    const entry = getSeasonEntry(user);
+    const nextActive = hasSeasonEntry(user) ? !entry.active : false;
+    const nextEntry = { active: nextActive, duesPaid: entry.duesPaid, dateDuesPaid: entry.dateDuesPaid || '' };
+    setTogglingUserId(user._id);
     try {
-      // Delete from users collection
-      const userResponse = await fetch(`${API_URL}/users/${userToDelete._id}`, {
-        method: 'DELETE'
+      const response = await fetch(`${API_URL}/users/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seasonUpdate: { season: activeYear, ...nextEntry } })
       });
-      
-      if (!userResponse.ok) {
-        throw new Error('Failed to delete user');
+      if (!response.ok) {
+        throw new Error('Failed to update membership');
       }
-
-      // Delete from whitelist collection
-      const whitelistResponse = await fetch(`${API_URL}/whitelist/${encodeURIComponent(userToDelete.email)}`, {
-        method: 'DELETE'
-      });
-
-      if (!whitelistResponse.ok && whitelistResponse.status !== 404) {
-        throw new Error('Failed to delete user from whitelist');
-      }
-      
-      // Update local state after successful deletion
-      setUsers(users.filter(user => user._id !== userToDelete._id));
-      setWhitelist(whitelist.filter(e => e !== userToDelete.email));
+      setUsers(users.map(u =>
+        u._id === user._id
+          ? { ...u, seasons: { ...(u.seasons || {}), [String(activeYear)]: nextEntry } }
+          : u
+      ));
     } catch (err) {
       setError(err.message);
     } finally {
-      setDeleteModalOpen(false);
-      setUserToDelete(null);
+      setTogglingUserId(null);
     }
   };
 
@@ -379,6 +375,11 @@ export default function AdminDashboard() {
   // Handler for starting edit mode
   const startEditing = (user) => {
     const entry = getSeasonEntry(user);
+    // A user with no entry is treated as a member by standings/awards, so the
+    // checkbox starts checked for them. Otherwise marking dues paid would
+    // persist the form's default and create an explicit active: false, which
+    // is exactly the opt-out signal that hides them from the season.
+    const seasonActive = hasSeasonEntry(user) ? entry.active : true;
     setEditingUser(user._id);
     setEditFormData({
       firstName: user.firstName || '',
@@ -388,9 +389,11 @@ export default function AdminDashboard() {
       // Captured at edit start so a mid-edit season switch still saves to the
       // season the form was opened for
       season: activeYear,
-      seasonActive: entry.active,
+      seasonActive,
       duesPaid: entry.duesPaid,
-      dateDuesPaid: entry.dateDuesPaid || ''
+      dateDuesPaid: entry.dateDuesPaid || '',
+      // Snapshot so saveUserChanges can tell whether membership/dues actually changed
+      originalSeason: { active: seasonActive, duesPaid: entry.duesPaid, dateDuesPaid: entry.dateDuesPaid || '' }
     });
     setSaveStatus({});
   };
@@ -409,7 +412,7 @@ export default function AdminDashboard() {
     setIsSubmitting(true);
     try {
       setSaveStatus({ loading: true });
-      const { season, seasonActive, duesPaid, dateDuesPaid, ...profile } = editFormData;
+      const { season, seasonActive, duesPaid, dateDuesPaid, originalSeason, ...profile } = editFormData;
       const updates = {
         ...profile,
         updatedAt: new Date()
@@ -426,8 +429,15 @@ export default function AdminDashboard() {
       }
 
       // Membership/dues are per-season; the server translates seasonUpdate
-      // into a targeted update of seasons.<key>
-      if (season !== '' && season !== undefined) {
+      // into a targeted update of seasons.<key>. Only sent when something in
+      // it changed: a user with no entry yet defaults the form to inactive,
+      // and writing that back on an unrelated edit (e.g. Venmo) would create
+      // an explicit active: false and hide them from the season's standings.
+      const seasonChanged = !originalSeason
+        || originalSeason.active !== seasonActive
+        || originalSeason.duesPaid !== duesPaid
+        || (originalSeason.dateDuesPaid || '') !== (dateDuesPaid || '');
+      if (season !== '' && season !== undefined && seasonChanged) {
         updates.seasonUpdate = { season, active: seasonActive, duesPaid, dateDuesPaid };
       }
 
@@ -607,42 +617,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Delete User Confirmation Modal */}
-      {deleteModalOpen && userToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm User Deletion</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete the user <span className="font-medium">{userToDelete.email}</span>? 
-              This action will:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 mb-6">
-              <li>Remove the user from the system</li>
-              <li>Remove their email from the whitelist</li>
-              <li>Delete all associated data</li>
-            </ul>
-            <p className="text-red-600 mb-6">This action cannot be undone.</p>
-            <div className="flex justify-end space-x-4">
-              <button
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                onClick={() => {
-                  setDeleteModalOpen(false);
-                  setUserToDelete(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                onClick={confirmDeleteUser}
-              >
-                Delete User
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Delete Whitelist Email Confirmation Modal */}
       {deleteWhitelistModalOpen && whitelistEmailToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -832,7 +806,34 @@ export default function AdminDashboard() {
 
       {/* User Management Table */}
       <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">User Management</h3>
+        {(() => {
+          // Users explicitly inactive for the selected season are hidden by
+          // default (matching standings/awards); the toggle reveals them so
+          // an admin can Set Active again. "Not set" users count as members
+          // and always show.
+          const inactiveCount = users.filter(u => !isSeasonMember(u, activeYear)).length;
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 className="text-lg font-medium text-gray-900">User Management</h3>
+              {activeYear !== '' && (
+                <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showInactiveUsers}
+                    onChange={e => setShowInactiveUsers(e.target.checked)}
+                  />
+                  <span>
+                    Show Inactive Users
+                    {inactiveCount > 0 && !showInactiveUsers && (
+                      <span className="text-gray-500"> ({inactiveCount} hidden)</span>
+                    )}
+                  </span>
+                </label>
+              )}
+            </div>
+          );
+        })()}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm border">
             <thead>
@@ -879,8 +880,11 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user._id} className="even:bg-gray-50">
+              {(showInactiveUsers ? users : users.filter(u => isSeasonMember(u, activeYear))).map((user) => (
+                <tr
+                  key={user._id}
+                  className={isSeasonMember(user, activeYear) ? 'even:bg-gray-50' : 'bg-gray-100 opacity-60'}
+                >
                   <td className="border px-2 py-1 text-xs">{user.email}</td>
                   <td className="border px-2 py-1">
                     {editingUser === user._id ? (
@@ -950,12 +954,19 @@ export default function AdminDashboard() {
                         title={editFormData.season === '' ? 'No season resolved — membership cannot be edited' : undefined}
                       />
                     ) : (
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        getSeasonEntry(user).active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {getSeasonEntry(user).active ? 'Active' : 'Inactive'}
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          !hasSeasonEntry(user)
+                            ? 'bg-gray-50 text-gray-500 border border-gray-200'
+                            : getSeasonEntry(user).active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}
+                        title={!hasSeasonEntry(user)
+                          ? 'No membership entry for this season yet — still counted in standings until explicitly set Inactive'
+                          : undefined}
+                      >
+                        {!hasSeasonEntry(user) ? 'Not set' : getSeasonEntry(user).active ? 'Active' : 'Inactive'}
                       </span>
                     )}
                   </td>
@@ -1036,22 +1047,27 @@ export default function AdminDashboard() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 5.487a2.25 2.25 0 1 1 3.182 3.182l-9.75 9.75a2 2 0 0 1-.708.464l-4.25 1.5a.5.5 0 0 1-.637-.637l1.5-4.25a2 2 0 0 1 .464-.708l9.75-9.75z" />
                           </svg>
                         </button>
-                        <button
-                          className={`p-1 rounded transition-colors ${
-                            user.role === 'admin'
-                              ? 'text-gray-400 cursor-not-allowed'
-                              : 'text-red-600 hover:text-red-800'
-                          }`}
-                          onClick={() => initiateDeleteUser(user)}
-                          disabled={user.role === 'admin'}
-                          title={user.role === 'admin' ? 'Cannot delete admin users' : 'Delete user'}
-                          style={{ lineHeight: 0 }}
-                        >
-                          {/* Trash Can SVG */}
-                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className={user.role === 'admin' ? 'text-gray-400' : 'text-red-600 group-hover:text-red-800'}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12z" />
-                          </svg>
-                        </button>
+                        {(() => {
+                          const isMember = !hasSeasonEntry(user) || getSeasonEntry(user).active;
+                          const busy = togglingUserId === user._id;
+                          const noSeason = activeYear === '' || activeYear === undefined;
+                          return (
+                            <button
+                              className={`px-2 py-1 rounded text-xs font-medium text-white whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
+                                isMember ? 'bg-gray-600 hover:bg-gray-700' : 'bg-green-600 hover:bg-green-700'
+                              }`}
+                              onClick={() => toggleSeasonActive(user)}
+                              disabled={busy || noSeason || togglingUserId !== null}
+                              title={noSeason
+                                ? 'No season resolved — membership cannot be changed'
+                                : isMember
+                                  ? `Mark inactive for ${formatSeasonLabel(activeYear)}: hides them from this season's standings and awards. Picks and other seasons are kept.`
+                                  : `Mark active for ${formatSeasonLabel(activeYear)}: restores them to this season's standings and awards.`}
+                            >
+                              {busy ? 'Saving...' : isMember ? 'Set Inactive' : 'Set Active'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     )}
                   </td>
