@@ -2,6 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        var h = location.hostname;
+        if (h === 'locks-of-the-week.web.app' ||
+            h === 'locks-of-the-week.firebaseapp.com') {
+          location.replace('https://locksoftheweek.org' +
+            location.pathname + location.search + location.hash);
+        }
+      })();
+    </script>
+    <link rel="canonical" href="https://locksoftheweek.org/" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Locks of the Week</title>
@@ -10,4 +21,4 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
-</html> 
+</html>

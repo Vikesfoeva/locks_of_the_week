@@ -34,6 +34,8 @@ if (!process.env.MONGO_URI) {
 
 const allowedOrigins = [
   'https://locks-of-the-week.web.app',
+  'https://locksoftheweek.org',
+  'https://www.locksoftheweek.org',
   process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:5174',
