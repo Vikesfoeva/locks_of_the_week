@@ -25,6 +25,14 @@ const parseCollectionNameToDate = (collectionName) => {
   return null; // Return null for invalid formats
 };
 
+// The one status literal the external scoring pipeline uses for a game underway
+// (MICROSERVICES_HANDOFF.md). Everything "live" on this page keys on these two.
+const LIVE_STATUS = 'in-progress';
+const LIVE_LABEL = 'Live'; // formatStatus output for LIVE_STATUS; the filter value the Live button sets
+// Readable labels for the mobile Status <select> only (the Status column is hidden on phones).
+// Values stay formatStatus output so matching, the desktop FilterModal and the Live button are unchanged.
+const STATUS_OPTION_LABELS = { [LIVE_LABEL]: 'Live', F: 'Final', NS: 'Not Started', '--': '--' };
+
 const WeeklyLocks = () => {
   const { currentUser } = useAuth();
   const [collections, setCollections] = useState([]); // e.g., weeks
@@ -49,10 +57,15 @@ const WeeklyLocks = () => {
   const formatStatus = (status) => {
     if (!status) return '--';
     if (status === 'final') return 'F';
-    if (status === 'unstarted') return 'NS';
-    if (status === 'in-progress') return 'Live';
+    if (status === 'unstarted' || status === 'scheduled') return 'NS';
+    if (status === LIVE_STATUS) return LIVE_LABEL;
     return status; // Return as-is for any other status values
   };
+
+  // Single definition of "live" for the toggle count and the mobile row cue.
+  // null (unresolved gameId), 'final', 'unstarted', 'scheduled' and any unknown
+  // string are deliberately NOT live (positive match only).
+  const isLivePick = (pick) => pick.status === LIVE_STATUS;
 
   // Helper function to format score with team abbreviations
   const formatScore = (awayScore, homeScore, awayTeam, homeTeam) => {
@@ -244,6 +257,7 @@ const WeeklyLocks = () => {
   const resultModal = useFilterModal([], []);
   const dateModal = useFilterModal([], []);
   const timeModal = useFilterModal([], []);
+  const statusModal = useFilterModal([], []);
   
   // Traditional view specific user filter
   const traditionalUserModal = useFilterModal([], []);
@@ -257,6 +271,7 @@ const WeeklyLocks = () => {
   const resultFilter = resultModal.selectedItems;
   const dateFilter = dateModal.selectedItems;
   const timeFilter = timeModal.selectedItems;
+  const statusFilter = statusModal.selectedItems;
   
   // Traditional view specific filters
   const traditionalUserFilter = traditionalUserModal.selectedItems;
@@ -281,6 +296,7 @@ const WeeklyLocks = () => {
     resultModal.resetFilter();
     dateModal.resetFilter();
     timeModal.resetFilter();
+    statusModal.resetFilter();
     // Reset traditional view filters
     traditionalUserModal.resetFilter();
     // Reset sort configuration to default (User alphabetically)
@@ -297,6 +313,9 @@ const WeeklyLocks = () => {
       } else if (key === 'result') {
         // Special handling for result field - include '--' for games without results
         value = pick.result || '--';
+      } else if (key === 'status') {
+        // Mirrors the result branch: formatStatus never returns '', so the '--' bucket survives .filter(Boolean)
+        value = formatStatus(pick.status);
       } else if (subKey) {
         value = pick.gameDetails?.[subKey];
       } else {
@@ -314,8 +333,9 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter]);
 
   const filteredPicksForLeague = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -324,8 +344,9 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
 
   const filteredPicksForAwayTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -334,8 +355,9 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
 
   const filteredPicksForHomeTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -344,8 +366,9 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
 
   const filteredPicksForLock = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -354,8 +377,9 @@ const WeeklyLocks = () => {
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
 
   const filteredPicksForResult = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -364,8 +388,20 @@ const WeeklyLocks = () => {
     (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter, statusFilter]);
+
+  const filteredPicksForStatus = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter]);
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
 
   // For checking if a filter is active, we need the total number of unique values from the original data
   const totalUniqueUsers = useMemo(() => getUniqueValues(allPicks, 'user'), [allPicks, userMap]);
@@ -374,6 +410,9 @@ const WeeklyLocks = () => {
   const totalUniqueHomeTeams = useMemo(() => getUniqueValues(allPicks, 'gameDetails', 'home_team_abbrev'), [allPicks]);
   const totalUniqueLocks = useMemo(() => getUniqueValues(allPicks, 'lock'), [allPicks]);
   const totalUniqueResults = useMemo(() => getUniqueValues(allPicks, 'result'), [allPicks]);
+  const totalUniqueStatuses = useMemo(() => getUniqueValues(allPicks, 'status'), [allPicks]);
+  // Distinct games in progress (like startedGamesCount in Locks.jsx, this counts games, not picks)
+  const liveGameCount = useMemo(() => new Set(allPicks.filter(isLivePick).map(pick => pick.gameId)).size, [allPicks]);
   const totalUniqueDates = useMemo(() => {
     const uniqueDates = Array.from(new Set(
       allPicks
@@ -405,6 +444,7 @@ const WeeklyLocks = () => {
   const uniqueHomeTeams = getUniqueValues(filteredPicksForHomeTeam, 'gameDetails', 'home_team_abbrev');
   const uniqueLocks = getUniqueValues(filteredPicksForLock, 'lock');
   const uniqueResults = getUniqueValues(filteredPicksForResult, 'result');
+  const uniqueStatuses = getUniqueValues(filteredPicksForStatus, 'status');
   // Use totalUniqueDates for filter modal to always show all available dates
   const uniqueDates = totalUniqueDates;
   const uniqueTimes = totalUniqueTimes;
@@ -427,9 +467,19 @@ const WeeklyLocks = () => {
   const isResultFiltered = resultFilter.length > 0 && resultFilter.length < totalUniqueResults.length;
   const isDateFiltered = dateFilter.length > 0 && dateFilter.length < totalUniqueDates.length;
   const isTimeFiltered = timeFilter.length > 0 && timeFilter.length < totalUniqueTimes.length;
+  const isStatusFiltered = statusFilter.length > 0 && statusFilter.length < totalUniqueStatuses.length;
   
   // Traditional view filter status checks
   const isTraditionalUserFiltered = traditionalUserFilter.length > 0 && traditionalUserFilter.length < seasonUsers.length;
+
+  // "Live" quick button is sugar over the Status filter: on iff the filter is exactly [LIVE_LABEL]
+  const isLiveOnly = statusFilter.length === 1 && statusFilter[0] === LIVE_LABEL;
+  const toggleLiveOnly = () => {
+    // resetFilter first so appliedItems is empty whenever the button drives the filter; otherwise a value
+    // previously applied via the desktop funnel is re-seeded by openModal (useFilterModal.js) next time it opens.
+    statusModal.resetFilter();
+    if (!isLiveOnly) statusModal.handleSelectionChange([LIVE_LABEL]);
+  };
 
   const filteredAndSortedPicks = useMemo(() => {
     let filtered = [...allPicks];
@@ -461,6 +511,9 @@ const WeeklyLocks = () => {
     if (timeFilter.length > 0) {
         filtered = filtered.filter(pick => pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)));
     }
+    if (statusFilter.length > 0) {
+        filtered = filtered.filter(pick => statusFilter.includes(formatStatus(pick.status)));
+    }
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
@@ -473,6 +526,11 @@ const WeeklyLocks = () => {
         } else if (sortConfig.key === 'lock') {
             aValue = a.pickType === 'spread' ? a.pickSide : a.pickType === 'total' ? (a.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
             bValue = b.pickType === 'spread' ? b.pickSide : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
+        } else if (sortConfig.key === 'status') {
+            // Live first, then Final, then Not Started, then no status
+            const statusRank = { [LIVE_STATUS]: 0, final: 1, unstarted: 2, scheduled: 2 };
+            aValue = statusRank[a.status] ?? 3;
+            bValue = statusRank[b.status] ?? 3;
         } else if (sortConfig.key === 'dateTime') {
             aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
             bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
@@ -501,7 +559,7 @@ const WeeklyLocks = () => {
     }
 
     return filtered;
-  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, userMap]);
+  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter, userMap]);
 
   // Fetch active year on mount
   useEffect(() => {
@@ -777,23 +835,46 @@ const WeeklyLocks = () => {
                 <span className="hidden sm:inline">Reset Filters</span>
                 <span className="sm:hidden">Reset</span>
               </button>
+              {/* Live quick filter: sugar over the Status filter (statusModal). Hidden when nothing is live and the filter is off (a carried-over Live filter stays clearable). */}
+              {(liveGameCount > 0 || isLiveOnly) && (
+                <button
+                  className={`px-2 py-1 md:px-4 md:py-2 rounded flex items-center gap-1 md:gap-2 text-sm md:text-base ${
+                    isLiveOnly
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+                  }`}
+                  onClick={toggleLiveOnly}
+                  type="button"
+                  title={isLiveOnly ? 'Showing only locks on games in progress' : 'Show only locks on games in progress'}
+                >
+                  {isLiveOnly ? '✓' : '○'} <span className="hidden sm:inline">Live Games</span><span className="sm:hidden">Live</span>
+                  {liveGameCount > 0 && (
+                    <span
+                      className={`ml-1 text-xs px-1 py-0.5 md:px-1.5 rounded-full ${isLiveOnly ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-800'}`}
+                      aria-label={`${liveGameCount} ${liveGameCount === 1 ? 'game' : 'games'} in progress`}
+                    >
+                      {liveGameCount}
+                    </span>
+                  )}
+                </button>
+              )}
               {/* Mobile Sort & Filter Button - Only visible on mobile for table view */}
               <button
                 className={`md:hidden px-2 py-1 rounded flex items-center gap-1 text-sm ${
-                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending'))
+                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending'))
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
                 }`}
                 onClick={() => setShowMobileSortFilter(true)}
                 type="button"
               >
-                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending')) ? (
+                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending')) ? (
                   <FunnelIconSolid className="h-4 w-4" />
                 ) : (
                   <FunnelIconOutline className="h-4 w-4" />
                 )}
                 Sort & Filter
-                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered) && (
+                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered) && (
                   <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
                     Active
                   </span>
@@ -928,7 +1009,31 @@ const WeeklyLocks = () => {
                     </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Line/O/U</th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Score</th>
-                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Status</th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">
+                        <div className="flex items-center gap-1">
+                            <span>Status</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'status' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('status')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'status' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('status')} />
+                            </div>
+                            <button
+                              {...createFilterButtonProps(statusModal, uniqueStatuses, (selectedStatuses) => {
+                                statusModal.handleSelectionChange(selectedStatuses);
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                                className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
+                              })}
+                            >
+                              {/* Icon keyed on isStatusFiltered (like the Sort & Filter pill) so it also lights when the Live button sets the filter */}
+                              {isStatusFiltered ? (
+                                <FunnelIconSolid className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <FunnelIconOutline className="h-4 w-4 text-gray-500" />
+                              )}
+                            </button>
+                        </div>
+                    </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                         <div className="flex items-center gap-1">
                             <span>W/L/T</span>
@@ -1042,7 +1147,15 @@ const WeeklyLocks = () => {
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{formatLineValue(pick.line, pick.pickType)}</td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatScore(pick.awayScore, pick.homeScore, game?.away_team_abbrev, game?.home_team_abbrev)}</td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">{formatStatus(pick.status)}</td>
-                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">{formatResult(pick.result)}</td>
+                        <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
+                          {/* Mobile view: the Status column is hidden, so flag in-progress games here */}
+                          {!pick.result && isLivePick(pick) ? (
+                            <>
+                              <span className="md:hidden font-medium text-blue-600">Live</span>
+                              <span className="hidden md:inline">{formatResult(pick.result)}</span>
+                            </>
+                          ) : formatResult(pick.result)}
+                        </td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameDate(game?.commence_time)}</td>
                         <td className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 whitespace-nowrap hidden md:table-cell">{formatGameTime(game?.commence_time)}</td>
                       </tr>
@@ -1050,6 +1163,11 @@ const WeeklyLocks = () => {
                   })}
                 </tbody>
               </table>
+              {filteredAndSortedPicks.length === 0 && (
+                <div className="px-2 py-4 text-center text-gray-400">
+                  {isLiveOnly && liveGameCount === 0 ? 'No games are in progress right now.' : 'No locks match the current filters.'}
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -1270,6 +1388,15 @@ const WeeklyLocks = () => {
       />
       
       <FilterModal
+        {...createFilterModalProps(statusModal, uniqueStatuses, (selectedStatuses) => {
+          statusModal.handleSelectionChange(selectedStatuses);
+        }, {
+          title: 'Filter Status',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
         {...createFilterModalProps(traditionalUserModal, uniqueTraditionalUsers, (selectedUsers) => {
           traditionalUserModal.handleSelectionChange(selectedUsers);
         }, {
@@ -1302,6 +1429,7 @@ const WeeklyLocks = () => {
                   { key: 'away_team_abbrev', label: 'Away Team' },
                   { key: 'home_team_abbrev', label: 'Home Team' },
                   { key: 'lock', label: 'Lock' },
+                  { key: 'status', label: 'Status' },
                   { key: 'result', label: 'W/L/T' },
                   { key: 'date', label: 'Date' },
                   { key: 'time', label: 'Time' }
@@ -1425,6 +1553,24 @@ const WeeklyLocks = () => {
                     <option value="">All Locks</option>
                     {uniqueLocks.map(lock => (
                       <option key={lock} value={lock}>{lock}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={statusFilter.length === 1 ? statusFilter[0] : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      statusModal.handleSelectionChange(value ? [value] : []);
+                    }}
+                  >
+                    <option value="">All Statuses</option>
+                    {uniqueStatuses.map(status => (
+                      <option key={status} value={status}>{STATUS_OPTION_LABELS[status] || status}</option>
                     ))}
                   </select>
                 </div>
