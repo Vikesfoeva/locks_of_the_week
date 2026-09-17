@@ -13,6 +13,8 @@ export const COLORS = {
   perfect: '#94a3b8',
   pack: '#d1d5db',
   perfectDot: '#16a34a',
+  ink: '#111827', // the viewer's own line, and any focused line that would otherwise be gray
+  halo: '#ffffff',
 };
 
 export const LABEL_H = 12; // minimum vertical spacing between end labels
@@ -133,7 +135,7 @@ export function resolveLabels(labels, maxY) {
 }
 
 // Everything the chart needs to render, derived once from the API response.
-export function buildRaceModel(data, { chartH = CHART_H } = {}) {
+export function buildRaceModel(data, { chartH = CHART_H, viewerId = null } = {}) {
   const weeks = Array.isArray(data?.weeks) ? data.weeks : [];
   const WEEKS = weeks.length;
   const plotH = plotHeight(chartH);
@@ -178,8 +180,12 @@ export function buildRaceModel(data, { chartH = CHART_H } = {}) {
     return COLORS.pack;
   };
 
+  // The viewer's own line is drawn last (above the top-5 lines).
+  const drawOrder = p => (p.isSelf ? 4 : DRAW_ORDER[p.cat]);
+
   const modelPlayers = withCat
     .map(p => {
+      const isSelf = viewerId != null && p.id === viewerId;
       const points = p.ranks.map((rank, w) => ({
         x: r2(xAt(w, WEEKS)),
         y: r2(y(rank) + tieOffset(tieGroups[w][rank], p.id) * rowH),
@@ -195,13 +201,15 @@ export function buildRaceModel(data, { chartH = CHART_H } = {}) {
         perfect: Array.isArray(p.perfect) ? p.perfect : [],
         finalRank: p.finalRank,
         cat: p.cat,
-        featured: p.cat === 'top' || p.cat === 'last',
-        color: colorOf(p),
+        isSelf,
+        featured: isSelf || p.cat === 'top' || p.cat === 'last',
+        // The viewer's own line is always ink so it stands out regardless of category.
+        color: isSelf ? COLORS.ink : colorOf(p),
         points,
         path: curvePath(points),
       };
     })
-    .sort((a, b) => DRAW_ORDER[a.cat] - DRAW_ORDER[b.cat] || b.finalRank - a.finalRank);
+    .sort((a, b) => drawOrder(a) - drawOrder(b) || b.finalRank - a.finalRank);
 
   const labelX = r2(xAt(WEEKS - 1, WEEKS) + 8);
   const labels = resolveLabels(
@@ -213,6 +221,7 @@ export function buildRaceModel(data, { chartH = CHART_H } = {}) {
       name: p.surname,
       color: p.color,
       featured: p.featured,
+      isSelf: p.isSelf,
     })),
     MARGIN.top + plotH + 8,
   ).map(l => ({ ...l, y: r2(l.y), leader: Math.abs(l.y - l.yIdeal) > 2 }));

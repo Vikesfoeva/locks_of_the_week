@@ -61,6 +61,7 @@ const StandingsRace = () => {
   const weekCount = weeks.length;
   const playerCount = data?.playerCount ?? players.length;
   const pinnedPlayer = pinnedId ? players.find(p => p.id === pinnedId) : null;
+  const viewerInRace = Boolean(viewerId) && players.some(p => p.id === viewerId);
   const hasChart = weekCount > 0 && players.length > 0;
 
   return (
@@ -97,6 +98,9 @@ const StandingsRace = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 border-b border-gray-100 px-4 py-2.5 text-xs font-medium text-gray-600">
+          {viewerInRace && (
+            <LegendKey swatch={<span className="inline-block h-[3px] w-3 rounded-[1px] bg-gray-900" />}>You</LegendKey>
+          )}
           <LegendKey swatch={<span className="inline-block h-0.5 w-3 rounded-[1px] bg-primary-600" />}>Top 5 — prize zone</LegendKey>
           <LegendKey swatch={<span className="inline-block h-0.5 w-3 rounded-[1px] bg-red-500" />}>Last place</LegendKey>
           <LegendKey swatch={<span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" />}>3-0 Week</LegendKey>
@@ -118,7 +122,7 @@ const StandingsRace = () => {
         <div className="overflow-x-auto p-2 md:overflow-visible">
           {hasChart ? (
             <div className="min-w-[1000px] md:min-w-0 md:h-[calc(100vh-370px)] md:min-h-[480px]">
-              <RankRaceChart data={data} pinnedId={pinnedId} onPinChange={setPinnedId} />
+              <RankRaceChart data={data} viewerId={viewerId} pinnedId={pinnedId} onPinChange={setPinnedId} />
             </div>
           ) : (
             <div className="p-8 text-center text-gray-500">

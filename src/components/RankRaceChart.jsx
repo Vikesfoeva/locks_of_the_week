@@ -56,25 +56,37 @@ function movementLabel(delta) {
   return { text: `▼ ${Math.abs(delta)}`, className: 'font-bold', color: COLORS.last };
 }
 
+// Colored lines (top 5, last place, the viewer) keep their color when focused;
+// gray lines switch to ink so the focused line is always readable.
+const focusColorOf = p => ((p.featured || p.isSelf) ? p.color : COLORS.ink);
+
 /**
  * Rank-over-time bump chart. `data` is the GET /api/standings/history response.
  * Hover isolates a player; the pinned player (controlled via `pinnedId` /
  * `onPinChange`) stays isolated until cleared by clicking the background,
- * clicking the player again, or pressing Escape.
+ * clicking the player again, or pressing Escape. The viewer's own line
+ * (`viewerId`) is always drawn in ink with a "You" tag and only dims part-way.
  */
-export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
+export default function RankRaceChart({ data, viewerId = null, pinnedId = null, onPinChange }) {
   const wrapRef = useRef(null);
   const svgRef = useRef(null);
   const tipRef = useRef(null);
 
   const playerCount = Array.isArray(data?.players) ? data.players.length : 0;
   const chartH = useFittedChartHeight(wrapRef, playerCount);
-  const model = useMemo(() => buildRaceModel(data, { chartH }), [data, chartH]);
+  const model = useMemo(() => buildRaceModel(data, { chartH, viewerId }), [data, chartH, viewerId]);
 
   const [hoverId, setHoverId] = useState(null);
   const [tip, setTip] = useState(null); // { id, w }
   const activeId = pinnedId ?? hoverId;
   const dimming = activeId != null;
+
+  // Draw the focused player last so its halo and dots sit above every other line.
+  const orderedPlayers = useMemo(() => {
+    const active = activeId != null ? model.byId[activeId] : null;
+    if (!active) return model.players;
+    return [...model.players.filter(p => p.id !== activeId), active];
+  }, [model, activeId]);
 
   const setPin = useCallback(id => {
     if (onPinChange) onPinChange(id);
@@ -142,7 +154,13 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
     box.style.top = `${top}px`;
   }, [tip, model]);
 
-  const dim = id => (dimming && id !== activeId ? 'opacity-[0.08]' : 'opacity-100');
+  // Everything but the focused player fades out; the viewer's own line stays
+  // faintly visible so the focused player can be compared against it.
+  const dim = id => {
+    if (!dimming || id === activeId) return 'opacity-100';
+    if (viewerId != null && id === viewerId) return 'opacity-[0.35]';
+    return 'opacity-[0.08]';
+  };
   const plotBottom = MARGIN.top + model.plotH;
   const lastIdx = model.WEEKS - 1;
   const showAllEndpoints = model.WEEKS === 1; // a single week has no line to see
@@ -171,6 +189,7 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
   ), [model, enterPoint, leavePoint, togglePin]);
 
   const tipPlayer = tip ? model.byId[tip.id] : null;
+  const tipColor = tipPlayer ? (tipPlayer.id === activeId ? focusColorOf(tipPlayer) : tipPlayer.color) : null;
   const tipRank = tipPlayer ? tipPlayer.ranks[tip.w] : null;
   const tipMove = tipPlayer ? movementLabel(movement(tipPlayer.ranks, tip.w)) : null;
   const tipPerfect = tipPlayer ? tipPlayer.perfect.includes(tip.w + 1) : false;
@@ -266,22 +285,37 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
           </text>
         ))}
 
-        {/* Lines, pack first so the featured lines land on top */}
-        {model.players.map(p => {
+        {/* Lines: pack first, then colored lines, the viewer, and finally the focused player */}
+        {orderedPlayers.map(p => {
           const active = p.id === activeId;
-          const strokeWidth = active ? 3 : p.featured ? 2 : 1;
+          const stroke = active ? focusColorOf(p) : p.color;
+          const strokeWidth = active ? 3.5 : p.isSelf ? 3 : p.featured ? 2 : 1;
           const end = p.points[lastIdx];
           return (
             <g key={p.id} className={`transition-opacity duration-200 ${dim(p.id)}`}>
+              {active && (
+                <path
+                  d={p.path}
+                  fill="none"
+                  stroke={COLORS.halo}
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.9"
+                  pointerEvents="none"
+                  data-role="halo"
+                />
+              )}
               <path
                 d={p.path}
                 fill="none"
-                stroke={p.color}
+                stroke={stroke}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 pointerEvents="none"
                 className="transition-[stroke-width] duration-200"
+                data-role="line"
               />
               {/* Wide invisible twin so the thin line is easy to hover */}
               <path
@@ -296,8 +330,21 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
                 onMouseLeave={leaveLine}
                 onClick={togglePin}
               />
+              {active && p.points.map(pt => (
+                <circle
+                  key={`f${pt.w}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="3"
+                  fill={stroke}
+                  stroke="#fff"
+                  strokeWidth="1.5"
+                  pointerEvents="none"
+                  data-role="week-dot"
+                />
+              ))}
               {(p.featured || showAllEndpoints) && (
-                <circle cx={end.x} cy={end.y} r="4" fill={p.color} stroke="#fff" strokeWidth="1.5" pointerEvents="none" />
+                <circle cx={end.x} cy={end.y} r={active ? 4.5 : 4} fill={stroke} stroke="#fff" strokeWidth="1.5" pointerEvents="none" />
               )}
               {p.points
                 .filter(pt => p.perfect.includes(pt.w + 1))
@@ -322,7 +369,17 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
         {/* End labels: one per player, collision-resolved */}
         {model.labels.map(l => {
           const active = l.id === activeId;
-          const textOpacity = active ? 'opacity-100' : l.featured ? '' : 'opacity-70';
+          const player = model.byId[l.id];
+          const fill = active ? focusColorOf(player) : l.color;
+          const sizeCls = active
+            ? 'text-[12px] font-bold'
+            : l.isSelf
+              ? 'text-[11px] font-bold'
+              : l.featured
+                ? 'text-[11px] font-semibold'
+                : 'text-[10px] font-medium';
+          const textOpacity = active || l.isSelf ? 'opacity-100' : l.featured ? '' : 'opacity-70';
+          const rankOpacity = active ? 'opacity-100' : l.featured ? 'opacity-[0.85]' : 'opacity-60';
           return (
             <g key={l.id} className={`transition-opacity duration-200 ${dim(l.id)}`}>
               {l.leader && (
@@ -331,23 +388,27 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
                   y1={l.yIdeal}
                   x2={l.x - 1}
                   y2={l.y}
-                  stroke={l.color}
-                  strokeWidth="1"
-                  opacity={l.featured ? 0.5 : 0.3}
+                  stroke={fill}
+                  strokeWidth={active ? 1.5 : 1}
+                  opacity={active ? 0.8 : l.featured ? 0.5 : 0.3}
                   pointerEvents="none"
                 />
               )}
               <text
                 x={l.x}
                 y={l.y}
-                fill={l.color}
+                fill={fill}
                 dominantBaseline="middle"
                 tabIndex={0}
                 role="button"
-                aria-label={`${model.byId[l.id].name}, rank ${l.rank}`}
+                aria-label={`${player.name}${l.isSelf ? ' (you)' : ''}, rank ${l.rank}`}
                 data-id={l.id}
                 data-w={lastIdx}
-                className={`cursor-pointer outline-none ${l.featured ? 'text-[11px] font-semibold' : 'text-[10px] font-medium'} ${textOpacity}`}
+                paintOrder={active ? 'stroke' : undefined}
+                stroke={active ? COLORS.halo : undefined}
+                strokeWidth={active ? 3 : undefined}
+                strokeLinejoin="round"
+                className={`cursor-pointer outline-none ${sizeCls} ${textOpacity}`}
                 onMouseEnter={enterLine}
                 onMouseLeave={leaveLine}
                 onFocus={enterPoint}
@@ -355,8 +416,9 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
                 onClick={togglePin}
                 onKeyDown={labelKeyDown}
               >
-                <tspan className={`font-mono font-semibold tabular-nums ${l.featured ? 'opacity-[0.85]' : 'opacity-60'}`}>{l.rank}</tspan>
+                <tspan className={`font-mono font-semibold tabular-nums ${rankOpacity}`}>{l.rank}</tspan>
                 <tspan dx="5">{l.name}</tspan>
+                {l.isSelf && <tspan dx="4" className="font-medium opacity-70">· You</tspan>}
               </text>
             </g>
           );
@@ -367,11 +429,12 @@ export default function RankRaceChart({ data, pinnedId = null, onPinChange }) {
         <div
           ref={tipRef}
           className="pointer-events-none absolute z-10 min-w-[180px] rounded-md border border-gray-200 bg-white p-2.5 shadow-lg"
-          style={{ left: 0, top: 0, borderLeft: `4px solid ${tipPlayer.color}` }}
+          style={{ left: 0, top: 0, borderLeft: `4px solid ${tipColor}` }}
         >
           <div className="flex items-center gap-2 text-sm font-bold leading-tight text-gray-900">
-            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: tipPlayer.color }} />
+            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: tipColor }} />
             {tipPlayer.name}
+            {tipPlayer.isSelf && <span className="text-xs font-medium text-gray-500">(you)</span>}
           </div>
           <div className="mt-0.5 text-xs font-medium uppercase tracking-wide text-gray-500">
             Week {tip.w + 1}
