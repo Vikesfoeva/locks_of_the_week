@@ -13,6 +13,7 @@ import Locks from './pages/Locks'
 import WeeklyLocks from './pages/WeeklyLocks'
 import UserSettings from './pages/UserSettings'
 import Standings from './pages/Standings'
+import StandingsRace from './pages/StandingsRace'
 import Awards from './pages/Awards'
 import Snydermetrics from './pages/Snydermetrics'
 
@@ -80,6 +81,15 @@ function App() {
               <SeasonAccessGuard>
                 <ProfileSetupGuard>
                   <Standings />
+                </ProfileSetupGuard>
+              </SeasonAccessGuard>
+            </PrivateRoute>
+          } />
+          <Route path="/standings/race" element={
+            <PrivateRoute>
+              <SeasonAccessGuard>
+                <ProfileSetupGuard>
+                  <StandingsRace />
                 </ProfileSetupGuard>
               </SeasonAccessGuard>
             </PrivateRoute>

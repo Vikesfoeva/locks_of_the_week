@@ -7,6 +7,7 @@ import { useFilterModal, createFilterButtonProps, createFilterModalProps } from 
 import { useAuth } from '../contexts/AuthContext';
 import { getAuth } from 'firebase/auth';
 import { formatSeasonLabel } from '../utils/seasonFormatter';
+import { Link } from 'react-router';
 
 // Component for user name buttons with conditional clickability
 const UserNameButton = ({ user, isTopFive, onPicksClick, checkPicksComplete, currentUserFirebaseUid, selectedWeek, activeYear }) => {
@@ -671,6 +672,13 @@ const Standings = () => {
               <span className="md:hidden">3-0</span>
               <span className="hidden md:inline">3-0 Weeks</span>
             </button>
+            <Link
+              to="/standings/race"
+              className="px-2 py-1 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-colors duration-200 text-gray-600 hover:text-gray-900"
+            >
+              <span className="md:hidden">Race</span>
+              <span className="hidden md:inline">Race Chart</span>
+            </Link>
           </div>
           
           <button
