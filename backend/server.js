@@ -1010,6 +1010,53 @@ const isWeekComplete = (collectionName) => {
   }
 };
 
+// Season standings order: wins desc, then losses asc, then ties asc.
+// Shared by GET /api/standings and GET /api/standings/history so the race chart's
+// final week always matches the table exactly.
+const standingsRankingFn = (a, b) => b.wins - a.wins || a.losses - b.losses || a.ties - b.ties;
+
+// Competition ranking ("1, 2, 2, 4"): the rank only advances to i + 1 when the
+// {wins, ties, losses} triple differs from the previous row; identical records share
+// a rank. `key` names the stats sub-object on each entry (e.g. 'total'); `idKey` names
+// the field used as the key of the returned { id: rank } map.
+function calculateCompetitionRanks(statsDict, key, idKey = '_id') {
+  const sorted = Object.values(statsDict).sort((a, b) => standingsRankingFn(a[key], b[key]));
+  const ranks = {};
+  let currentRank = 1;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const currentUser = sorted[i];
+
+    if (i > 0) {
+      const prevUser = sorted[i - 1];
+      // Check if current user has different stats than previous user
+      const currentStats = currentUser[key];
+      const prevStats = prevUser[key];
+
+      if (currentStats.wins !== prevStats.wins ||
+        currentStats.ties !== prevStats.ties ||
+        currentStats.losses !== prevStats.losses) {
+        currentRank = i + 1; // Move to next available rank
+      }
+      // If stats are the same, keep the same rank (tie)
+    }
+
+    ranks[currentUser[idKey]] = currentRank;
+  }
+
+  return ranks;
+}
+
+// A prize-eligible "3-0 week": exactly 3 picks, all wins, and none explicitly marked
+// threeOEligible: false (legacy picks without the field count as eligible). Shared by
+// GET /api/three-zero-standings and GET /api/standings/history.
+function isThreeZeroWeek(weekPicks) {
+  if (weekPicks.length !== 3) return false;
+  const allWins = weekPicks.every(pick => pick.result && pick.result.toUpperCase() === 'WIN');
+  const allEligible = weekPicks.every(pick => pick.threeOEligible !== false);
+  return allWins && allEligible;
+}
+
 // Get standings data
 app.get('/api/standings', async (req, res) => {
   try {
@@ -1113,39 +1160,9 @@ app.get('/api/standings', async (req, res) => {
       }
     });
 
-    // 6. Rank calculation
-    const rankingFn = (a, b) => b.wins - a.wins || a.losses - b.losses || a.ties - b.ties;
-
-    const calculateRanks = (statsDict, key) => {
-      const sorted = Object.values(statsDict).sort((a, b) => rankingFn(a[key], b[key]));
-      const ranks = {};
-      let currentRank = 1;
-
-      for (let i = 0; i < sorted.length; i++) {
-        const currentUser = sorted[i];
-
-        if (i > 0) {
-          const prevUser = sorted[i - 1];
-          // Check if current user has different stats than previous user
-          const currentStats = currentUser[key];
-          const prevStats = prevUser[key];
-
-          if (currentStats.wins !== prevStats.wins ||
-            currentStats.ties !== prevStats.ties ||
-            currentStats.losses !== prevStats.losses) {
-            currentRank = i + 1; // Move to next available rank
-          }
-          // If stats are the same, keep the same rank (tie)
-        }
-
-        ranks[currentUser._id] = currentRank;
-      }
-
-      return ranks;
-    };
-
-    const currentRanks = calculateRanks(userStatsByFirebaseUid, 'total');
-    const previousRanks = previousGameWeek ? calculateRanks(userStatsByFirebaseUid, 'previousTotal') : null;
+    // 6. Rank calculation (shared competition ranking, keyed by Mongo _id)
+    const currentRanks = calculateCompetitionRanks(userStatsByFirebaseUid, 'total');
+    const previousRanks = previousGameWeek ? calculateCompetitionRanks(userStatsByFirebaseUid, 'previousTotal') : null;
 
     // 7. Get payout settings (season-scoped, legacy global doc as fallback)
     const payoutSettings = await getSeasonConfig(mainDb, 'payout_settings', year);
@@ -1308,6 +1325,114 @@ app.get('/api/standings', async (req, res) => {
   } catch (err) {
     console.error('Error fetching standings:', err);
     res.status(500).json({ error: 'Failed to fetch standings', details: err.message });
+  }
+});
+
+// Rank history for the Standings Race chart: every member's cumulative standings rank
+// at the end of each week of the season. Week w is ranked over picks from weeks 1..w
+// with calculateCompetitionRanks, i.e. exactly what GET /api/standings?week=<w> shows,
+// so the final column of the chart always matches the table.
+app.get('/api/standings/history', async (req, res) => {
+  try {
+    const mainDb = await connectToDb();
+    let { year } = req.query;
+
+    // 1. Determine the year (same resolution as /api/standings)
+    if (!year) {
+      const config = await mainDb.collection('league_configurations').findOne({ key: 'active_year' });
+      year = config ? config.value : new Date().getFullYear();
+    } else {
+      year = normalizeSeasonKey(year);
+      if (year === null) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
+    }
+
+    // 2. Available weeks, oldest first
+    const yearDb = client.db(`cy_${year}`);
+    const collections = await yearDb.listCollections().toArray();
+    const oddsPattern = /^odds_\d{4}_\d{2}_\d{2}$/;
+    const weeks = collections
+      .map(col => col.name)
+      .filter(name => oddsPattern.test(name));
+    weeks.sort((a, b) => {
+      const dateA = parseCollectionNameToDate(a);
+      const dateB = parseCollectionNameToDate(b);
+      if (!dateA || !dateB) return a.localeCompare(b); // Fallback for safety
+      return dateA - dateB; // Sort ascending
+    });
+
+    // 3. Season members that can be plotted. Users without a firebaseUid have no picks
+    // and show as rank '-' in the table, so they are left out here. Members with no
+    // picks still get a line: they are ranked (tied at the bottom) just like the table.
+    const users = await mainDb.collection('users').find(seasonMembersQuery(year)).toArray();
+    const statsByUid = {};
+    users.forEach(user => {
+      if (!user.firebaseUid) return;
+      statsByUid[user.firebaseUid] = {
+        id: user.firebaseUid,
+        name: `${user.firstName} ${user.lastName}`,
+        total: { wins: 0, losses: 0, ties: 0 },
+        ranks: [],
+        perfect: []
+      };
+    });
+
+    const toPlayer = stats => ({
+      id: stats.id,
+      name: stats.name,
+      ranks: stats.ranks,
+      rec: `${stats.total.wins}-${stats.total.losses}-${stats.total.ties}`,
+      perfect: stats.perfect
+    });
+
+    if (weeks.length === 0) {
+      const players = Object.values(statsByUid).map(toPlayer);
+      return res.json({ year, weeks: [], players, playerCount: players.length });
+    }
+
+    // 4. One query for every pick of the season, bucketed by week and user
+    const picksCollection = mainDb.collection(getPicksCollectionName(year));
+    const allPicks = await picksCollection.find({ collectionName: { $in: weeks } }).toArray();
+    const weekIndex = {};
+    weeks.forEach((week, i) => { weekIndex[week] = i; });
+    const picksByWeek = weeks.map(() => ({}));
+    allPicks.forEach(pick => {
+      const w = weekIndex[pick.collectionName];
+      if (w === undefined || !statsByUid[pick.userId]) return;
+      if (!picksByWeek[w][pick.userId]) picksByWeek[w][pick.userId] = [];
+      picksByWeek[w][pick.userId].push(pick);
+    });
+
+    // 5. Walk the weeks, accumulating records and ranking each cumulative snapshot
+    const allStats = Object.values(statsByUid);
+    for (let w = 0; w < weeks.length; w++) {
+      allStats.forEach(stats => {
+        const weekPicks = picksByWeek[w][stats.id] || [];
+        weekPicks.forEach(pick => {
+          const result = pick.result ? pick.result.toUpperCase() : '';
+          if (result === 'WIN') stats.total.wins += 1;
+          else if (result === 'LOSS') stats.total.losses += 1;
+          else if (result === 'TIE') stats.total.ties += 1;
+        });
+        if (isThreeZeroWeek(weekPicks)) stats.perfect.push(w + 1);
+      });
+
+      const ranks = calculateCompetitionRanks(statsByUid, 'total', 'id');
+      allStats.forEach(stats => stats.ranks.push(ranks[stats.id]));
+    }
+
+    // 6. Respond, ordered by final rank then name (cosmetic; the chart re-sorts)
+    const players = allStats.map(toPlayer).sort((a, b) => {
+      const ra = a.ranks[a.ranks.length - 1];
+      const rb = b.ranks[b.ranks.length - 1];
+      return ra - rb || a.name.localeCompare(b.name);
+    });
+
+    res.json({ year, weeks, players, playerCount: players.length });
+  } catch (err) {
+    console.error('Error fetching standings history:', err);
+    res.status(500).json({ error: 'Failed to fetch standings history', details: err.message });
   }
 });
 
@@ -1622,16 +1747,8 @@ app.get('/api/three-zero-standings', async (req, res) => {
       const userWeeks = userWeekPicks[userId];
       Object.keys(userWeeks).forEach(week => {
         const weekPicks = userWeeks[week];
-        if (weekPicks.length === 3) {
-          // Check if all 3 picks are wins
-          const allWins = weekPicks.every(pick => pick.result && pick.result.toUpperCase() === 'WIN');
-          // Check if all 3 picks are eligible for 3-0 consideration (threeOEligible must be true)
-          // Handle legacy data by defaulting to true if threeOEligible is undefined
-          const allEligible = weekPicks.every(pick => pick.threeOEligible !== false);
-
-          if (allWins && allEligible && userThreeZeroWeeks[userId]) {
-            userThreeZeroWeeks[userId].threeZeroWeeks++;
-          }
+        if (isThreeZeroWeek(weekPicks) && userThreeZeroWeeks[userId]) {
+          userThreeZeroWeeks[userId].threeZeroWeeks++;
         }
       });
     });
