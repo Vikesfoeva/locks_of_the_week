@@ -3611,3 +3611,14 @@ app.get('/api/picks/secure-user-picks', authenticateUser, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch user picks', details: err.message });
   }
 });
+
+// Catch-all for unknown /api paths. Must stay LAST: every route above is
+// registered synchronously at module level and app.listen fires later inside
+// connectToDb().then(), so anything appended here sits behind all of them.
+// JSON + no-store because Firebase Hosting's CDN applies max-age=600 to any
+// backend 404 that carries no Cache-Control header, which turns a brief
+// frontend/backend deploy skew into a 10-minute cached failure.
+app.use((req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
+});

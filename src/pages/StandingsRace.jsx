@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '../config';
 import { formatSeasonLabel } from '../utils/seasonFormatter';
 import RankRaceChart from '../components/RankRaceChart';
 
@@ -27,12 +28,12 @@ const StandingsRace = () => {
     const fetchHistory = async () => {
       try {
         setLoading(true);
-        const yearResponse = await fetch('/api/active-year');
+        const yearResponse = await fetch(`${API_URL}/active-year`);
         if (!yearResponse.ok) throw new Error('Failed to fetch active year');
         const yearData = await yearResponse.json();
         const year = yearData.year || new Date().getFullYear();
 
-        const response = await fetch(`/api/standings/history?year=${encodeURIComponent(year)}`);
+        const response = await fetch(`${API_URL}/standings/history?year=${encodeURIComponent(year)}`);
         if (!response.ok) throw new Error('Failed to fetch standings history');
         const history = await response.json();
         if (cancelled) return;

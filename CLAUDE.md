@@ -21,13 +21,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node backend/debug_games.js` — standalone script that connects to Mongo, resolves the active year, and dumps `odds_*` collections. Useful for inspecting slate data without the server.
 
 ### Deploy
-Pushing to `main` **auto-deploys both halves** via GitHub Actions:
-- `.github/workflows/deploy-frontend.yml` — `npm ci && npm run build` (injecting `VITE_*` from repo secrets), then `FirebaseExtended/action-hosting-deploy` to the live channel of project `locks-of-the-week`.
-- `.github/workflows/deploy-backend.yml` — `gcloud run deploy locks-backend --source ./backend` to `us-east1`.
+Pushing to `main` **auto-deploys both halves** via one GitHub Actions workflow, `.github/workflows/deploy.yml`, whose two jobs run strictly in order:
+1. `backend` — `gcloud run deploy locks-backend --source ./backend` to `us-east1`. gcloud blocks until the new revision is Ready and serving 100% of traffic.
+2. `frontend` (`needs: [backend]`) — `npm ci && npm run build` (injecting `VITE_*` from repo secrets), then `FirebaseExtended/action-hosting-deploy` to the live channel of project `locks-of-the-week`. Skipped if the backend job fails, so Hosting keeps serving the bundle that matches the revision still routed.
 
-Manual equivalents: `./deploy.sh` (production; secrets from Google Secret Manager) and `./deploy-dev.sh` (same, but passes secrets as `--set-env-vars` from your shell).
+**The order is load-bearing.** The two halves used to deploy in parallel from separate workflows; the frontend won by ~24 s, a new page called a route the old Cloud Run revision didn't have, Express 404'd, and Firebase Hosting's CDN cached that 404 for 10 minutes (it stamps `max-age=600` on any backend 404 without a `Cache-Control` header). Backend changes here are additive, so backend-first is always safe. The guarantee rests on `gcloud run deploy` blocking — adding `--async` or `--no-traffic` to that command would silently reintroduce the race. A `concurrency` group serializes back-to-back pushes without cancelling in-flight runs.
 
-Note: **no deploy path sets `MONGO_URI`.** All four only wire the three Firebase secrets, so `MONGO_URI` must already exist as an env var on the Cloud Run service and survives redeploys. A fresh service will crash-loop until it's set.
+Manual equivalents follow the same order (build → gcloud → firebase, `set -e`): `./deploy.sh` (production; secrets from Google Secret Manager) and `./deploy-dev.sh` (same, but passes secrets as `--set-env-vars` from your shell).
+
+Note: **no deploy path sets `MONGO_URI`.** All three only wire the three Firebase secrets, so `MONGO_URI` must already exist as an env var on the Cloud Run service and survives redeploys. A fresh service will crash-loop until it's set.
 
 There are no automated tests. `backend/package.json`'s `test` script is the npm default stub that exits 1.
 
@@ -94,7 +96,7 @@ Pick limit (3 per week) is enforced server-side in `POST /api/picks`. Kickoff cu
 `POST /api/picks` writes to MongoDB **and** POSTs to a hardcoded Google Apps Script URL (`server.js` ~line 685) with enriched pick details, username, email, formatted week label, and the user's optional message — for external spreadsheet logging. It's wrapped in its own try/catch so failures don't fail the submission (they only log). If you refactor pick submission, preserve or intentionally remove this: silent breakage lands in an external sheet, not the app.
 
 ### Backend is one file
-`backend/server.js` is ~3,300 lines holding every route, helper, and aggregation. Middleware: Helmet, CORS (allow-list of `localhost:5173`–`5178`, `https://locks-of-the-week.web.app`, and `FRONTEND_URL`), JSON parser, COOP header. Two structural quirks worth knowing: the error-handling middleware is registered *before* all routes (so it never catches route errors — each handler try/catches itself), and `connectToDb()` retries 5×/5 s with a ping-based liveness check before `app.listen`, so the process won't serve traffic until Mongo is reachable.
+`backend/server.js` is ~3,300 lines holding every route, helper, and aggregation. Middleware: Helmet, CORS (allow-list of `localhost:5173`–`5178`, `https://locks-of-the-week.web.app`, and `FRONTEND_URL`), JSON parser, COOP header. Two structural quirks worth knowing: the error-handling middleware is registered *before* all routes (so it never catches route errors — each handler try/catches itself), and `connectToDb()` retries 5×/5 s with a ping-based liveness check before `app.listen`, so the process won't serve traffic until Mongo is reachable. The **last** thing in the file is a catch-all that answers unknown `/api` paths with a JSON 404 and `Cache-Control: no-store`; keep it last (new routes go above it) — without it Firebase Hosting's CDN caches Express's bare 404 for 10 minutes.
 
 ### Frontend API pattern
 There is no central API client. Most pages use `fetch` (`AdminDashboard`, `Awards`, `Standings`, `AuthContext`, `Snydermetrics`, `Register`); `Dashboard`, `Locks`, and `WeeklyLocks` use `axios`. Match the surrounding file's style when adding calls. Page sizes are large (`Standings.jsx` ~1,600 lines, `Locks.jsx` ~1,550, `WeeklyLocks.jsx` ~1,490, `Awards.jsx` ~1,350, `AdminDashboard.jsx` ~1,270) — expect to work inside long files rather than across many.
