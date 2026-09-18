@@ -1374,15 +1374,22 @@ app.get('/api/standings/history', async (req, res) => {
         name: `${user.firstName} ${user.lastName}`,
         total: { wins: 0, losses: 0, ties: 0 },
         ranks: [],
+        recs: [],
+        weekRecs: [],
         perfect: []
       };
     });
 
+    // recs[w] is the cumulative record through week w (the exact triple ranked for
+    // ranks[w]); weekRecs[w] is that week alone. Both are index-aligned with ranks.
+    const recString = r => `${r.wins}-${r.losses}-${r.ties}`;
     const toPlayer = stats => ({
       id: stats.id,
       name: stats.name,
       ranks: stats.ranks,
-      rec: `${stats.total.wins}-${stats.total.losses}-${stats.total.ties}`,
+      rec: recString(stats.total),
+      recs: stats.recs,
+      weekRecs: stats.weekRecs,
       perfect: stats.perfect
     });
 
@@ -1409,12 +1416,15 @@ app.get('/api/standings/history', async (req, res) => {
     for (let w = 0; w < weeks.length; w++) {
       allStats.forEach(stats => {
         const weekPicks = picksByWeek[w][stats.id] || [];
+        const week = { wins: 0, losses: 0, ties: 0 };
         weekPicks.forEach(pick => {
           const result = pick.result ? pick.result.toUpperCase() : '';
-          if (result === 'WIN') stats.total.wins += 1;
-          else if (result === 'LOSS') stats.total.losses += 1;
-          else if (result === 'TIE') stats.total.ties += 1;
+          if (result === 'WIN') { stats.total.wins += 1; week.wins += 1; }
+          else if (result === 'LOSS') { stats.total.losses += 1; week.losses += 1; }
+          else if (result === 'TIE') { stats.total.ties += 1; week.ties += 1; }
         });
+        stats.weekRecs.push(recString(week));
+        stats.recs.push(recString(stats.total));
         if (isThreeZeroWeek(weekPicks)) stats.perfect.push(w + 1);
       });
 

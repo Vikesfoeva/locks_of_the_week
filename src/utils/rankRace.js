@@ -8,17 +8,23 @@ export const MARGIN = { top: 32, right: 140, bottom: 48, left: 52 };
 export const PLOT_W = CHART_W - MARGIN.left - MARGIN.right;
 
 export const TOP_COLORS = ['#0284c7', '#0369a1', '#4f46e5', '#0ea5e9', '#2563eb', '#1d4ed8', '#38bdf8'];
+// Identity colors for the few gray lines left when the viewer narrows the chart to
+// a handful of players. Only three hues stay colorblind-distinct from each other and
+// from the top-5 blues / last-place red, so larger selections fall back to packStrong.
+export const COMPARE_COLORS = ['#d97706', '#0f9d8a', '#a21caf'];
+export const SPARSE_MAX = 10; // a filtered view this small gets the readable "sparse" styling
 export const COLORS = {
   last: '#dc2626',
   perfect: '#94a3b8',
   pack: '#d1d5db',
+  packStrong: '#6b7280', // gray lines in a sparse view with too many players for COMPARE_COLORS
   perfectDot: '#16a34a',
   ink: '#111827', // the viewer's own line, and any focused line that would otherwise be gray
   halo: '#ffffff',
 };
 
 export const LABEL_H = 12; // minimum vertical spacing between end labels
-const PRIZE_RANKS = 5;
+export const PRIZE_RANKS = 5;
 const TIE_SPREAD = 0.36; // ±0.18 of a row height
 const DRAW_ORDER = { pack: 0, perfect: 1, last: 2, top: 3 };
 
@@ -48,6 +54,18 @@ export function surname(name) {
 export function movement(ranks, weekIdx) {
   if (weekIdx <= 0 || !ranks || ranks.length <= weekIdx) return null;
   return ranks[weekIdx - 1] - ranks[weekIdx];
+}
+
+// "W-L-T" for one week, or null when the payload predates weekRecs.
+export function weekRecAt(player, weekIdx) {
+  return player?.weekRecs?.[weekIdx] ?? null;
+}
+
+// Cumulative "W-L-T" through a week. An older payload only carries the final record.
+export function recAt(player, weekIdx) {
+  if (!player) return null;
+  if (player.recs) return player.recs[weekIdx] ?? null;
+  return weekIdx === player.ranks.length - 1 ? player.rec ?? null : null;
 }
 
 // Monotone cubic interpolation (Fritsch–Carlson): smooth, no overshoot, so a
@@ -134,18 +152,48 @@ export function resolveLabels(labels, maxY) {
   return labels;
 }
 
+// The players that can be drawn: one rank per week. The single source for the chart,
+// the player picker's roster and the page's counts.
+export function plottablePlayers(data) {
+  const WEEKS = Array.isArray(data?.weeks) ? data.weeks.length : 0;
+  if (WEEKS === 0) return [];
+  return (Array.isArray(data?.players) ? data.players : [])
+    .filter(p => p && p.id != null && Array.isArray(p.ranks) && p.ranks.length === WEEKS);
+}
+
+// End labels for a set of model players. Builds fresh objects every time because
+// resolveLabels mutates them.
+function buildLabels(players, WEEKS, plotH) {
+  const labelX = r2(xAt(WEEKS - 1, WEEKS) + 8);
+  return resolveLabels(
+    players.map(p => ({
+      id: p.id,
+      x: labelX,
+      yIdeal: p.points[WEEKS - 1].y,
+      rank: p.finalRank,
+      name: p.surname,
+      color: p.color,
+      featured: p.featured,
+      isSelf: p.isSelf,
+    })),
+    MARGIN.top + plotH + 8,
+  ).map(l => ({ ...l, y: r2(l.y), leader: Math.abs(l.y - l.yIdeal) > 2 }));
+}
+
+const weekAligned = (arr, WEEKS) => (Array.isArray(arr) && arr.length === WEEKS ? arr : null);
+
 // Everything the chart needs to render, derived once from the API response.
 export function buildRaceModel(data, { chartH = CHART_H, viewerId = null } = {}) {
   const weeks = Array.isArray(data?.weeks) ? data.weeks : [];
   const WEEKS = weeks.length;
   const plotH = plotHeight(chartH);
-  const players = (Array.isArray(data?.players) ? data.players : [])
-    .filter(p => p && p.id != null && Array.isArray(p.ranks) && p.ranks.length === WEEKS && WEEKS > 0);
+  const players = plottablePlayers(data);
 
   const empty = {
     WEEKS, chartH, plotH, MAX_RANK: 1, lastRank: 1, rowH: 0,
     weekTicks: [], rankTicks: [], cutoffY: null, bandY: null,
     players: [], labels: [], byId: {},
+    totalCount: 0, visibleCount: 0, filtered: false, compareColors: {},
   };
   if (WEEKS === 0 || players.length === 0) return empty;
 
@@ -198,6 +246,8 @@ export function buildRaceModel(data, { chartH = CHART_H, viewerId = null } = {})
         surname: surname(p.name),
         ranks: p.ranks,
         rec: p.rec,
+        recs: weekAligned(p.recs, WEEKS),
+        weekRecs: weekAligned(p.weekRecs, WEEKS),
         perfect: Array.isArray(p.perfect) ? p.perfect : [],
         finalRank: p.finalRank,
         cat: p.cat,
@@ -211,20 +261,7 @@ export function buildRaceModel(data, { chartH = CHART_H, viewerId = null } = {})
     })
     .sort((a, b) => drawOrder(a) - drawOrder(b) || b.finalRank - a.finalRank);
 
-  const labelX = r2(xAt(WEEKS - 1, WEEKS) + 8);
-  const labels = resolveLabels(
-    modelPlayers.map(p => ({
-      id: p.id,
-      x: labelX,
-      yIdeal: p.points[WEEKS - 1].y,
-      rank: p.finalRank,
-      name: p.surname,
-      color: p.color,
-      featured: p.featured,
-      isSelf: p.isSelf,
-    })),
-    MARGIN.top + plotH + 8,
-  ).map(l => ({ ...l, y: r2(l.y), leader: Math.abs(l.y - l.yIdeal) > 2 }));
+  const labels = buildLabels(modelPlayers, WEEKS, plotH);
 
   const step = WEEKS > 14 ? 2 : 1;
   const weekTicks = [];
@@ -251,5 +288,50 @@ export function buildRaceModel(data, { chartH = CHART_H, viewerId = null } = {})
     players: modelPlayers,
     labels,
     byId,
+    totalCount: modelPlayers.length,
+    visibleCount: modelPlayers.length,
+    filtered: false,
+    compareColors: {},
+  };
+}
+
+// Narrows a model to the players the viewer chose to show. Only the drawn set
+// changes: the axis, ticks, prize cutoff, last-place band, tie fan-out, categories
+// and colors all stay league-wide, so a kept player's line never moves or repaints.
+// `byId` becomes visible-only, which is what stops a hidden player from being
+// focused or shown in the tooltip.
+export function applyVisibility(model, hiddenIds) {
+  if (!hiddenIds || hiddenIds.size === 0 || !model.players.some(p => hiddenIds.has(p.id))) return model;
+
+  const players = model.players.filter(p => !hiddenIds.has(p.id));
+  const byId = {};
+  players.forEach(p => { byId[p.id] = p; });
+
+  // Compare colors go to the gray (non-featured) lines of a small selection. Each
+  // player has a preferred slot derived from their league-wide position, so toggling
+  // someone else rarely repaints the players who stay.
+  const compareColors = {};
+  const gray = players.filter(p => !p.featured);
+  if (players.length <= SPARSE_MAX && gray.length > 0 && gray.length <= COMPARE_COLORS.length) {
+    const leagueGray = model.players
+      .filter(p => !p.featured)
+      .sort((a, b) => a.finalRank - b.finalRank || String(a.id).localeCompare(String(b.id)));
+    const taken = new Set();
+    leagueGray.filter(p => byId[p.id]).forEach(p => {
+      let slot = leagueGray.indexOf(p) % COMPARE_COLORS.length;
+      while (taken.has(slot)) slot = (slot + 1) % COMPARE_COLORS.length;
+      taken.add(slot);
+      compareColors[p.id] = COMPARE_COLORS[slot];
+    });
+  }
+
+  return {
+    ...model,
+    players,
+    labels: players.length > 0 ? buildLabels(players, model.WEEKS, model.plotH) : [],
+    byId,
+    visibleCount: players.length,
+    filtered: true,
+    compareColors,
   };
 }
