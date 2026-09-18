@@ -32,6 +32,32 @@ const LIVE_LABEL = 'Live'; // formatStatus output for LIVE_STATUS; the filter va
 // Readable labels for the mobile Status <select> only (the Status column is hidden on phones).
 // Values stay formatStatus output so matching, the desktop FilterModal and the Live button are unchanged.
 const STATUS_OPTION_LABELS = { [LIVE_LABEL]: 'Live', F: 'Final', NS: 'Not Started', '--': '--' };
+// Sort rank for a raw game status: Live first, then Final, then Not Started; anything else (null / unknown)
+// ranks 3 at the call sites via `?? 3`. Shared by the Table View comparator and the Traditional View row sort.
+const STATUS_RANK = { [LIVE_STATUS]: 0, final: 1, unstarted: 2, scheduled: 2 };
+// Filter values for the 3-0 Eligible column in both views (the cells themselves keep rendering ✓ / ✗)
+const THREE_O_ELIGIBLE_LABEL = 'Eligible';
+const THREE_O_NOT_ELIGIBLE_LABEL = 'Not Eligible';
+const formatThreeOLabel = (isEligible) => (isEligible ? THREE_O_ELIGIBLE_LABEL : THREE_O_NOT_ELIGIBLE_LABEL);
+// Numeric order for Line/O/U filter options built from formatLineValue ('-27.5', '+1.5', '51', ...): parseFloat
+// handles the '+' prefix; the '--' bucket (NaN) sorts last; equal numbers ('+3' spread vs '3' total) fall back to text.
+const compareLineLabels = (a, b) => {
+  const an = parseFloat(a);
+  const bn = parseFloat(b);
+  const aOk = Number.isFinite(an);
+  const bOk = Number.isFinite(bn);
+  if (aOk !== bOk) return aOk ? -1 : 1;
+  if (aOk && an !== bn) return an - bn;
+  return a.localeCompare(b);
+};
+const userDisplayName = (user) => ((user.firstName || '') + (user.lastName ? ' ' + user.lastName : '')) || user.email;
+// Set semantics for "is this filter doing anything": active unless the selection covers every value present.
+// (The older count-based flags misreport a filter carried over from another week whose value is absent now.)
+const isSelectionActive = (selected, totalValues) =>
+  selected.length > 0 && !totalValues.every((value) => selected.includes(value));
+// Mobile <select> options: the option list plus any currently selected value it lacks (a filter carried over
+// from another week), so an active filter is always visible and clearable.
+const withSelectedValues = (options, selected) => [...options, ...selected.filter((value) => !options.includes(value))];
 
 const WeeklyLocks = () => {
   const { currentUser } = useAuth();
@@ -245,6 +271,40 @@ const WeeklyLocks = () => {
     return fetchedPicks.filter(pick => !hiddenUids.has(pick.userId));
   }, [fetchedPicks, users, activeYear]);
 
+  // Picks grouped by firebaseUid, from the unfiltered member picks. Memoized and declared here, above every
+  // filter memo, because the 3-0 filter/sort read it during render: a plain const declared lower in the
+  // component would still be in its temporal dead zone when those memos run.
+  const picksByUser = useMemo(() => {
+    const grouped = {};
+    allPicks.forEach(pick => {
+      if (!grouped[pick.userId]) grouped[pick.userId] = [];
+      grouped[pick.userId].push(pick);
+    });
+    return grouped;
+  }, [allPicks]);
+
+  // Helper: calculate combined threeOEligible for a user's picks
+  function calculateCombinedThreeOEligible(userId) {
+    const picks = picksByUser[userId] || [];
+    if (picks.length !== 3) return false; // Must have exactly 3 picks
+    // All 3 picks must have threeOEligible === true for combined result to be true
+    return picks.every(pick => pick.threeOEligible === true);
+  }
+
+  // Traditional View row aggregates for the per-lock Status and Line/O/U sorts.
+  // null = "no usable value" (no picks / no numeric line); the row sort puts those last in both directions.
+  function getUserBestStatusRank(userId) {
+    const picks = picksByUser[userId] || [];
+    if (picks.length === 0) return null;
+    return Math.min(...picks.map(pick => STATUS_RANK[pick.status] ?? 3));
+  }
+  function getUserLineExtreme(userId, dir) {
+    // dir 1 (ascending) = the user's lowest line, dir -1 (descending) = the user's highest line
+    const lines = (picksByUser[userId] || []).map(pick => parseFloat(pick.line)).filter(line => Number.isFinite(line));
+    if (lines.length === 0) return null;
+    return dir === 1 ? Math.min(...lines) : Math.max(...lines);
+  }
+
   // Sorting and Filtering State
   const [sortConfig, setSortConfig] = useState({ key: 'user', direction: 'ascending' });
   
@@ -258,9 +318,16 @@ const WeeklyLocks = () => {
   const dateModal = useFilterModal([], []);
   const timeModal = useFilterModal([], []);
   const statusModal = useFilterModal([], []);
+  const threeOModal = useFilterModal([], []);
+  const lineModal = useFilterModal([], []);
   
-  // Traditional view specific user filter
+  // Traditional view specific filters (toolbar pills) and sort. Kept separate from the Table View state:
+  // Table keys like league/date have no meaning for one-row-per-user, and the Live button is Table-only sugar.
   const traditionalUserModal = useFilterModal([], []);
+  const traditionalThreeOModal = useFilterModal([], []);
+  const traditionalStatusModal = useFilterModal([], []);
+  const traditionalLineModal = useFilterModal([], []);
+  const [traditionalSortConfig, setTraditionalSortConfig] = useState({ key: 'user', direction: 'ascending' });
 
   // Extract current filter values for compatibility with existing logic
   const userFilter = userModal.selectedItems;
@@ -272,9 +339,14 @@ const WeeklyLocks = () => {
   const dateFilter = dateModal.selectedItems;
   const timeFilter = timeModal.selectedItems;
   const statusFilter = statusModal.selectedItems;
+  const threeOFilter = threeOModal.selectedItems;
+  const lineFilter = lineModal.selectedItems;
   
   // Traditional view specific filters
   const traditionalUserFilter = traditionalUserModal.selectedItems;
+  const traditionalThreeOFilter = traditionalThreeOModal.selectedItems;
+  const traditionalStatusFilter = traditionalStatusModal.selectedItems;
+  const traditionalLineFilter = traditionalLineModal.selectedItems;
 
 
 
@@ -284,6 +356,23 @@ const WeeklyLocks = () => {
       direction = 'descending';
     }
     setSortConfig({ key, direction });
+  };
+
+  const handleTraditionalSort = (key) => {
+    let direction = 'ascending';
+    if (traditionalSortConfig.key === key && traditionalSortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setTraditionalSortConfig({ key, direction });
+  };
+
+  // Traditional View toolbar "Reset Filters": its four pills plus its sort
+  const handleResetTraditionalFilters = () => {
+    traditionalUserModal.resetFilter();
+    traditionalThreeOModal.resetFilter();
+    traditionalStatusModal.resetFilter();
+    traditionalLineModal.resetFilter();
+    setTraditionalSortConfig({ key: 'user', direction: 'ascending' });
   };
 
   const handleResetFilters = () => {
@@ -297,10 +386,19 @@ const WeeklyLocks = () => {
     dateModal.resetFilter();
     timeModal.resetFilter();
     statusModal.resetFilter();
-    // Reset traditional view filters
-    traditionalUserModal.resetFilter();
+    threeOModal.resetFilter();
+    lineModal.resetFilter();
+    // Reset traditional view filters (and its sort) too, as this button always has
+    handleResetTraditionalFilters();
     // Reset sort configuration to default (User alphabetically)
     setSortConfig({ key: 'user', direction: 'ascending' });
+  };
+
+  // Single-value set from a mobile <select>. resetFilter first (like toggleLiveOnly) so a value previously
+  // applied via the desktop funnel is not re-seeded by openModal (useFilterModal.js) the next time it opens.
+  const setSingleSelectFilter = (modal, value) => {
+    modal.resetFilter();
+    if (value) modal.handleSelectionChange([value]);
   };
 
   const getUniqueValues = (picks, key, subKey = null) => {
@@ -316,6 +414,12 @@ const WeeklyLocks = () => {
       } else if (key === 'status') {
         // Mirrors the result branch: formatStatus never returns '', so the '--' bucket survives .filter(Boolean)
         value = formatStatus(pick.status);
+      } else if (key === 'threeO') {
+        // Per-user value, identical on all of a user's rows
+        value = formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId));
+      } else if (key === 'line') {
+        // formatLineValue never returns '' ('0' and '--' are truthy strings); callers re-sort with compareLineLabels
+        value = formatLineValue(pick.line, pick.pickType);
       } else if (subKey) {
         value = pick.gameDetails?.[subKey];
       } else {
@@ -334,8 +438,10 @@ const WeeklyLocks = () => {
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForLeague = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -345,8 +451,10 @@ const WeeklyLocks = () => {
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForAwayTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -356,8 +464,10 @@ const WeeklyLocks = () => {
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForHomeTeam = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -367,8 +477,10 @@ const WeeklyLocks = () => {
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForLock = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -378,8 +490,10 @@ const WeeklyLocks = () => {
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForResult = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -389,8 +503,10 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
     (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
-    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status)))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter, statusFilter]);
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser]);
 
   const filteredPicksForStatus = useMemo(() => allPicks.filter(pick =>
     (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
@@ -400,8 +516,36 @@ const WeeklyLocks = () => {
     (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
     (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
     (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
-    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time))))
-  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter]);
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId)))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, threeOFilter, lineFilter, picksByUser]);
+
+  const filteredPicksForThreeO = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (lineFilter.length === 0 || lineFilter.includes(formatLineValue(pick.line, pick.pickType)))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, lineFilter]);
+
+  const filteredPicksForLine = useMemo(() => allPicks.filter(pick =>
+    (userFilter.length === 0 || userFilter.includes(userMap[pick.userId] || pick.userId)) &&
+    (leagueFilter.length === 0 || (pick.gameDetails && leagueFilter.includes(pick.gameDetails.league))) &&
+    (awayTeamFilter.length === 0 || (pick.gameDetails && awayTeamFilter.includes(pick.gameDetails.away_team_abbrev))) &&
+    (homeTeamFilter.length === 0 || (pick.gameDetails && homeTeamFilter.includes(pick.gameDetails.home_team_abbrev))) &&
+    (lockFilter.length === 0 || lockFilter.includes(pick.pickType === 'spread' ? pick.pickSide : pick.pickType === 'total' ? (pick.pickSide === 'OVER' ? 'Over' : 'Under') : '--')) &&
+    (resultFilter.length === 0 || resultFilter.includes(pick.result || '--')) &&
+    (dateFilter.length === 0 || (pick.gameDetails && dateFilter.includes(formatGameDate(pick.gameDetails.commence_time)))) &&
+    (timeFilter.length === 0 || (pick.gameDetails && timeFilter.includes(formatGameTime(pick.gameDetails.commence_time)))) &&
+    (statusFilter.length === 0 || statusFilter.includes(formatStatus(pick.status))) &&
+    (threeOFilter.length === 0 || threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId))))
+  ), [allPicks, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, userMap, dateFilter, timeFilter, statusFilter, threeOFilter, picksByUser]);
 
   // For checking if a filter is active, we need the total number of unique values from the original data
   const totalUniqueUsers = useMemo(() => getUniqueValues(allPicks, 'user'), [allPicks, userMap]);
@@ -411,6 +555,8 @@ const WeeklyLocks = () => {
   const totalUniqueLocks = useMemo(() => getUniqueValues(allPicks, 'lock'), [allPicks]);
   const totalUniqueResults = useMemo(() => getUniqueValues(allPicks, 'result'), [allPicks]);
   const totalUniqueStatuses = useMemo(() => getUniqueValues(allPicks, 'status'), [allPicks]);
+  const totalUniqueThreeO = useMemo(() => getUniqueValues(allPicks, 'threeO'), [allPicks, picksByUser]);
+  const totalUniqueLines = useMemo(() => getUniqueValues(allPicks, 'line').sort(compareLineLabels), [allPicks]);
   // Distinct games in progress (like startedGamesCount in Locks.jsx, this counts games, not picks)
   const liveGameCount = useMemo(() => new Set(allPicks.filter(isLivePick).map(pick => pick.gameId)).size, [allPicks]);
   const totalUniqueDates = useMemo(() => {
@@ -445,6 +591,8 @@ const WeeklyLocks = () => {
   const uniqueLocks = getUniqueValues(filteredPicksForLock, 'lock');
   const uniqueResults = getUniqueValues(filteredPicksForResult, 'result');
   const uniqueStatuses = getUniqueValues(filteredPicksForStatus, 'status');
+  const uniqueThreeO = getUniqueValues(filteredPicksForThreeO, 'threeO');
+  const uniqueLines = getUniqueValues(filteredPicksForLine, 'line').sort(compareLineLabels);
   // Use totalUniqueDates for filter modal to always show all available dates
   const uniqueDates = totalUniqueDates;
   const uniqueTimes = totalUniqueTimes;
@@ -458,6 +606,16 @@ const WeeklyLocks = () => {
   
 
 
+  // Traditional View 3-0 options come from members, not picks: a member with 0 picks renders ✗ there, so
+  // 'Not Eligible' must be selectable whenever such a row is visible. Its Status and Line/O/U pills reuse the
+  // whole-week Table lists (Traditional option lists don't cascade, like uniqueTraditionalUsers).
+  const uniqueTraditionalThreeO = useMemo(
+    () => [THREE_O_ELIGIBLE_LABEL, THREE_O_NOT_ELIGIBLE_LABEL].filter(label =>
+      seasonUsers.some(user => formatThreeOLabel(calculateCombinedThreeOEligible(user.firebaseUid)) === label)
+    ),
+    [seasonUsers, picksByUser]
+  );
+
   // Filter status checks using the new modal system
   const isUserFiltered = userFilter.length > 0 && userFilter.length < totalUniqueUsers.length;
   const isLeagueFiltered = leagueFilter.length > 0 && leagueFilter.length < totalUniqueLeagues.length;
@@ -468,9 +626,16 @@ const WeeklyLocks = () => {
   const isDateFiltered = dateFilter.length > 0 && dateFilter.length < totalUniqueDates.length;
   const isTimeFiltered = timeFilter.length > 0 && timeFilter.length < totalUniqueTimes.length;
   const isStatusFiltered = statusFilter.length > 0 && statusFilter.length < totalUniqueStatuses.length;
+  // The new flags use set semantics (isSelectionActive): filters persist across weeks, and a two-value column
+  // like 3-0 would otherwise read as "not active" when the carried-over value is absent this week.
+  const isThreeOFiltered = isSelectionActive(threeOFilter, totalUniqueThreeO);
+  const isLineFiltered = isSelectionActive(lineFilter, totalUniqueLines);
   
   // Traditional view filter status checks
   const isTraditionalUserFiltered = traditionalUserFilter.length > 0 && traditionalUserFilter.length < seasonUsers.length;
+  const isTraditionalThreeOFiltered = isSelectionActive(traditionalThreeOFilter, uniqueTraditionalThreeO);
+  const isTraditionalStatusFiltered = isSelectionActive(traditionalStatusFilter, totalUniqueStatuses);
+  const isTraditionalLineFiltered = isSelectionActive(traditionalLineFilter, totalUniqueLines);
 
   // "Live" quick button is sugar over the Status filter: on iff the filter is exactly [LIVE_LABEL]
   const isLiveOnly = statusFilter.length === 1 && statusFilter[0] === LIVE_LABEL;
@@ -480,6 +645,10 @@ const WeeklyLocks = () => {
     statusModal.resetFilter();
     if (!isLiveOnly) statusModal.handleSelectionChange([LIVE_LABEL]);
   };
+
+  // Mobile "Sort & Filter" pill state, written once (its class, icon and Active badge all read these)
+  const hasActiveTableFilter = isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered || isThreeOFiltered || isLineFiltered;
+  const hasNonDefaultTableSort = sortConfig.key !== 'user' || sortConfig.direction !== 'ascending';
 
   const filteredAndSortedPicks = useMemo(() => {
     let filtered = [...allPicks];
@@ -514,6 +683,13 @@ const WeeklyLocks = () => {
     if (statusFilter.length > 0) {
         filtered = filtered.filter(pick => statusFilter.includes(formatStatus(pick.status)));
     }
+    if (threeOFilter.length > 0) {
+        filtered = filtered.filter(pick => threeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(pick.userId))));
+    }
+    if (lineFilter.length > 0) {
+        // No gameDetails guard: the line lives on the pick itself, so a stale-gameId pick stays filterable
+        filtered = filtered.filter(pick => lineFilter.includes(formatLineValue(pick.line, pick.pickType)));
+    }
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
@@ -528,9 +704,20 @@ const WeeklyLocks = () => {
             bValue = b.pickType === 'spread' ? b.pickSide : b.pickType === 'total' ? (b.pickSide === 'OVER' ? 'Over' : 'Under') : '--';
         } else if (sortConfig.key === 'status') {
             // Live first, then Final, then Not Started, then no status
-            const statusRank = { [LIVE_STATUS]: 0, final: 1, unstarted: 2, scheduled: 2 };
-            aValue = statusRank[a.status] ?? 3;
-            bValue = statusRank[b.status] ?? 3;
+            aValue = STATUS_RANK[a.status] ?? 3;
+            bValue = STATUS_RANK[b.status] ?? 3;
+        } else if (sortConfig.key === 'threeO') {
+            // Per-user value: Eligible first (rank 0), like Live first for status
+            aValue = calculateCombinedThreeOEligible(a.userId) ? 0 : 1;
+            bValue = calculateCombinedThreeOEligible(b.userId) ? 0 : 1;
+        } else if (sortConfig.key === 'line') {
+            // Numeric line on one axis like the column (spreads signed, totals plain). A missing or
+            // non-numeric line sorts last in BOTH directions rather than as 0.
+            aValue = parseFloat(a.line);
+            bValue = parseFloat(b.line);
+            const aOk = Number.isFinite(aValue);
+            const bOk = Number.isFinite(bValue);
+            if (aOk !== bOk) return aOk ? -1 : 1;
         } else if (sortConfig.key === 'dateTime') {
             aValue = a.gameDetails?.commence_time ? new Date(a.gameDetails.commence_time) : new Date(0);
             bValue = b.gameDetails?.commence_time ? new Date(b.gameDetails.commence_time) : new Date(0);
@@ -554,12 +741,21 @@ const WeeklyLocks = () => {
         if (aValue > bValue) {
           return sortConfig.direction === 'ascending' ? 1 : -1;
         }
+        if (sortConfig.key === 'threeO' || sortConfig.key === 'line') {
+          // Ties are the norm for these keys (3-0 is per user; lines repeat), so keep each user's rows
+          // together: name A-Z, then submission order. The existing keys keep their fetch-order ties.
+          const aName = (userMap[a.userId] || a.userId).toLowerCase();
+          const bName = (userMap[b.userId] || b.userId).toLowerCase();
+          const byName = aName.localeCompare(bName);
+          if (byName !== 0) return byName;
+          return new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0);
+        }
         return 0;
       });
     }
 
     return filtered;
-  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter, userMap]);
+  }, [allPicks, sortConfig, userFilter, leagueFilter, awayTeamFilter, homeTeamFilter, lockFilter, resultFilter, dateFilter, timeFilter, statusFilter, threeOFilter, lineFilter, picksByUser, userMap]);
 
   // Fetch active year on mount
   useEffect(() => {
@@ -695,14 +891,8 @@ const WeeklyLocks = () => {
 
   const hasThreePicks = userPicks.length === 3;
 
-  // Helper: group picks by userId
-  const picksByUser = {};
-  allPicks.forEach(pick => {
-    if (!picksByUser[pick.userId]) picksByUser[pick.userId] = [];
-    picksByUser[pick.userId].push(pick);
-  });
-
-  // Helper: for leaderboard, get picks sorted by submission (or by _id)
+  // Helper: for leaderboard, get picks sorted by submission (or by _id). (picksByUser itself is built above
+  // the filter memos, next to allPicks.)
   function getSortedPicksForUser(userId) {
     const picks = picksByUser[userId] || [];
     // Sort by submittedAt or _id (fallback)
@@ -713,25 +903,43 @@ const WeeklyLocks = () => {
     });
   }
 
-  // Helper: calculate combined threeOEligible for a user's picks
-  function calculateCombinedThreeOEligible(userId) {
-    const picks = picksByUser[userId] || [];
-    if (picks.length !== 3) return false; // Must have exactly 3 picks
-    // All 3 picks must have threeOEligible === true for combined result to be true
-    return picks.every(pick => pick.threeOEligible === true);
-  }
 
-  // Filter users for traditional view
-  const filteredUsersForTraditionalView = useMemo(() => {
-    if (traditionalUserFilter.length === 0) {
-      return seasonUsers; // No filter applied, return all season members
-    }
-    
-    return seasonUsers.filter(user => {
-      const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '') || user.email;
-      return traditionalUserFilter.includes(userName);
+  // Traditional View rows: season members filtered by the four toolbar pills, then sorted by the view's own
+  // sort. The per-lock columns (Status, Line/O/U) use row-level "any of the user's locks matches" semantics
+  // and all three locks stay visible; a member with 0 picks matches nothing while a Status/Line filter is on.
+  // The three new pills gate on their is*Filtered flags (set semantics) rather than selection length, so a
+  // selection carried over from another week that covers every value present here is a no-op exactly as the
+  // pill shows it; gating on length would silently drop 0-pick members under an inactive-looking pill.
+  const traditionalViewRows = useMemo(() => {
+    const rows = seasonUsers.filter(user => {
+      const picks = picksByUser[user.firebaseUid] || [];
+      return (traditionalUserFilter.length === 0 || traditionalUserFilter.includes(userDisplayName(user))) &&
+        (!isTraditionalThreeOFiltered || traditionalThreeOFilter.includes(formatThreeOLabel(calculateCombinedThreeOEligible(user.firebaseUid)))) &&
+        (!isTraditionalStatusFiltered || picks.some(pick => traditionalStatusFilter.includes(formatStatus(pick.status)))) &&
+        (!isTraditionalLineFiltered || picks.some(pick => traditionalLineFilter.includes(formatLineValue(pick.line, pick.pickType))));
     });
-  }, [seasonUsers, traditionalUserFilter]);
+    const { key, direction } = traditionalSortConfig;
+    const dir = direction === 'ascending' ? 1 : -1;
+    const nameOf = (user) => userDisplayName(user).toLowerCase();
+    // `rows` is a fresh array from .filter, so sorting it in place never mutates the seasonUsers memo
+    return rows.sort((a, b) => {
+      let cmp = 0;
+      if (key === 'threeO') {
+        cmp = (calculateCombinedThreeOEligible(a.firebaseUid) ? 0 : 1) - (calculateCombinedThreeOEligible(b.firebaseUid) ? 0 : 1);
+      } else if (key === 'status' || key === 'line') {
+        // Row value = the user's best lock (Live before Final before Not Started; lowest line ascending,
+        // highest line descending). Rows with no usable value sort last regardless of direction.
+        const aValue = key === 'status' ? getUserBestStatusRank(a.firebaseUid) : getUserLineExtreme(a.firebaseUid, dir);
+        const bValue = key === 'status' ? getUserBestStatusRank(b.firebaseUid) : getUserLineExtreme(b.firebaseUid, dir);
+        if ((aValue === null) !== (bValue === null)) return aValue === null ? 1 : -1;
+        cmp = aValue === null ? 0 : aValue - bValue;
+      } else {
+        cmp = nameOf(a).localeCompare(nameOf(b));
+      }
+      if (cmp !== 0) return cmp * dir;
+      return key === 'user' ? 0 : nameOf(a).localeCompare(nameOf(b)); // name A-Z tie-break keeps groups stable
+    });
+  }, [seasonUsers, picksByUser, traditionalUserFilter, traditionalThreeOFilter, traditionalStatusFilter, traditionalLineFilter, isTraditionalThreeOFiltered, isTraditionalStatusFiltered, isTraditionalLineFiltered, traditionalSortConfig]);
 
   // Helper: calculate weekly W-L-T record for a user
   function calculateWeeklyRecord(userId) {
@@ -751,6 +959,48 @@ const WeeklyLocks = () => {
   const formatThreeOEligible = (isEligible) => {
     return isEligible ? '✓' : '✗';
   };
+
+  // Traditional View toolbar pill (the original "Filter Users" markup, reused for 3-0 / Status / Line/O/U).
+  // Filters live in the toolbar rather than the table headers: a useFilterModal has a single triggerRef and
+  // FilterModal anchors to / click-outside-tests against it, so one filter can have exactly one trigger
+  // button, and the per-lock sub-headers repeat three times inside a horizontally scrolling table.
+  const renderTraditionalFilterPill = ({ modal, items, isFiltered, count, label, shortLabel }) => (
+    <button
+      {...createFilterButtonProps(modal, items, (selected) => {
+        modal.handleSelectionChange(selected);
+      }, {
+        IconComponent: FunnelIconOutline,
+        IconComponentSolid: FunnelIconSolid,
+        className: `px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base flex items-center gap-2 ${
+          isFiltered
+            ? 'bg-blue-600 text-white hover:bg-blue-700'
+            : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
+        }`
+      })}
+    >
+      {isFiltered ? (
+        <FunnelIconSolid className="h-4 w-4" />
+      ) : (
+        <FunnelIconOutline className="h-4 w-4" />
+      )}
+      <span className="hidden sm:inline">{label}</span>
+      <span className="sm:hidden">{shortLabel}</span>
+      {isFiltered && (
+        <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+
+  // Traditional View header sort chevrons. Chevrons hold no ref, so the same key can repeat in all three
+  // Lock groups; they light together because the sort is row-level across a user's locks (hence the tooltip).
+  const renderTraditionalSortChevrons = (key, title) => (
+    <div className="flex flex-col ml-1" title={title}>
+      <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${traditionalSortConfig.key === key && traditionalSortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleTraditionalSort(key)} />
+      <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${traditionalSortConfig.key === key && traditionalSortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleTraditionalSort(key)} />
+    </div>
+  );
 
   // Table rendering
   return (
@@ -861,20 +1111,20 @@ const WeeklyLocks = () => {
               {/* Mobile Sort & Filter Button - Only visible on mobile for table view */}
               <button
                 className={`md:hidden px-2 py-1 rounded flex items-center gap-1 text-sm ${
-                  (isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending'))
+                  (hasActiveTableFilter || hasNonDefaultTableSort)
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
                 }`}
                 onClick={() => setShowMobileSortFilter(true)}
                 type="button"
               >
-                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered || (sortConfig.key !== 'user' || sortConfig.direction !== 'ascending')) ? (
+                {(hasActiveTableFilter || hasNonDefaultTableSort) ? (
                   <FunnelIconSolid className="h-4 w-4" />
                 ) : (
                   <FunnelIconOutline className="h-4 w-4" />
                 )}
                 Sort & Filter
-                {(isUserFiltered || isLeagueFiltered || isAwayTeamFiltered || isHomeTeamFiltered || isLockFiltered || isResultFiltered || isDateFiltered || isTimeFiltered || isStatusFiltered) && (
+                {hasActiveTableFilter && (
                   <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
                     Active
                   </span>
@@ -928,7 +1178,29 @@ const WeeklyLocks = () => {
                       </div>
                     </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">
-                        <span>3-0 Eligible</span>
+                        <div className="flex items-center gap-1">
+                            <span className="whitespace-nowrap">3-0 Eligible</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeO' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('threeO')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'threeO' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('threeO')} />
+                            </div>
+                            <button
+                              {...createFilterButtonProps(threeOModal, uniqueThreeO, (selectedThreeO) => {
+                                threeOModal.handleSelectionChange(selectedThreeO);
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                                className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
+                              })}
+                            >
+                              {/* Icon keyed on the page-level flag (like Status) so a value set from the mobile select also lights it */}
+                              {isThreeOFiltered ? (
+                                <FunnelIconSolid className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <FunnelIconOutline className="h-4 w-4 text-gray-500" />
+                              )}
+                            </button>
+                        </div>
                     </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300">
                       <div className="flex items-center gap-1">
@@ -1007,7 +1279,30 @@ const WeeklyLocks = () => {
                             />
                         </div>
                     </th>
-                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Line/O/U</th>
+                    <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">
+                        <div className="flex items-center gap-1">
+                            <span>Line/O/U</span>
+                            <div className="flex flex-col ml-1">
+                                <ChevronUpIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'line' && sortConfig.direction === 'ascending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('line')} />
+                                <ChevronDownIcon className={`h-3 w-3 cursor-pointer ${sortConfig.key === 'line' && sortConfig.direction === 'descending' ? 'text-blue-600' : 'text-gray-400'}`} onClick={() => handleSort('line')} />
+                            </div>
+                            <button
+                              {...createFilterButtonProps(lineModal, uniqueLines, (selectedLines) => {
+                                lineModal.handleSelectionChange(selectedLines);
+                              }, {
+                                IconComponent: FunnelIconOutline,
+                                IconComponentSolid: FunnelIconSolid,
+                                className: "ml-1 p-1 rounded hover:bg-gray-200 transition-colors"
+                              })}
+                            >
+                              {isLineFiltered ? (
+                                <FunnelIconSolid className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <FunnelIconOutline className="h-4 w-4 text-gray-500" />
+                              )}
+                            </button>
+                        </div>
+                    </th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">Score</th>
                     <th className="px-1 py-1 md:px-2 md:py-2 border-r border-gray-300 hidden md:table-cell">
                         <div className="flex items-center gap-1">
@@ -1171,49 +1466,37 @@ const WeeklyLocks = () => {
             </div>
           ) : (
             <>
-              {/* Traditional View Filter Controls */}
+              {/* Traditional View Filter Controls: filter pills (see renderTraditionalFilterPill); sorting is in the headers */}
               <div className="mb-4 flex flex-wrap gap-2 justify-center md:justify-start">
                 <button
                   className="border border-gray-400 text-gray-700 bg-white px-2 py-1 md:px-4 md:py-2 rounded hover:bg-gray-100 text-sm md:text-base"
-                  onClick={() => traditionalUserModal.resetFilter()}
+                  onClick={handleResetTraditionalFilters}
                   type="button"
                 >
-                  <span className="hidden sm:inline">Reset User Filter</span>
-                  <span className="sm:hidden">Reset Filter</span>
+                  <span className="hidden sm:inline">Reset Filters</span>
+                  <span className="sm:hidden">Reset</span>
                 </button>
-                <button
-                  {...createFilterButtonProps(traditionalUserModal, uniqueTraditionalUsers, (selectedUsers) => {
-                    traditionalUserModal.handleSelectionChange(selectedUsers);
-                  }, {
-                    IconComponent: FunnelIconOutline,
-                    IconComponentSolid: FunnelIconSolid,
-                    className: `px-2 py-1 md:px-4 md:py-2 rounded text-sm md:text-base flex items-center gap-2 ${
-                      isTraditionalUserFiltered 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'border border-gray-400 text-gray-700 bg-white hover:bg-gray-100'
-                    }`
-                  })}
-                >
-                  {isTraditionalUserFiltered ? (
-                    <FunnelIconSolid className="h-4 w-4" />
-                  ) : (
-                    <FunnelIconOutline className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">Filter Users</span>
-                  <span className="sm:hidden">Filter</span>
-                  {isTraditionalUserFiltered && (
-                    <span className="ml-1 text-xs bg-white text-blue-600 px-1 py-0.5 rounded-full">
-                      {traditionalUserFilter.length}
-                    </span>
-                  )}
-                </button>
+                {renderTraditionalFilterPill({ modal: traditionalUserModal, items: uniqueTraditionalUsers, isFiltered: isTraditionalUserFiltered, count: traditionalUserFilter.length, label: 'Filter Users', shortLabel: 'Filter' })}
+                {renderTraditionalFilterPill({ modal: traditionalThreeOModal, items: uniqueTraditionalThreeO, isFiltered: isTraditionalThreeOFiltered, count: traditionalThreeOFilter.length, label: 'Filter 3-0', shortLabel: '3-0' })}
+                {renderTraditionalFilterPill({ modal: traditionalStatusModal, items: totalUniqueStatuses, isFiltered: isTraditionalStatusFiltered, count: traditionalStatusFilter.length, label: 'Filter Status', shortLabel: 'Status' })}
+                {renderTraditionalFilterPill({ modal: traditionalLineModal, items: totalUniqueLines, isFiltered: isTraditionalLineFiltered, count: traditionalLineFilter.length, label: 'Filter Line/O/U', shortLabel: 'Line' })}
               </div>
               <div className="overflow-x-auto border border-gray-300 rounded shadow relative" style={{ scrollbarWidth: 'thin' }}>
              <table className="w-full bg-white text-xs sm:text-sm md:text-base" style={{ minWidth: 'max-content' }}>
                <thead>
                  <tr className="bg-gray-100 text-left border-b border-gray-300">
-                   <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-100 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">User</th>
-                   <th className="px-2 py-2 border-r border-gray-300 text-center">3-0 Eligible</th>
+                   <th className="px-2 py-2 border-r border-gray-300 sticky left-0 bg-gray-100 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                     <div className="flex items-center gap-1">
+                       <span>User</span>
+                       {renderTraditionalSortChevrons('user')}
+                     </div>
+                   </th>
+                   <th className="px-2 py-2 border-r border-gray-300 text-center">
+                     <div className="flex items-center justify-center gap-1">
+                       <span className="whitespace-nowrap">3-0 Eligible</span>
+                       {renderTraditionalSortChevrons('threeO')}
+                     </div>
+                   </th>
                    <th className="px-2 py-2 border-r border-gray-300 text-center">Record</th>
                    {[1,2,3].map(i => (
                      <th key={i} colSpan={10} className="px-2 py-2 border-r border-gray-300 text-center">Lock {i}</th>
@@ -1229,9 +1512,19 @@ const WeeklyLocks = () => {
                        <th className="px-2 py-2 border-r border-gray-300">Away</th>
                        <th className="px-2 py-2 border-r border-gray-300">Home</th>
                        <th className="px-2 py-2 border-r border-gray-300">Lock</th>
-                       <th className="px-2 py-2 border-r border-gray-300">Line/O/U</th>
+                       <th className="px-2 py-2 border-r border-gray-300">
+                         <div className="flex items-center gap-1">
+                           <span>Line/O/U</span>
+                           {renderTraditionalSortChevrons('line', 'Sorts users by their lowest (ascending) or highest (descending) line across all three locks')}
+                         </div>
+                       </th>
                        <th className="px-2 py-2 border-r border-gray-300">Score</th>
-                       <th className="px-2 py-2 border-r border-gray-300">Status</th>
+                       <th className="px-2 py-2 border-r border-gray-300">
+                         <div className="flex items-center gap-1">
+                           <span>Status</span>
+                           {renderTraditionalSortChevrons('status', 'Sorts users by their best status across all three locks')}
+                         </div>
+                       </th>
                        <th className="px-2 py-2 border-r border-gray-300">W/L/T</th>
                        <th className="px-2 py-2 border-r border-gray-300">Date</th>
                        <th className="px-2 py-2 border-r border-gray-300">Time</th>
@@ -1240,13 +1533,7 @@ const WeeklyLocks = () => {
                  </tr>
                </thead>
                <tbody>
-                 {filteredUsersForTraditionalView
-                   .sort((a, b) => {
-                     const nameA = (a.firstName || '') + (a.lastName ? ' ' + a.lastName : '') || a.email;
-                     const nameB = (b.firstName || '') + (b.lastName ? ' ' + b.lastName : '') || b.email;
-                     return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
-                   })
-                   .map((user, idx) => {
+                 {traditionalViewRows.map((user, idx) => {
                    const userName = (user.firstName || '') + (user.lastName ? ' ' + user.lastName : '');
                    const picks = getSortedPicksForUser(user.firebaseUid);
                    const rowBgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
@@ -1305,6 +1592,12 @@ const WeeklyLocks = () => {
                  })}
                </tbody>
              </table>
+              {/* Only claim a filter is responsible when there were members to filter (seasonUsers is [] if /api/users failed) */}
+              {seasonUsers.length > 0 && traditionalViewRows.length === 0 && (
+                <div className="px-2 py-4 text-center text-gray-400">
+                  No users match the current filters.
+                </div>
+              )}
             </div>
             </>
           )}
@@ -1397,10 +1690,55 @@ const WeeklyLocks = () => {
       />
       
       <FilterModal
+        {...createFilterModalProps(threeOModal, uniqueThreeO, (selectedThreeO) => {
+          threeOModal.handleSelectionChange(selectedThreeO);
+        }, {
+          title: 'Filter 3-0 Eligible',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(lineModal, uniqueLines, (selectedLines) => {
+          lineModal.handleSelectionChange(selectedLines);
+        }, {
+          title: 'Filter Line/O/U',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
         {...createFilterModalProps(traditionalUserModal, uniqueTraditionalUsers, (selectedUsers) => {
           traditionalUserModal.handleSelectionChange(selectedUsers);
         }, {
           title: 'Filter Users (Traditional View)',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(traditionalThreeOModal, uniqueTraditionalThreeO, (selectedThreeO) => {
+          traditionalThreeOModal.handleSelectionChange(selectedThreeO);
+        }, {
+          title: 'Filter 3-0 Eligible (Traditional View)',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(traditionalStatusModal, totalUniqueStatuses, (selectedStatuses) => {
+          traditionalStatusModal.handleSelectionChange(selectedStatuses);
+        }, {
+          title: 'Filter Status (Traditional View)',
+          placement: 'bottom-start',
+        })}
+      />
+      
+      <FilterModal
+        {...createFilterModalProps(traditionalLineModal, totalUniqueLines, (selectedLines) => {
+          traditionalLineModal.handleSelectionChange(selectedLines);
+        }, {
+          title: 'Filter Line/O/U (Traditional View)',
           placement: 'bottom-start',
         })}
       />
@@ -1425,10 +1763,12 @@ const WeeklyLocks = () => {
               <div className="space-y-2">
                 {[
                   { key: 'user', label: 'User' },
+                  { key: 'threeO', label: '3-0 Eligible' },
                   { key: 'league', label: 'League' },
                   { key: 'away_team_abbrev', label: 'Away Team' },
                   { key: 'home_team_abbrev', label: 'Home Team' },
                   { key: 'lock', label: 'Lock' },
+                  { key: 'line', label: 'Line/O/U' },
                   { key: 'status', label: 'Status' },
                   { key: 'result', label: 'W/L/T' },
                   { key: 'date', label: 'Date' },
@@ -1481,6 +1821,21 @@ const WeeklyLocks = () => {
                     <option value="">All Users</option>
                     {uniqueUsers.map(user => (
                       <option key={user} value={user}>{user}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3-0 Eligible Filter (column hidden on phones, like Status; the row filter still applies) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">3-0 Eligible</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={threeOFilter.length === 1 ? threeOFilter[0] : ''}
+                    onChange={(e) => setSingleSelectFilter(threeOModal, e.target.value)}
+                  >
+                    <option value="">All</option>
+                    {withSelectedValues(uniqueThreeO, threeOFilter).map(value => (
+                      <option key={value} value={value}>{value}</option>
                     ))}
                   </select>
                 </div>
@@ -1553,6 +1908,21 @@ const WeeklyLocks = () => {
                     <option value="">All Locks</option>
                     {uniqueLocks.map(lock => (
                       <option key={lock} value={lock}>{lock}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Line/O/U Filter (the mobile Lock cell shows the line inline) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Line/O/U</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={lineFilter.length === 1 ? lineFilter[0] : ''}
+                    onChange={(e) => setSingleSelectFilter(lineModal, e.target.value)}
+                  >
+                    <option value="">All Lines</option>
+                    {withSelectedValues(uniqueLines, lineFilter).map(value => (
+                      <option key={value} value={value}>{value}</option>
                     ))}
                   </select>
                 </div>
